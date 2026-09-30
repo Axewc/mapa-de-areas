@@ -42,6 +42,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body {
   margin: 0;
   background-color: var(--paper);
@@ -158,6 +159,30 @@ td.hi { font-weight: 600; background: var(--tint); }
 .bar-tools { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 0.9rem; }
 .topnav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 
+/* Modos */
+.modes { display: grid; gap: 10px; }
+.mode { text-align: left; background: var(--paper); border: 1.5px solid var(--line); border-radius: 4px; padding: 0.85rem 1rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.mode:hover { border-color: var(--accent); }
+.mode[aria-pressed="true"] { border-color: var(--accent); background: var(--tint); }
+.mode b { font-weight: 600; }
+.mode span { color: var(--muted); font-size: 0.9rem; }
+.mode .tag { align-self: flex-start; font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; background: var(--mark); color: var(--ink); padding: 0 0.35rem; border-radius: 2px; }
+:root[data-theme="dark"] .mode .tag { color: var(--ink); }
+/* Opciones con letra */
+.opt { display: grid; grid-template-columns: 1.6rem 1fr; gap: 0.5rem; align-items: start; }
+.opt .k { font-family: var(--f-mono); font-size: 0.8rem; color: var(--accent); padding-top: 0.12rem; }
+.hint { color: var(--muted); font-size: 0.85rem; margin-top: 1rem; }
+.gloss { margin-top: 1.25rem; background: var(--panel); border: 1.5px dashed var(--line); border-radius: 4px; padding: 0.7rem 1rem; }
+.gloss summary { cursor: pointer; font-weight: 500; font-size: 0.95rem; }
+.gloss dl { margin: 0.8rem 0 0; display: flex; flex-direction: column; gap: 0.7rem; }
+.gloss dt { font-weight: 600; font-size: 0.95rem; }
+.gloss dd { margin: 0.1rem 0 0; color: var(--muted); font-size: 0.92rem; }
+/* Proyectos */
+.projects { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.9rem; }
+.projects li { border-left: 3px solid var(--accent); padding-left: 0.85rem; }
+.projects b { font-weight: 600; }
+.projects .meta { display: block; margin-top: 0.15rem; }
+.vtag { font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -166,7 +191,7 @@ td.hi { font-weight: 600; background: var(--tint); }
 <main class="wrap">
 
   <section id="s-intro" class="intro">
-    <p class="mono">Quinto semestre · 10 preguntas · 5 minutos</p>
+    <p class="mono">Quinto semestre · 10 preguntas · 5 minutos · sin respuestas correctas</p>
     <h1>¿Qué área de computación <mark>va contigo</mark>?</h1>
     <p class="lede">No hay respuestas correctas. Elige lo que harías de verdad, no lo que suena mejor en un CV. Al final verás tres áreas que encajan con tus respuestas y qué puedes probar este semestre para comprobarlo.</p>
     <form id="login" class="panel authbox" novalidate>
@@ -178,6 +203,10 @@ td.hi { font-weight: 600; background: var(--tint); }
     </form>
     <div id="home" class="panel authbox" hidden>
       <p class="mono" id="who"></p>
+      <div>
+        <p class="mono" style="margin-bottom:0.6rem">Elige cómo quieres hacerlo</p>
+        <div class="modes" id="modes" role="group" aria-label="Versión del cuestionario"></div>
+      </div>
       <div class="actions">
         <button class="btn" id="start" type="button">Hacer el cuestionario</button>
         <button class="btn ghost" id="to-history" type="button">Mis respuestas</button>
@@ -206,196 +235,408 @@ td.hi { font-weight: 600; background: var(--tint); }
 <script>
 //DATA-START
 var AREAS = {
-  dat: {
-    name: "Analítica e ingeniería de datos",
-    short: "Reúnes datos de sistemas distintos, los limpias, los modelas en bases de datos y armas tableros para que una empresa decida con ellos.",
-    ask: "¿Qué parte de tu semana se va en limpiar datos y cuánta en analizarlos?",
-    try: [
-      "Toma un conjunto de datos abiertos de México, arma un tablero en Power BI o Streamlit y responde tres preguntas con él.",
-      "Practica SQL más allá del laboratorio: joins, agrupaciones y funciones de ventana sobre datos reales.",
-      "Diseña el modelo entidad-relación de algo que uses (tus gastos, un torneo) y cárgalo en PostgreSQL."
-    ],
-    courses: "Bases de datos, Estructuras de datos, Estadística."
+  "dat": {
+    "name": "Analítica e ingeniería de datos",
+    "short": "Reúnes datos de sistemas distintos, los limpias, los modelas en bases de datos y armas tableros para que una empresa decida con ellos.",
+    "ask": "¿Qué parte de tu semana se va en limpiar datos y cuánta en analizarlos?",
+    "courses": "Bases de datos, Estructuras de datos, Estadística.",
+    "projects": [
+      {
+        "n": "Tablero de tus propios gastos",
+        "d": "Junta los gastos del último mes en una hoja, limpia los datos y arma un tablero (Power BI o Looker Studio, ambos gratis) que conteste: ¿en qué se me va el dinero?",
+        "t": "1 fin de semana"
+      },
+      {
+        "n": "Preguntas a datos abiertos de México",
+        "d": "Baja un conjunto de datos de datos.gob.mx o del INEGI (transporte, población, precios), hazle tres preguntas con SQL y muestra las respuestas en gráficas.",
+        "t": "2 semanas"
+      },
+      {
+        "n": "Base de datos de algo que te importe",
+        "d": "Diseña las tablas de un torneo, tu biblioteca o tu equipo favorito en PostgreSQL y escribe diez consultas que respondan cosas interesantes.",
+        "t": "2 semanas"
+      }
+    ]
   },
-  ml: {
-    name: "Ciencia de datos y aprendizaje automático",
-    short: "Entrenas y evalúas modelos que predicen o clasifican, y verificas que sigan funcionando fuera del cuaderno donde nacieron.",
-    ask: "¿Cuánto de tu trabajo es modelar y cuánto es conseguir buenos datos y llevar el modelo a producción?",
-    try: [
-      "Entra a una competencia para principiantes en Kaggle y documenta qué probaste y qué falló.",
-      "Reproduce el resultado de un artículo sencillo con tu propio código.",
-      "Repasa probabilidad y álgebra lineal resolviendo un problema aplicado, no solo ejercicios de libro."
-    ],
-    courses: "Probabilidad, Álgebra lineal, Inteligencia artificial, Estadística."
+  "ml": {
+    "name": "Ciencia de datos y aprendizaje automático",
+    "short": "Entrenas y evalúas modelos que predicen o clasifican, y verificas que sigan funcionando fuera del cuaderno donde nacieron.",
+    "ask": "¿Cuánto de tu trabajo es modelar y cuánto es conseguir buenos datos y llevar el modelo a producción?",
+    "courses": "Probabilidad, Álgebra lineal, Inteligencia artificial, Estadística.",
+    "projects": [
+      {
+        "n": "Tu primer modelo, con guía",
+        "d": "Haz el curso gratis \"Intro to Machine Learning\" de Kaggle y entrena un modelo que prediga precios de casas. No hace falta entender todo a la primera.",
+        "t": "1 semana"
+      },
+      {
+        "n": "Un clasificador con tus propias fotos",
+        "d": "Junta unas 100 fotos de dos cosas (tacos y tortas, perros y gatos), entrena un modelo en Teachable Machine y averigua cuándo se equivoca y por qué.",
+        "t": "1 fin de semana"
+      },
+      {
+        "n": "Reproduce un resultado",
+        "d": "Elige un artículo de divulgación con código público, corre su ejemplo y anota qué cambia cuando modificas los datos.",
+        "t": "2 semanas"
+      }
+    ]
   },
-  bak: {
-    name: "Desarrollo backend",
-    short: "Construyes lo que no se ve: APIs, reglas de negocio y bases de datos, cuidando que la aplicación responda rápido y sin errores.",
-    ask: "¿Cómo deciden en tu equipo qué se arregla primero cuando algo falla en producción?",
-    try: [
-      "Haz una API REST con autenticación y base de datos usando FastAPI o Spring Boot.",
-      "Escribe pruebas automáticas para lo que ya construiste.",
-      "Sube el proyecto a GitHub con un README que otra persona pueda seguir sin preguntarte."
-    ],
-    courses: "Estructuras de datos, Ingeniería de software, Bases de datos, Sistemas operativos."
+  "bak": {
+    "name": "Desarrollo backend",
+    "short": "Construyes lo que no se ve: APIs, reglas de negocio y bases de datos, cuidando que la aplicación responda rápido y sin errores.",
+    "ask": "¿Cómo deciden en tu equipo qué se arregla primero cuando algo falla en producción?",
+    "courses": "Estructuras de datos, Ingeniería de software, Bases de datos, Sistemas operativos.",
+    "projects": [
+      {
+        "n": "Una API de tareas",
+        "d": "Una API es la ventanilla con la que otros programas le piden cosas al tuyo. Haz una que guarde y devuelva tareas, con FastAPI o Spring Boot y una base de datos.",
+        "t": "2 semanas"
+      },
+      {
+        "n": "Un bot de Telegram o Discord útil",
+        "d": "Que te recuerde fechas de entrega o consulte el clima. Es backend real con un resultado que ves de inmediato.",
+        "t": "1 fin de semana"
+      },
+      {
+        "n": "Pruebas para lo que ya hiciste",
+        "d": "Toma un proyecto de una materia, escríbele pruebas automáticas y súbelo a GitHub con un README que otra persona pueda seguir.",
+        "t": "1 semana"
+      }
+    ]
   },
-  web: {
-    name: "Desarrollo full-stack y producto",
-    short: "Conviertes una idea en una aplicación que alguien usa: interfaz, lógica y despliegue, cuidando cómo se siente usarla.",
-    ask: "¿Quién decide qué se construye y cómo saben si funcionó?",
-    try: [
-      "Publica una página o app pequeña con React o Next.js y pídele a cinco personas que la usen.",
-      "Consigue un usuario real, aunque sea un amigo con un problema pequeño.",
-      "Despliega en una plataforma gratuita y conecta una base de datos."
-    ],
-    courses: "Ingeniería de software, Bases de datos."
+  "web": {
+    "name": "Desarrollo full-stack y producto",
+    "short": "Conviertes una idea en una aplicación que alguien usa: interfaz, lógica y despliegue, cuidando cómo se siente usarla.",
+    "ask": "¿Quién decide qué se construye y cómo saben si funcionó?",
+    "courses": "Ingeniería de software, Bases de datos.",
+    "projects": [
+      {
+        "n": "Página de un club de la Facultad",
+        "d": "Horarios y eventos con HTML y CSS, publicada gratis en Vercel. Es el proyecto más corto para tener algo real en internet.",
+        "t": "1 fin de semana"
+      },
+      {
+        "n": "Una app pequeña con usuarios reales",
+        "d": "Una lista de pendientes compartida o un buscador de tiendas con React. Pídele a cinco personas que la usen y anota qué les confunde.",
+        "t": "3 semanas"
+      },
+      {
+        "n": "Rediseña algo que te frustre",
+        "d": "Elige un trámite o sistema que uses, dibuja en Figma cómo lo harías y explica cada cambio.",
+        "t": "1 semana"
+      }
+    ]
   },
-  rsk: {
-    name: "Riesgos, seguros y finanzas cuantitativas",
-    short: "Usas probabilidad y programación para estimar pérdidas posibles, como lo que costaría un sismo o un huracán a una aseguradora, y ayudas a decidir cuánto riesgo se acepta y a qué precio.",
-    ask: "¿Cómo le explican el modelo a un comité que no es técnico?",
-    try: [
-      "Reproduce un cálculo de pérdida esperada con una simulación Monte Carlo en Python.",
-      "Explora los datos del Servicio Sismológico Nacional y estima con qué frecuencia ocurren sismos por región.",
-      "Averigua en qué se distinguen un actuario, un modelador catastrófico y un analista de riesgos."
-    ],
-    courses: "Probabilidad, Estadística, Simulación, Bases de datos."
+  "rsk": {
+    "name": "Riesgos, seguros y finanzas cuantitativas",
+    "short": "Usas probabilidad y programación para estimar pérdidas posibles, como lo que costaría un sismo o un huracán a una aseguradora, y ayudas a decidir cuánto riesgo se acepta y a qué precio.",
+    "ask": "¿Cómo le explican el modelo a un comité que no es técnico?",
+    "courses": "Probabilidad, Estadística, Simulación, Bases de datos.",
+    "projects": [
+      {
+        "n": "Un volado mil veces",
+        "d": "Con Python, simula lanzar monedas o dados miles de veces y compara con la probabilidad teórica. Es el mismo truco (Monte Carlo) con el que se estiman pérdidas.",
+        "t": "1 fin de semana"
+      },
+      {
+        "n": "Sismos en México",
+        "d": "Baja el catálogo del Servicio Sismológico Nacional y calcula cuántos sismos grandes ocurren por región y por año.",
+        "t": "2 semanas"
+      },
+      {
+        "n": "¿Cuánto cuesta asegurar algo?",
+        "d": "Inventa un seguro sencillo (celular, bicicleta), estima con datos cuánto pagaría en promedio y qué precio cobrarías para no perder.",
+        "t": "2 semanas"
+      }
+    ]
   },
-  con: {
-    name: "Consultoría tecnológica",
-    short: "Entras a empresas distintas, entiendes su problema, propones una solución técnica y la implementas o la coordinas. Aprendes rápido de muchos sectores.",
-    ask: "¿Cuánto cambia tu proyecto cada seis meses y cuánto puedes elegir tú?",
-    try: [
-      "Describe en una página un problema de una organización que conozcas: contexto, opciones y recomendación.",
-      "Explica un tema técnico en cinco minutos a alguien que no programa.",
-      "Habla con alguien de una consultora y pregúntale cómo fue su primer año."
-    ],
-    courses: "Ingeniería de software, Bases de datos, Redes de computadoras."
+  "con": {
+    "name": "Consultoría tecnológica",
+    "short": "Entras a empresas distintas, entiendes su problema, propones una solución técnica y la implementas o la coordinas. Aprendes rápido de muchos sectores.",
+    "ask": "¿Cuánto cambia tu proyecto cada seis meses y cuánto puedes elegir tú?",
+    "courses": "Ingeniería de software, Bases de datos, Redes de computadoras.",
+    "projects": [
+      {
+        "n": "Diagnóstico de un negocio cercano",
+        "d": "Entrevista a la persona dueña de una papelería o cafetería y escribe una página con su problema, tres opciones y tu recomendación.",
+        "t": "2 semanas"
+      },
+      {
+        "n": "Explícalo en cinco minutos",
+        "d": "Elige un tema de una materia, explícaselo a alguien que no programa y pídele que te diga dónde se perdió.",
+        "t": "1 fin de semana"
+      },
+      {
+        "n": "Habla con alguien de una consultora",
+        "d": "Busca en LinkedIn a una persona egresada y pregúntale cómo fue su primer año y qué habría querido saber.",
+        "t": "1 semana"
+      }
+    ]
   },
-  sec: {
-    name: "Ciberseguridad",
-    short: "Piensas como atacante para proteger sistemas: buscas vulnerabilidades, revisas configuraciones y ayudas a responder cuando algo sale mal.",
-    ask: "¿Qué parte del trabajo es ofensiva y qué parte es monitoreo y documentación?",
-    try: [
-      "Resuelve retos de picoCTF durante dos semanas y anota qué aprendiste de cada uno.",
-      "Monta una máquina virtual vulnerable, explótala y luego corrige la falla.",
-      "Repasa redes y criptografía básica con un proyecto práctico."
-    ],
-    courses: "Redes de computadoras, Sistemas operativos, optativas de criptografía."
+  "sec": {
+    "name": "Ciberseguridad",
+    "short": "Piensas como atacante para proteger sistemas: buscas vulnerabilidades, revisas configuraciones y ayudas a responder cuando algo sale mal.",
+    "ask": "¿Qué parte del trabajo es ofensiva y qué parte es monitoreo y documentación?",
+    "courses": "Redes de computadoras, Sistemas operativos, optativas de criptografía.",
+    "projects": [
+      {
+        "n": "Dos semanas de picoCTF",
+        "d": "Un CTF es una competencia donde buscas una \"bandera\" escondida en un sistema hecho a propósito. Anota qué aprendiste en cada reto.",
+        "t": "2 semanas"
+      },
+      {
+        "n": "¿Cuánto tarda en adivinarse una contraseña?",
+        "d": "Aprende cómo se guardan las contraseñas (hash) y escribe un programa que compare una débil con una fuerte.",
+        "t": "1 fin de semana"
+      },
+      {
+        "n": "Un laboratorio vulnerable en casa",
+        "d": "Monta una máquina virtual hecha para practicar (DVWA o Metasploitable), encuentra una falla y luego corrígela.",
+        "t": "3 semanas"
+      }
+    ]
   },
-  inf: {
-    name: "Infraestructura, nube y DevOps",
-    short: "Haces que el software corra de forma estable: servidores, contenedores, despliegues automáticos, monitoreo y costos en la nube.",
-    ask: "¿Con qué frecuencia tiene el equipo guardias o alertas fuera de horario?",
-    try: [
-      "Contenedoriza uno de tus proyectos con Docker y despliégalo con un pipeline en GitHub Actions.",
-      "Mantén un servidor Linux (en casa o un VPS barato) durante un mes.",
-      "Explora una nube pública con su capa gratuita y levanta un servicio pequeño."
-    ],
-    courses: "Sistemas operativos, Redes de computadoras."
+  "inf": {
+    "name": "Infraestructura, nube y DevOps",
+    "short": "Haces que el software corra de forma estable: servidores, contenedores, despliegues automáticos, monitoreo y costos en la nube.",
+    "ask": "¿Con qué frecuencia tiene el equipo guardias o alertas fuera de horario?",
+    "courses": "Sistemas operativos, Redes de computadoras.",
+    "projects": [
+      {
+        "n": "Un servidor Linux de práctica",
+        "d": "Monta o renta una máquina Linux barata, conéctate por terminal, instala un servicio sencillo y mantenlo un mes.",
+        "t": "1 mes"
+      },
+      {
+        "n": "Empaqueta un proyecto con Docker",
+        "d": "Docker es una caja que lleva tu programa con todo lo que necesita para correr igual en cualquier computadora. Empaqueta uno tuyo.",
+        "t": "1 semana"
+      },
+      {
+        "n": "Despliegue automático",
+        "d": "Configura GitHub Actions para que cada cambio que subas se pruebe y se publique solo.",
+        "t": "1 semana"
+      }
+    ]
   },
-  inv: {
-    name: "Investigación y posgrado",
-    short: "Haces preguntas que todavía no tienen respuesta, diseñas experimentos o demostraciones y publicas. El camino suele pasar por la tesis y una maestría.",
-    ask: "¿Cómo entraste a tu grupo de investigación y cómo se financió tu posgrado?",
-    try: [
-      "Platica con un profesor sobre su línea de investigación y pídele una lectura para un mes.",
-      "Pregunta por ayudantías o servicio social en un laboratorio.",
-      "Lee un artículo reciente de un tema que te guste y resúmelo en una página."
-    ],
-    courses: "Las materias donde quisiste saber más allá del temario."
+  "inv": {
+    "name": "Investigación y posgrado",
+    "short": "Haces preguntas que todavía no tienen respuesta, diseñas experimentos o demostraciones y publicas. El camino suele pasar por la tesis y una maestría.",
+    "ask": "¿Cómo entraste a tu grupo de investigación y cómo se financió tu posgrado?",
+    "courses": "Las materias donde quisiste saber más allá del temario.",
+    "projects": [
+      {
+        "n": "Platica con un profesor",
+        "d": "Pregunta por su línea de investigación y pide una lectura para un mes.",
+        "t": "1 semana"
+      },
+      {
+        "n": "Resume un artículo",
+        "d": "Elige un artículo reciente de algo que te guste, léelo en tres pasadas y resúmelo en una página con tus palabras.",
+        "t": "2 semanas"
+      },
+      {
+        "n": "Ayudantía o servicio social en un laboratorio",
+        "d": "Averigua qué laboratorios reciben estudiantes de quinto semestre y qué te pedirían saber.",
+        "t": "1 semana"
+      }
+    ]
   }
 };
 
-var QUESTIONS = [
+// Versión 1: usa nombres de herramientas. Versión 2: solo actividades cotidianas.
+var SETS = {
+  1: { name: 'Con herramientas', qs: [
   { q: "Tienes un fin de semana libre y ganas de hacer un proyecto propio. ¿Cuál eliges?", opts: [
-    { t: "Analizar un conjunto de datos que me intriga y ver qué encuentro", p: { dat: 2, ml: 2, rsk: 1 } },
-    { t: "Construir una aplicación que otras personas puedan usar", p: { web: 3, bak: 1 } },
-    { t: "Montar un servidor en casa o automatizar mi entorno de trabajo", p: { inf: 3, sec: 1, bak: 1 } },
-    { t: "Leer un artículo científico e intentar reproducir sus resultados", p: { inv: 3, ml: 2 } },
-    { t: "Resolver retos de seguridad tipo CTF", p: { sec: 3, inf: 1 } }
+    { t: "Analizar un conjunto de datos que me intriga y ver qué encuentro", p: {dat: 2, ml: 2, rsk: 1} },
+    { t: "Construir una aplicación que otras personas puedan usar", p: {web: 3, bak: 1} },
+    { t: "Montar un servidor en casa o automatizar mi entorno de trabajo", p: {inf: 3, sec: 1, bak: 1} },
+    { t: "Leer un artículo científico e intentar reproducir sus resultados", p: {inv: 3, ml: 2} },
+    { t: "Resolver retos de seguridad tipo CTF", p: {sec: 3, inf: 1} }
   ]},
   { q: "¿Qué parte de un problema te engancha más?", opts: [
-    { t: "Encontrar el patrón escondido en los números", p: { ml: 2, dat: 1, rsk: 2, inv: 1 } },
-    { t: "Diseñar cómo encajan las piezas del sistema", p: { bak: 3, inf: 1, con: 1 } },
-    { t: "Lograr que a quien lo use le resulte claro y agradable", p: { web: 3, con: 1 } },
-    { t: "Encontrar dónde se puede romper o abusar", p: { sec: 3, inf: 1 } },
-    { t: "Explicarlo bien para que otros puedan decidir", p: { con: 3, dat: 1 } }
+    { t: "Encontrar el patrón escondido en los números", p: {ml: 2, dat: 1, rsk: 2, inv: 1} },
+    { t: "Diseñar cómo encajan las piezas del sistema", p: {bak: 3, inf: 1, con: 1} },
+    { t: "Lograr que a quien lo use le resulte claro y agradable", p: {web: 3, con: 1} },
+    { t: "Encontrar dónde se puede romper o abusar", p: {sec: 3, inf: 1} },
+    { t: "Explicarlo bien para que otros puedan decidir", p: {con: 3, dat: 1} }
   ]},
   { q: "¿Cómo imaginas un buen día de trabajo?", opts: [
-    { t: "Horas de concentración en un problema difícil, casi sin interrupciones", p: { inv: 2, ml: 1, sec: 1, bak: 1 } },
-    { t: "Conversaciones con gente distinta y problemas nuevos cada semana", p: { con: 3, web: 1 } },
-    { t: "Con un equipo estable, entregando mejoras a un producto", p: { web: 2, bak: 2, inf: 1 } },
-    { t: "Vigilando que todo funcione y atendiendo lo que se caiga", p: { inf: 3, sec: 2 } },
-    { t: "Armando modelos y reportes para que otros tomen decisiones", p: { dat: 2, rsk: 2, con: 1 } }
+    { t: "Horas de concentración en un problema difícil, casi sin interrupciones", p: {inv: 2, ml: 1, sec: 1, bak: 1} },
+    { t: "Conversaciones con gente distinta y problemas nuevos cada semana", p: {con: 3, web: 1} },
+    { t: "Con un equipo estable, entregando mejoras a un producto", p: {web: 2, bak: 2, inf: 1} },
+    { t: "Vigilando que todo funcione y atendiendo lo que se caiga", p: {inf: 3, sec: 2} },
+    { t: "Armando modelos y reportes para que otros tomen decisiones", p: {dat: 2, rsk: 2, con: 1} }
   ]},
   { q: "¿Cómo te llevas con probabilidad, estadística y álgebra?", opts: [
-    { t: "Son lo que más disfruto de la carrera", p: { rsk: 3, ml: 3, inv: 2 } },
-    { t: "Me gustan cuando tienen una aplicación clara", p: { dat: 2, ml: 1, rsk: 1 } },
-    { t: "Las uso cuando toca, pero prefiero programar", p: { bak: 2, web: 1, inf: 1 } },
-    { t: "Me atraen más la lógica, los algoritmos y la criptografía", p: { sec: 3, inv: 1, bak: 1 } },
-    { t: "Las aprobé, pero no es donde quiero estar", p: { web: 2, inf: 2, con: 1 } }
+    { t: "Son lo que más disfruto de la carrera", p: {rsk: 3, ml: 3, inv: 2} },
+    { t: "Me gustan cuando tienen una aplicación clara", p: {dat: 2, ml: 1, rsk: 1} },
+    { t: "Las uso cuando toca, pero prefiero programar", p: {bak: 2, web: 1, inf: 1} },
+    { t: "Me atraen más la lógica, los algoritmos y la criptografía", p: {sec: 3, inv: 1, bak: 1} },
+    { t: "Las aprobé, pero no es donde quiero estar", p: {web: 2, inf: 2, con: 1} }
   ]},
   { q: "En un proyecto en equipo, ¿qué rol terminas tomando?", opts: [
-    { t: "Organizo qué hay que entregar y cuándo", p: { con: 3, web: 1 } },
-    { t: "Me quedo con la parte técnica más complicada", p: { bak: 2, inv: 1, sec: 1 } },
-    { t: "Limpio los datos y armo los resultados", p: { dat: 3, ml: 1 } },
-    { t: "Me encargo de que todo corra y se pueda desplegar", p: { inf: 3, bak: 1 } },
-    { t: "Hago la interfaz y la presentación", p: { web: 3, con: 1 } }
+    { t: "Organizo qué hay que entregar y cuándo", p: {con: 3, web: 1} },
+    { t: "Me quedo con la parte técnica más complicada", p: {bak: 2, inv: 1, sec: 1} },
+    { t: "Limpio los datos y armo los resultados", p: {dat: 3, ml: 1} },
+    { t: "Me encargo de que todo corra y se pueda desplegar", p: {inf: 3, bak: 1} },
+    { t: "Hago la interfaz y la presentación", p: {web: 3, con: 1} }
   ]},
   { q: "¿Qué pesa más para ti al elegir un primer trabajo?", opts: [
-    { t: "Aprender rápido de muchas industrias", p: { con: 3, dat: 1 } },
-    { t: "Profundizar en una técnica hasta dominarla", p: { inv: 2, ml: 2, sec: 1 } },
-    { t: "Una industria grande con carrera clara y estabilidad", p: { rsk: 2, dat: 1, bak: 1, con: 1 } },
-    { t: "Ver que personas reales usan lo que construyo", p: { web: 3, bak: 1 } },
-    { t: "Que el trabajo tenga impacto científico o social", p: { inv: 2, ml: 1, rsk: 1, dat: 1 } }
+    { t: "Aprender rápido de muchas industrias", p: {con: 3, dat: 1} },
+    { t: "Profundizar en una técnica hasta dominarla", p: {inv: 2, ml: 2, sec: 1} },
+    { t: "Una industria grande con carrera clara y estabilidad", p: {rsk: 2, dat: 1, bak: 1, con: 1} },
+    { t: "Ver que personas reales usan lo que construyo", p: {web: 3, bak: 1} },
+    { t: "Que el trabajo tenga impacto científico o social", p: {inv: 2, ml: 1, rsk: 1, dat: 1} }
   ]},
   { q: "Algo falla y no entiendes por qué. ¿Qué haces primero?", opts: [
-    { t: "Reviso registros y trazas hasta ubicar dónde se rompe", p: { bak: 2, inf: 2 } },
-    { t: "Pruebo con los datos para ver si el problema está en ellos", p: { dat: 3, ml: 1 } },
-    { t: "Me pregunto cómo podría alguien aprovechar esa falla", p: { sec: 3 } },
-    { t: "Lo reproduzco en el navegador y reviso qué ve la persona usuaria", p: { web: 3 } },
-    { t: "Busco el fundamento teórico de lo que debería pasar", p: { inv: 2, ml: 1, rsk: 1 } }
+    { t: "Reviso registros y trazas hasta ubicar dónde se rompe", p: {bak: 2, inf: 2} },
+    { t: "Pruebo con los datos para ver si el problema está en ellos", p: {dat: 3, ml: 1} },
+    { t: "Me pregunto cómo podría alguien aprovechar esa falla", p: {sec: 3} },
+    { t: "Lo reproduzco en el navegador y reviso qué ve la persona usuaria", p: {web: 3} },
+    { t: "Busco el fundamento teórico de lo que debería pasar", p: {inv: 2, ml: 1, rsk: 1} }
   ]},
   { q: "¿Qué sector te da más curiosidad?", opts: [
-    { t: "Seguros, banca o finanzas", p: { rsk: 3, dat: 1, con: 1 } },
-    { t: "Salud, ciencia o educación", p: { inv: 1, ml: 2, dat: 1 } },
-    { t: "Startups y productos digitales", p: { web: 2, bak: 2 } },
-    { t: "Gobierno, telecomunicaciones o grandes empresas", p: { con: 2, inf: 1, sec: 1 } },
-    { t: "Aún no sé, me gustaría probar varios", p: { con: 2, dat: 1 }, unsure: true }
+    { t: "Seguros, banca o finanzas", p: {rsk: 3, dat: 1, con: 1} },
+    { t: "Salud, ciencia o educación", p: {inv: 1, ml: 2, dat: 1} },
+    { t: "Startups y productos digitales", p: {web: 2, bak: 2} },
+    { t: "Gobierno, telecomunicaciones o grandes empresas", p: {con: 2, inf: 1, sec: 1} },
+    { t: "Aún no sé, me gustaría probar varios", p: {con: 2, dat: 1}, unsure: true }
   ]},
   { q: "¿Qué abrirías con más ganas mañana?", opts: [
-    { t: "Un notebook de Python o un tablero de Power BI", p: { dat: 2, ml: 2 } },
-    { t: "Un editor con un framework de backend", p: { bak: 3 } },
-    { t: "La terminal con Docker o Wireshark", p: { inf: 2, sec: 2, bak: 1 } },
-    { t: "Figma o un proyecto de React", p: { web: 3 } },
-    { t: "LaTeX o un paquete estadístico", p: { inv: 2, rsk: 2, ml: 1 } }
+    { t: "Un notebook de Python o un tablero de Power BI", p: {dat: 2, ml: 2} },
+    { t: "Un editor con un framework de backend", p: {bak: 3} },
+    { t: "La terminal con Docker o Wireshark", p: {inf: 2, sec: 2, bak: 1} },
+    { t: "Figma o un proyecto de React", p: {web: 3} },
+    { t: "LaTeX o un paquete estadístico", p: {inv: 2, rsk: 2, ml: 1} }
   ]},
   { q: "Dentro de cinco años, ¿qué te gustaría que fuera cierto?", opts: [
-    { t: "Soy la persona a quien consultan sobre un tema técnico específico", p: { inv: 1, ml: 1, sec: 1, bak: 1, inf: 1 } },
-    { t: "Lidero equipos o proyectos", p: { con: 3, web: 1 } },
-    { t: "Terminé un posgrado", p: { inv: 3, ml: 1, rsk: 1 } },
-    { t: "Tengo un producto o negocio propio", p: { web: 3, bak: 1, con: 1 } },
-    { t: "Tomo decisiones con datos en una empresa", p: { dat: 3, rsk: 1, con: 1 } }
+    { t: "Soy la persona a quien consultan sobre un tema técnico específico", p: {inv: 1, ml: 1, sec: 1, bak: 1, inf: 1} },
+    { t: "Lidero equipos o proyectos", p: {con: 3, web: 1} },
+    { t: "Terminé un posgrado", p: {inv: 3, ml: 1, rsk: 1} },
+    { t: "Tengo un producto o negocio propio", p: {web: 3, bak: 1, con: 1} },
+    { t: "Tomo decisiones con datos en una empresa", p: {dat: 3, rsk: 1, con: 1} }
   ]}
+] },
+  2: { name: 'Explorar', qs: [
+  { q: "Te dan una semana libre y un pretexto para crear algo. ¿Qué te emociona más?", opts: [
+    { t: "Descubrir qué patrones hay en algo que me gusta (mis gastos, el futbol, mi música)", p: {dat: 2, ml: 2, rsk: 1} },
+    { t: "Hacer una aplicación o página que mis amigos de verdad usen", p: {web: 3, bak: 1} },
+    { t: "Armar algo que funcione solo en segundo plano: avisos, respaldos, tareas automáticas", p: {inf: 3, bak: 1} },
+    { t: "Investigar cómo funciona algo a fondo, aunque no sirva para nada inmediato", p: {inv: 3, ml: 1} },
+    { t: "Intentar “romper” un juego o un candado digital para ver cómo se hace", p: {sec: 3, inf: 1} }
+  ]},
+  { q: "Un amigo te pide ayuda con un problema. ¿Qué papel te sale natural?", opts: [
+    { t: "Ordenar su información en una tabla y mostrarle qué dice", p: {dat: 3, con: 1} },
+    { t: "Preguntarle mucho hasta entender qué necesita y proponerle opciones", p: {con: 3, web: 1} },
+    { t: "Predecir qué pasará si sigue igual: “si sigues así, en tres meses…”", p: {ml: 2, rsk: 2} },
+    { t: "Construirle la herramienta que le resuelva el problema", p: {web: 2, bak: 2} },
+    { t: "Revisar qué podría salirle mal y cómo protegerlo", p: {sec: 2, rsk: 2, inf: 1} }
+  ]},
+  { q: "¿Qué tipo de juego o actividad te absorbe más?", opts: [
+    { t: "Rompecabezas y lógica, de los que dejas y retomas al día siguiente", p: {inv: 2, sec: 2, ml: 1} },
+    { t: "Administrar recursos: ciudades, equipos o economías", p: {inf: 1, rsk: 2, con: 1, dat: 1} },
+    { t: "Estrategia donde calculas probabilidades y riesgos", p: {rsk: 3, ml: 1} },
+    { t: "Diseñar y decorar: mundos, personajes, pantallas", p: {web: 3} },
+    { t: "Juegos de equipo donde coordinas a los demás", p: {con: 3, web: 1} }
+  ]},
+  { q: "Cuando algo en tu celular o computadora falla, ¿qué haces?", opts: [
+    { t: "Busco qué cambió y lo arreglo yo, aunque tenga que abrir configuraciones raras", p: {inf: 3, bak: 1, sec: 1} },
+    { t: "Me pregunto quién podría aprovechar esa falla", p: {sec: 3} },
+    { t: "Me molesta que sea confuso de usar y pienso cómo lo haría más claro", p: {web: 3, con: 1} },
+    { t: "Leo foros hasta entender la causa de fondo", p: {inv: 2, bak: 2} },
+    { t: "Se lo paso a alguien que sepa; prefiero no meterme", p: {con: 1, dat: 1} }
+  ]},
+  { q: "Te ofrecen leer una sola noticia completa. ¿Cuál eliges?", opts: [
+    { t: "Cómo un programa logró predecir el clima o una epidemia", p: {ml: 3, rsk: 1, inv: 1} },
+    { t: "Cómo una empresa decidió sus precios según lo que compran sus clientes", p: {dat: 3, con: 1} },
+    { t: "Cómo un hackeo filtró datos de millones de personas", p: {sec: 3} },
+    { t: "Cuánto le costaría a las aseguradoras un huracán o un sismo grande", p: {rsk: 3, dat: 1} },
+    { t: "Cómo una app pequeña llegó a millones de usuarios", p: {web: 2, bak: 2, inf: 1} }
+  ]},
+  { q: "¿Cómo prefieres aprender algo nuevo?", opts: [
+    { t: "Haciéndolo yo, equivocándome y arreglándolo", p: {bak: 2, web: 1, inf: 2} },
+    { t: "Leyendo con calma la explicación completa, incluso la demostración", p: {inv: 3, ml: 1, rsk: 1} },
+    { t: "Viendo ejemplos con números reales y comparándolos", p: {dat: 2, ml: 1, rsk: 2} },
+    { t: "Platicando con alguien que ya lo hace", p: {con: 3, web: 1} },
+    { t: "Con un reto de reglas claras y meta clara, como una competencia", p: {sec: 2, ml: 1, inf: 1} }
+  ]},
+  { q: "¿Qué sientes con los números?", opts: [
+    { t: "Me gusta más el dibujo que cuenta lo que dicen: gráficas y tableros", p: {dat: 3, web: 1} },
+    { t: "Me gusta deducir con ellos: “¿qué tan probable es que…?”", p: {rsk: 3, ml: 2, inv: 1} },
+    { t: "Me gustan cuando son parte de una idea más grande, como una demostración", p: {inv: 3, ml: 1} },
+    { t: "Los uso cuando toca, sin más", p: {bak: 1, web: 1, inf: 1} },
+    { t: "No son lo mío; prefiero construir cosas", p: {web: 2, inf: 2, con: 1} }
+  ]},
+  { q: "¿Cómo imaginas una jornada de trabajo ideal?", opts: [
+    { t: "Con audífonos, concentrado en algo complicado casi sin interrupciones", p: {inv: 2, sec: 1, bak: 1, ml: 1} },
+    { t: "Platicando con gente distinta y cambiando de tema cada semana", p: {con: 3, web: 1} },
+    { t: "Con un equipo fijo, sacando mejoras para algo que ya existe", p: {web: 2, bak: 2, inf: 1} },
+    { t: "Pendiente de que nada se caiga, listo para atender urgencias", p: {inf: 3, sec: 2} },
+    { t: "Con hojas y reportes que ayudan a tomar decisiones importantes", p: {dat: 2, rsk: 2, con: 1} }
+  ]},
+  { q: "¿Dónde te gustaría que trabajaran tus ideas?", opts: [
+    { t: "En algo que use gente común todos los días", p: {web: 3, bak: 1} },
+    { t: "En una empresa grande: banco, aseguradora, hospital", p: {rsk: 2, dat: 2, con: 1} },
+    { t: "En un laboratorio o universidad, descubriendo cosas nuevas", p: {inv: 3, ml: 1} },
+    { t: "En proteger a otras personas de fraudes o ataques", p: {sec: 3, inf: 1} },
+    { t: "Aún no sé, prefiero probar un poco de todo", p: {con: 2, dat: 1}, unsure: true }
+  ]},
+  { q: "Dentro de cinco años, ¿qué te dejaría contento?", opts: [
+    { t: "Que me pidan opinión por saber mucho de un tema específico", p: {inv: 1, ml: 1, sec: 1, bak: 1, inf: 1} },
+    { t: "Coordinar un proyecto y ver cómo sale", p: {con: 3, web: 1} },
+    { t: "Haber estudiado un posgrado", p: {inv: 3, ml: 1, rsk: 1} },
+    { t: "Tener mi propio producto o negocio", p: {web: 3, bak: 1, con: 1} },
+    { t: "Que las decisiones de mi trabajo se apoyen en lo que yo encontré", p: {dat: 3, rsk: 1, con: 1} }
+  ]}
+] }
+};
+
+// [nombre, texto a buscar en minúsculas, explicación]
+var GLOSS = [
+  ["Jupyter notebook", "notebook", "Un documento donde escribes código por partes y ves el resultado al instante, con gráficas y notas. Es la herramienta más común para analizar datos."],
+  ["Power BI", "power bi", "Programa de Microsoft para armar tableros: gráficas y tablas que se pueden filtrar, hechas a partir de datos."],
+  ["API", "api", "La ventanilla con la que un programa le pide cosas a otro. Ejemplo: la app del clima le pregunta a un servidor qué temperatura hay."],
+  ["Framework", "framework", "Un kit de piezas ya armadas para construir más rápido cierto tipo de programa, en lugar de empezar de cero."],
+  ["Backend y frontend", "backend", "Frontend es lo que ves y tocas en una aplicación. Backend es lo que no se ve: guarda los datos y aplica las reglas."],
+  ["Docker", "docker", "Una caja que lleva tu programa con todo lo que necesita, para que corra igual en cualquier computadora."],
+  ["Terminal", "terminal", "Una pantalla de texto donde le das órdenes a la computadora escribiendo, sin ratón."],
+  ["Wireshark", "wireshark", "Programa que te deja ver los mensajes que viajan por una red."],
+  ["CTF", "ctf", "Competencia de seguridad: retos donde buscas una \"bandera\" escondida en un sistema hecho a propósito para practicar."],
+  ["Registros y trazas", "trazas", "El diario que un programa escribe de lo que hace. Sirve para ver dónde se rompió."],
+  ["Figma", "figma", "Programa para dibujar cómo se verá una aplicación antes de programarla."],
+  ["React", "react", "Un framework muy popular para construir páginas y aplicaciones web interactivas."],
+  ["LaTeX", "latex", "Sistema para escribir documentos con mucha matemática (artículos, tesis)."],
+  ["SQL", "sql", "Lenguaje para hacerle preguntas a una base de datos: “dame las ventas de marzo por tienda”."],
+  ["Monte Carlo", "monte carlo", "Técnica que repite un experimento al azar miles de veces en la computadora para estimar qué tan probable es algo."],
+  ["GitHub Actions", "github actions", "Una forma de que GitHub ejecute tareas solo cada vez que subes cambios, como probar y publicar tu programa."],
+  ["Hash", "hash", "Una forma de guardar una contraseña sin guardarla tal cual: se convierte en una cadena que no se puede deshacer fácilmente."],
+  ["Vercel", "vercel", "Servicio gratuito para publicar una página en internet con un enlace."],
+  ["Producción", "producción", "Cuando el programa ya lo usan personas reales, no solo tú probándolo."],
+  ["Desplegar", "desplegar", "Publicar el programa para que otras personas puedan usarlo."],
+  ["Kaggle", "kaggle", "Sitio con datos, cursos gratis y competencias de ciencia de datos para principiantes."],
+  ["Looker Studio", "looker studio", "Herramienta gratuita de Google para hacer tableros con datos."]
 ];
 
 var MAXP = {};
-Object.keys(AREAS).forEach(function (k) {
-  MAXP[k] = QUESTIONS.reduce(function (sum, q) {
-    return sum + Math.max.apply(null, q.opts.map(function (o) { return o.p[k] || 0; }));
-  }, 0);
+Object.keys(SETS).forEach(function (v) {
+  MAXP[v] = {};
+  Object.keys(AREAS).forEach(function (k) {
+    MAXP[v][k] = SETS[v].qs.reduce(function (sum, q) {
+      return sum + Math.max.apply(null, q.opts.map(function (o) { return o.p[k] || 0; }));
+    }, 0);
+  });
 });
 
-function scoreAnswers(answers) {
-  var raw = {};
+function scoreAnswers(answers, v) {
+  var qs = SETS[v].qs, raw = {};
   Object.keys(AREAS).forEach(function (k) { raw[k] = 0; });
   answers.forEach(function (choice, i) {
-    var p = QUESTIONS[i].opts[choice].p;
+    var p = qs[i].opts[choice].p;
     Object.keys(p).forEach(function (k) { raw[k] += p[k]; });
   });
   return Object.keys(AREAS).map(function (k, idx) {
-    return { key: k, pct: Math.round(raw[k] / MAXP[k] * 100), idx: idx };
+    return { key: k, pct: Math.round(raw[k] / MAXP[v][k] * 100), idx: idx };
   }).sort(function (a, b) { return b.pct - a.pct || a.idx - b.idx; });
 }
 //DATA-END
@@ -420,6 +661,8 @@ var body = document.getElementById('quiz-body');
 var ticks = document.getElementById('ticks');
 var counter = document.getElementById('counter');
 var backBtn = document.getElementById('back');
+var version = 1;
+var QUESTIONS = SETS[1].qs;
 var answers = [];
 var current = 0;
 var locked = false;
@@ -433,20 +676,43 @@ function pad(n) { return (n < 10 ? '0' : '') + n; }
 
 function renderQuestion() {
   var q = QUESTIONS[current];
-  counter.textContent = pad(current + 1) + ' / ' + QUESTIONS.length;
+  counter.textContent = 'Pregunta ' + (current + 1) + ' de ' + QUESTIONS.length;
   backBtn.disabled = current === 0;
   ticks.setAttribute('aria-valuenow', String(current));
+  ticks.setAttribute('aria-valuemax', String(QUESTIONS.length));
   ticks.textContent = '';
   for (var i = 0; i < QUESTIONS.length; i++) ticks.append(el('div', { class: 'tick' + (i < current ? ' done' : '') }));
   body.textContent = '';
   var list = el('div', { class: 'opts' });
   q.opts.forEach(function (o, idx) {
-    var b = el('button', { class: 'opt', type: 'button', 'aria-pressed': answers[current] === idx ? 'true' : 'false', text: o.t });
+    var b = el('button', { class: 'opt', type: 'button', 'aria-pressed': answers[current] === idx ? 'true' : 'false' }, el('span', { class: 'k', text: String(idx + 1) }), el('span', { text: o.t }));
     b.addEventListener('click', function () { choose(idx, b); });
     list.append(b);
   });
   body.append(el('h2', { text: q.q }), list);
+  if (version === 1) {
+    var g = glossFor([q.q].concat(q.opts.map(function (o) { return o.t; })), '¿Hay términos que no conoces? Aquí se explican');
+    if (g) body.append(g);
+  }
+  body.append(el('p', { class: 'hint', text: 'Puedes responder con las teclas 1 a ' + q.opts.length + '. Nada de esto te encasilla: es para empezar a explorar.' }));
 }
+
+function glossFor(texts, title, limit) {
+  var blob = texts.join(' ').toLowerCase();
+  var hits = GLOSS.filter(function (g) { return blob.indexOf(g[1]) !== -1; });
+  if (limit) hits = hits.slice(0, limit);
+  if (!hits.length) return null;
+  var dl = el('dl');
+  hits.forEach(function (g) { dl.append(el('dt', { text: g[0] }), el('dd', { text: g[2] })); });
+  return el('details', { class: 'gloss' }, el('summary', { text: title }), dl);
+}
+
+document.addEventListener('keydown', function (e) {
+  if (screens.quiz.hidden || locked || e.ctrlKey || e.metaKey || e.altKey) return;
+  var n = parseInt(e.key, 10);
+  var btns = body.querySelectorAll('.opt');
+  if (n >= 1 && n <= btns.length) btns[n - 1].click();
+});
 
 function choose(idx, btn) {
   if (locked) return;
@@ -461,7 +727,7 @@ function choose(idx, btn) {
 }
 
 function renderResult() {
-  var ranked = scoreAnswers(answers);
+  var ranked = scoreAnswers(answers, version);
   var top = ranked.slice(0, 3);
   var unsure = answers.some(function (c, i) { return QUESTIONS[i].opts[c].unsure; });
   var root = screens.result;
@@ -475,7 +741,7 @@ function renderResult() {
   root.append(head);
   var saveNote = el('div', { class: 'note', 'aria-live': 'polite', text: 'Guardando tu resultado…' });
   root.append(saveNote);
-  saveAttempt(answers.slice(), ranked).then(function () {
+  saveAttempt(answers.slice(), ranked, version).then(function () {
     saveNote.textContent = 'Guardado. Puedes volver a verlo en Mis respuestas.';
   }).catch(function (e) {
     saveNote.textContent = 'No se pudo guardar tu resultado (' + (e && e.message ? e.message : 'error') + '). Usa el botón Copiar mi resultado para no perderlo.';
@@ -508,18 +774,24 @@ function renderResult() {
   var cards = el('div', { class: 'cards' });
   top.forEach(function (r, i) {
     var a = AREAS[r.key];
-    var tryList = el('ul', null);
-    a.try.forEach(function (t) { tryList.append(el('li', { text: t })); });
+    var tryList = el('ul', { class: 'projects' });
+    a.projects.forEach(function (pr) {
+      tryList.append(el('li', null, el('b', { text: pr.n }), ' — ' + pr.d, el('span', { class: 'mono meta', text: 'Tiempo estimado: ' + pr.t })));
+    });
     cards.append(el('article', { class: 'panel area' },
       el('p', { class: 'mono rank' }, el('mark', { text: labels[i] })),
       el('h3', { text: a.name }),
       el('div', { class: 'block' }, el('p', { class: 'mono', text: 'Qué haces' }), el('p', { text: a.short })),
       el('div', { class: 'block' }, el('p', { class: 'mono', text: 'Pregunta para alguien que ya trabaja ahí' }), el('p', { class: 'ask', text: a.ask })),
-      el('div', { class: 'block' }, el('p', { class: 'mono', text: 'Para probarla este semestre' }), tryList),
+      el('div', { class: 'block' }, el('p', { class: 'mono', text: 'Proyectos para probarla' }), tryList),
       el('div', { class: 'block' }, el('p', { class: 'mono', text: 'Materias que ayudan' }), el('p', { text: a.courses }))
     ));
   });
   root.append(cards);
+  var projTexts = [];
+  top.forEach(function (r) { AREAS[r.key].projects.forEach(function (pr) { projTexts.push(pr.n + ' ' + pr.d); }); });
+  var gl = glossFor(projTexts, 'Palabras de los proyectos que quizá no conozcas');
+  if (gl) { gl.style.marginTop = '0'; root.append(gl); }
 
   var others = el('details', { class: 'panel others' }, el('summary', { text: 'Ver las otras seis áreas' }));
   ranked.slice(3).forEach(function (r) {
@@ -529,7 +801,7 @@ function renderResult() {
 
   var steps = el('ol', { class: 'steps' },
     el('li', { text: 'Elige dos áreas de tu lista, aunque una no sea la primera.' }),
-    el('li', { text: 'Haz un proyecto pequeño en cada una durante el mes, con las ideas de arriba.' }),
+    el('li', { text: 'Elige un proyecto corto de cada una (los de un fin de semana son buen comienzo) y haz el primero esta semana.' }),
     el('li', { text: 'Habla con una persona que trabaje en cada área y hazle la pregunta que te dejamos.' })
   );
   root.append(el('div', { class: 'panel' }, el('h2', { text: 'Cómo usar este resultado', style: 'font-size:1.35rem;margin-bottom:1rem' }), steps));
@@ -555,13 +827,18 @@ function renderResult() {
   });
   var again = el('button', { class: 'btn ghost', type: 'button', text: 'Volver a empezar' });
   again.addEventListener('click', reset);
+  var other = version === 1 ? 2 : 1;
+  var otherBtn = el('button', { class: 'btn ghost', type: 'button', text: 'Probar la versión «' + SETS[other].name + '»' });
+  otherBtn.addEventListener('click', function () { startQuiz(other); });
   var histBtn = el('button', { class: 'btn ghost', type: 'button', text: 'Mis respuestas' });
   histBtn.addEventListener('click', renderHistory);
-  root.append(el('div', { class: 'footer-actions' }, copyBtn, histBtn, again), status, shareBox);
+  root.append(el('div', { class: 'footer-actions' }, copyBtn, otherBtn, histBtn, again), status, shareBox);
 
   show('result');
 }
 
+function setVersion(v) { version = v; QUESTIONS = SETS[v].qs; }
+function startQuiz(v) { setVersion(v); answers = []; current = 0; locked = false; renderQuestion(); show('quiz'); }
 function reset() { answers = []; current = 0; locked = false; show('intro'); }
 
 var SUPABASE_URL = 'https://vhdrnrzerjysjzpyzgif.supabase.co';
@@ -577,6 +854,20 @@ var homeBox = document.getElementById('home');
 var authMsg = document.getElementById('auth-msg');
 var who = document.getElementById('who');
 var toAdmin = document.getElementById('to-admin');
+
+var modesBox = document.getElementById('modes');
+var chosen = 2;
+function drawModes() {
+  modesBox.textContent = '';
+  [[2, 'Explorar', 'Preguntas sobre lo que te gusta hacer, sin nombres de herramientas. Ideal si apenas estás decidiendo.', 'Recomendada si estás empezando'],
+   [1, 'Con herramientas', 'Incluye cosas como Python, Docker o Power BI, con una explicación junto a cada pregunta. Mejor si ya programaste bastante.', null]].forEach(function (m) {
+    var b = el('button', { class: 'mode', type: 'button', 'aria-pressed': chosen === m[0] ? 'true' : 'false' },
+      m[3] ? el('span', { class: 'tag', text: m[3] }) : null, el('b', { text: m[1] }), el('span', { text: m[2] }));
+    b.addEventListener('click', function () { chosen = m[0]; drawModes(); });
+    modesBox.append(b);
+  });
+}
+drawModes();
 
 function updateHome() {
   var logged = !!session;
@@ -622,10 +913,10 @@ document.getElementById('logout').addEventListener('click', function () { sb.aut
 document.getElementById('to-history').addEventListener('click', renderHistory);
 toAdmin.addEventListener('click', renderAdmin);
 
-function saveAttempt(ans, ranked) {
+function saveAttempt(ans, ranked, v) {
   var scores = {};
   ranked.forEach(function (r) { scores[r.key] = r.pct; });
-  return sb.from('mapa_respuestas').insert({ answers: ans, scores: scores }).then(function (r) { if (r.error) throw r.error; });
+  return sb.from('mapa_respuestas').insert({ answers: ans, scores: scores, quiz_version: v }).then(function (r) { if (r.error) throw r.error; });
 }
 
 function fmtDate(iso) { return new Date(iso).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }); }
@@ -639,10 +930,11 @@ function topLine(scores) {
   return topOf(scores).slice(0, 3).map(function (r, i) { return (i + 1) + ') ' + AREAS[r.key].name; }).join('   ');
 }
 
-function qaList(ans) {
+function qaList(ans, v) {
   var ul = el('ul', { class: 'qa' });
+  var qs = (SETS[v] || SETS[1]).qs;
   ans.forEach(function (c, i) {
-    var q = QUESTIONS[i];
+    var q = qs[i];
     if (!q || !q.opts[c]) return;
     ul.append(el('li', null, el('p', { class: 'q', text: q.q }), el('p', { class: 'a', text: q.opts[c].t })));
   });
@@ -660,7 +952,7 @@ function renderHistory() {
   root.textContent = '';
   root.append(navBack(), el('p', { class: 'status', text: 'Cargando tus respuestas…' }));
   show('history');
-  sb.from('mapa_respuestas').select('id,created_at,answers,scores').eq('user_id', session.user.id).order('created_at', { ascending: false }).then(function (r) {
+  sb.from('mapa_respuestas').select('id,created_at,answers,scores,quiz_version').eq('user_id', session.user.id).order('created_at', { ascending: false }).then(function (r) {
     root.textContent = '';
     root.append(navBack());
     if (r.error) { root.append(el('div', { class: 'note', text: 'No se pudieron cargar tus respuestas: ' + r.error.message })); return; }
@@ -672,7 +964,7 @@ function renderHistory() {
     ));
     if (!rows.length) {
       var go = el('button', { class: 'btn', type: 'button', text: 'Hacer el cuestionario' });
-      go.addEventListener('click', function () { answers = []; current = 0; renderQuestion(); show('quiz'); });
+      go.addEventListener('click', function () { startQuiz(chosen); });
       root.append(el('div', null, go));
       return;
     }
@@ -706,14 +998,14 @@ function renderHistory() {
         });
       });
       list.append(el('details', { class: 'attempt' },
-        el('summary', null, el('span', { class: 'mono when', text: fmtDate(row.created_at) }), topLine(row.scores)),
-        qaList(row.answers),
+        el('summary', null, el('span', { class: 'mono when', text: fmtDate(row.created_at) + ' · ' + (SETS[row.quiz_version] || SETS[1]).name }), topLine(row.scores)),
+        qaList(row.answers, row.quiz_version),
         el('div', { class: 'bar-tools' }, del)
       ));
     });
     root.append(el('div', null, el('p', { class: 'mono', text: 'Cada intento' }), el('div', { style: 'height:10px' }), list));
     var again = el('button', { class: 'btn', type: 'button', text: 'Hacer el cuestionario otra vez' });
-    again.addEventListener('click', function () { answers = []; current = 0; renderQuestion(); show('quiz'); });
+    again.addEventListener('click', function () { startQuiz(chosen); });
     root.append(el('div', null, again));
   });
 }
@@ -723,7 +1015,7 @@ function renderAdmin() {
   root.textContent = '';
   root.append(navBack(), el('p', { class: 'status', text: 'Cargando respuestas…' }));
   show('admin');
-  sb.from('mapa_respuestas').select('id,email,created_at,answers,scores').order('created_at', { ascending: false }).limit(1000).then(function (r) {
+  sb.from('mapa_respuestas').select('id,email,created_at,answers,scores,quiz_version').order('created_at', { ascending: false }).limit(1000).then(function (r) {
     root.textContent = '';
     root.append(navBack());
     if (r.error) { root.append(el('div', { class: 'note', text: 'No se pudieron cargar las respuestas: ' + r.error.message })); return; }
@@ -744,8 +1036,8 @@ function renderAdmin() {
       if (!shown.length) list.append(el('p', { class: 'status', text: 'Sin resultados.' }));
       shown.forEach(function (x) {
         list.append(el('details', { class: 'attempt' },
-          el('summary', null, el('span', { class: 'mono when', text: x.email + ' · ' + fmtDate(x.created_at) }), topLine(x.scores)),
-          qaList(x.answers)
+          el('summary', null, el('span', { class: 'mono when', text: x.email + ' · ' + fmtDate(x.created_at) + ' · ' + (SETS[x.quiz_version] || SETS[1]).name }), topLine(x.scores)),
+          qaList(x.answers, x.quiz_version)
         ));
       });
     }
@@ -756,7 +1048,7 @@ function renderAdmin() {
 }
 
 
-document.getElementById('start').addEventListener('click', function () { renderQuestion(); show('quiz'); });
+document.getElementById('start').addEventListener('click', function () { startQuiz(chosen); });
 backBtn.addEventListener('click', function () { if (current > 0 && !locked) { current--; renderQuestion(); } });
 </script>
 </body>

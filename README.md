@@ -14,6 +14,13 @@ Para agregar otro docente:
 insert into public.mapa_admins (email) values ('correo@ejemplo.com');
 ```
 
+## Dos versiones del cuestionario
+
+- Versión 2, «Explorar»: preguntas sobre actividades cotidianas, sin nombres de herramientas. Es la recomendada para quien apenas decide.
+- Versión 1, «Con herramientas»: menciona Python, Docker, Power BI, etc., y explica cada término junto a la pregunta.
+
+Ambas tienen 10 preguntas de 5 opciones y puntúan las mismas nueve áreas, así que los intentos son comparables. La versión se guarda en `quiz_version` (1 o 2) y aparece en Mis respuestas y en la vista docente. Las áreas y sus proyectos están en el bloque `AREAS` de `index.html`.
+
 ## Desplegar
 
 Con cualquiera de estas opciones, el sitio queda en una URL pública:
