@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Mapa de áreas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Concepto: una sola columna sobre papel cuadriculado, como un cuaderno de la Facultad.
+   Tinta azul de pluma, resaltador amarillo solo para lo que importa. Una pantalla a la vez. */
+:root {
+  --paper: #F1F4F2;
+  --panel: #FFFFFF;
+  --ink: #15201E;
+  --muted: #56645F;
+  --line: #CDD6D1;
+  --grid: #E1E8E4;
+  --accent: #1F4FD8;
+  --accent-ink: #FFFFFF;
+  --tint: #E3EAFB;
+  --mark: #FFE27A;
+  --f-display: 'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif;
+  --f-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0F1615; --panel: #172120; --ink: #E7EEEB; --muted: #9BAAA5;
+    --line: #2B3A36; --grid: #16201F; --accent: #8FAEFF; --accent-ink: #0B1220;
+    --tint: #1B2948; --mark: #5A4A12;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0F1615; --panel: #172120; --ink: #E7EEEB; --muted: #9BAAA5;
+  --line: #2B3A36; --grid: #16201F; --accent: #8FAEFF; --accent-ink: #0B1220;
+  --tint: #1B2948; --mark: #5A4A12;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 16px;
+  line-height: 1.55;
+  padding-inline: 16px;
+  padding-block: 28px 64px;
+}
+.wrap { max-width: 720px; margin-inline: auto; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.1; letter-spacing: -0.01em; }
+p { margin: 0; }
+.mono { font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+mark { background: linear-gradient(transparent 55%, var(--mark) 55%); color: inherit; padding: 0 0.1em; }
+
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  background: var(--accent); color: var(--accent-ink);
+  border: 0; border-radius: 4px; padding: 0.85rem 1.4rem;
+  font-weight: 600; font-size: 1rem;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+.btn.ghost:hover { border-color: var(--accent); filter: none; }
+.linkbtn { background: none; border: 0; padding: 0.25rem 0; color: var(--muted); font-size: 0.9rem; text-decoration: underline; text-underline-offset: 3px; }
+.linkbtn:hover { color: var(--ink); }
+.linkbtn[disabled] { visibility: hidden; }
+
+/* Intro */
+.intro { display: flex; flex-direction: column; gap: 1.5rem; padding-top: 8vh; }
+.intro h1 { font-size: clamp(2.1rem, 7vw, 3.4rem); font-weight: 700; max-width: 14ch; }
+.intro .lede { font-size: 1.1rem; max-width: 52ch; }
+.intro .fine { color: var(--muted); font-size: 0.9rem; max-width: 52ch; }
+.intro .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+
+/* Quiz */
+.quiz-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; }
+.ticks { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; margin-bottom: 2rem; }
+.tick { height: 6px; background: var(--line); border-radius: 1px; }
+.tick.done { background: var(--accent); }
+.quiz h2 { font-size: clamp(1.45rem, 4.5vw, 2rem); font-weight: 700; margin-bottom: 1.5rem; }
+.opts { display: flex; flex-direction: column; gap: 10px; }
+.opt {
+  text-align: left; width: 100%;
+  background: var(--panel); border: 1.5px solid var(--line); border-radius: 4px;
+  padding: 0.9rem 1rem; line-height: 1.4;
+  transition: border-color 0.12s, background-color 0.12s;
+}
+.opt:hover { border-color: var(--accent); }
+.opt[aria-pressed="true"] { border-color: var(--accent); background: var(--tint); }
+
+/* Resultado */
+.result { display: flex; flex-direction: column; gap: 2.25rem; }
+.result h1 { font-size: clamp(2rem, 6vw, 2.8rem); font-weight: 700; }
+.result .sub { margin-top: 0.75rem; max-width: 56ch; }
+.note { background: var(--panel); border: 1.5px dashed var(--line); border-radius: 4px; padding: 0.9rem 1rem; font-size: 0.95rem; }
+.panel { background: var(--panel); border: 1.5px solid var(--line); border-radius: 4px; padding: 1.25rem; }
+.bars { display: flex; flex-direction: column; gap: 14px; }
+.bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.bar-name { flex: 1 1 100%; font-weight: 500; font-size: 0.95rem; }
+.bar-track { flex: 1 1 0; min-width: 0; height: 12px; background: var(--grid); border: 1px solid var(--line); border-radius: 2px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--accent); }
+.bar-row.top .bar-name { font-weight: 600; }
+.bar-pct { font-family: var(--f-mono); font-size: 0.85rem; font-variant-numeric: tabular-nums; width: 4ch; text-align: right; }
+.legend { color: var(--muted); font-size: 0.85rem; margin-top: 1rem; }
+
+.cards { display: flex; flex-direction: column; gap: 18px; }
+.area { display: flex; flex-direction: column; gap: 1rem; }
+.area h3 { font-size: 1.6rem; font-weight: 700; }
+.area .rank { align-self: flex-start; }
+.area .block { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+.area ul { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.area .ask { font-style: italic; }
+
+.others summary { cursor: pointer; font-weight: 600; padding: 0.25rem 0; }
+.others .other { padding-top: 0.9rem; }
+.others .other h3 { font-size: 1.1rem; margin-bottom: 0.2rem; }
+.others .other p { color: var(--muted); font-size: 0.95rem; }
+
+.steps { counter-reset: s; list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 2rem 1fr; gap: 0.5rem; }
+.steps li::before { content: counter(s); font-family: var(--f-mono); font-weight: 500; color: var(--accent); }
+.footer-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.share { width: 100%; min-height: 6.5rem; font: inherit; font-size: 0.9rem; background: var(--panel); color: var(--ink); border: 1.5px solid var(--line); border-radius: 4px; padding: 0.7rem; }
+.status { color: var(--muted); font-size: 0.9rem; min-height: 1.2em; }
+
+.authbox { display: flex; flex-direction: column; gap: 0.75rem; max-width: 30rem; }
+.authbox label { display: block; }
+.authbox .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.authbox .fine { color: var(--muted); font-size: 0.85rem; max-width: none; }
+input.field { font: inherit; background: var(--paper); color: var(--ink); border: 1.5px solid var(--line); border-radius: 4px; padding: 0.75rem 0.85rem; width: 100%; }
+.tablewrap { overflow-x: auto; border: 1.5px solid var(--line); border-radius: 4px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { padding: 0.5rem 0.7rem; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+td:first-child { white-space: normal; min-width: 12rem; }
+td.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; }
+td.hi { font-weight: 600; background: var(--tint); }
+.attempts { display: flex; flex-direction: column; gap: 10px; }
+.attempt { background: var(--panel); border: 1.5px solid var(--line); border-radius: 4px; padding: 0.8rem 1rem; }
+.attempt summary { cursor: pointer; font-weight: 500; line-height: 1.4; }
+.attempt summary .when { display: block; }
+.qa { margin: 0.9rem 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.75rem; }
+.qa .q { color: var(--muted); font-size: 0.85rem; }
+.qa .a { font-weight: 500; }
+.bar-tools { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 0.9rem; }
+.topnav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<main class="wrap">
+
+  <section id="s-intro" class="intro">
+    <p class="mono">Quinto semestre · 10 preguntas · 5 minutos</p>
+    <h1>¿Qué área de computación <mark>va contigo</mark>?</h1>
+    <p class="lede">No hay respuestas correctas. Elige lo que harías de verdad, no lo que suena mejor en un CV. Al final verás tres áreas que encajan con tus respuestas y qué puedes probar este semestre para comprobarlo.</p>
+    <form id="login" class="panel authbox" novalidate>
+      <label class="mono" for="email">Tu correo</label>
+      <input class="field" id="email" type="email" inputmode="email" autocomplete="email" placeholder="nombre@correo.com" required>
+      <button class="btn" id="send-link" type="submit">Enviarme el enlace de acceso</button>
+      <p class="fine" id="auth-msg" aria-live="polite"></p>
+      <p class="fine">Guardamos tu correo, tus respuestas y la fecha de cada intento para que puedas revisarlos después. Tu profesor, Axel Casas, puede ver esos datos. Puedes borrar cualquier intento desde Mis respuestas y no se usan para nada más que este cuestionario.</p>
+    </form>
+    <div id="home" class="panel authbox" hidden>
+      <p class="mono" id="who"></p>
+      <div class="actions">
+        <button class="btn" id="start" type="button">Hacer el cuestionario</button>
+        <button class="btn ghost" id="to-history" type="button">Mis respuestas</button>
+        <button class="btn ghost" id="to-admin" type="button" hidden>Vista docente</button>
+      </div>
+      <div><button class="linkbtn" id="logout" type="button">Cerrar sesión</button></div>
+    </div>
+  </section>
+
+  <section id="s-quiz" class="quiz" hidden>
+    <div class="quiz-head">
+      <button class="linkbtn" id="back" type="button">← Atrás</button>
+      <p class="mono" id="counter" aria-live="polite"></p>
+    </div>
+    <div class="ticks" id="ticks" role="progressbar" aria-label="Avance del cuestionario" aria-valuemin="0" aria-valuemax="10"></div>
+    <div id="quiz-body"></div>
+  </section>
+
+  <section id="s-result" class="result" hidden></section>
+  <section id="s-history" class="result" hidden></section>
+  <section id="s-admin" class="result" hidden></section>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+//DATA-START
+var AREAS = {
+  dat: {
+    name: "Analítica e ingeniería de datos",
+    short: "Reúnes datos de sistemas distintos, los limpias, los modelas en bases de datos y armas tableros para que una empresa decida con ellos.",
+    ask: "¿Qué parte de tu semana se va en limpiar datos y cuánta en analizarlos?",
+    try: [
+      "Toma un conjunto de datos abiertos de México, arma un tablero en Power BI o Streamlit y responde tres preguntas con él.",
+      "Practica SQL más allá del laboratorio: joins, agrupaciones y funciones de ventana sobre datos reales.",
+      "Diseña el modelo entidad-relación de algo que uses (tus gastos, un torneo) y cárgalo en PostgreSQL."
+    ],
+    courses: "Bases de datos, Estructuras de datos, Estadística."
+  },
+  ml: {
+    name: "Ciencia de datos y aprendizaje automático",
+    short: "Entrenas y evalúas modelos que predicen o clasifican, y verificas que sigan funcionando fuera del cuaderno donde nacieron.",
+    ask: "¿Cuánto de tu trabajo es modelar y cuánto es conseguir buenos datos y llevar el modelo a producción?",
+    try: [
+      "Entra a una competencia para principiantes en Kaggle y documenta qué probaste y qué falló.",
+      "Reproduce el resultado de un artículo sencillo con tu propio código.",
+      "Repasa probabilidad y álgebra lineal resolviendo un problema aplicado, no solo ejercicios de libro."
+    ],
+    courses: "Probabilidad, Álgebra lineal, Inteligencia artificial, Estadística."
+  },
+  bak: {
+    name: "Desarrollo backend",
+    short: "Construyes lo que no se ve: APIs, reglas de negocio y bases de datos, cuidando que la aplicación responda rápido y sin errores.",
+    ask: "¿Cómo deciden en tu equipo qué se arregla primero cuando algo falla en producción?",
+    try: [
+      "Haz una API REST con autenticación y base de datos usando FastAPI o Spring Boot.",
+      "Escribe pruebas automáticas para lo que ya construiste.",
+      "Sube el proyecto a GitHub con un README que otra persona pueda seguir sin preguntarte."
+    ],
+    courses: "Estructuras de datos, Ingeniería de software, Bases de datos, Sistemas operativos."
+  },
+  web: {
+    name: "Desarrollo full-stack y producto",
+    short: "Conviertes una idea en una aplicación que alguien usa: interfaz, lógica y despliegue, cuidando cómo se siente usarla.",
+    ask: "¿Quién decide qué se construye y cómo saben si funcionó?",
+    try: [
+      "Publica una página o app pequeña con React o Next.js y pídele a cinco personas que la usen.",
+      "Consigue un usuario real, aunque sea un amigo con un problema pequeño.",
+      "Despliega en una plataforma gratuita y conecta una base de datos."
+    ],
+    courses: "Ingeniería de software, Bases de datos."
+  },
+  rsk: {
+    name: "Riesgos, seguros y finanzas cuantitativas",
+    short: "Usas probabilidad y programación para estimar pérdidas posibles, como lo que costaría un sismo o un huracán a una aseguradora, y ayudas a decidir cuánto riesgo se acepta y a qué precio.",
+    ask: "¿Cómo le explican el modelo a un comité que no es técnico?",
+    try: [
+      "Reproduce un cálculo de pérdida esperada con una simulación Monte Carlo en Python.",
+      "Explora los datos del Servicio Sismológico Nacional y estima con qué frecuencia ocurren sismos por región.",
+      "Averigua en qué se distinguen un actuario, un modelador catastrófico y un analista de riesgos."
+    ],
+    courses: "Probabilidad, Estadística, Simulación, Bases de datos."
+  },
+  con: {
+    name: "Consultoría tecnológica",
+    short: "Entras a empresas distintas, entiendes su problema, propones una solución técnica y la implementas o la coordinas. Aprendes rápido de muchos sectores.",
+    ask: "¿Cuánto cambia tu proyecto cada seis meses y cuánto puedes elegir tú?",
+    try: [
+      "Describe en una página un problema de una organización que conozcas: contexto, opciones y recomendación.",
+      "Explica un tema técnico en cinco minutos a alguien que no programa.",
+      "Habla con alguien de una consultora y pregúntale cómo fue su primer año."
+    ],
+    courses: "Ingeniería de software, Bases de datos, Redes de computadoras."
+  },
+  sec: {
+    name: "Ciberseguridad",
+    short: "Piensas como atacante para proteger sistemas: buscas vulnerabilidades, revisas configuraciones y ayudas a responder cuando algo sale mal.",
+    ask: "¿Qué parte del trabajo es ofensiva y qué parte es monitoreo y documentación?",
+    try: [
+      "Resuelve retos de picoCTF durante dos semanas y anota qué aprendiste de cada uno.",
+      "Monta una máquina virtual vulnerable, explótala y luego corrige la falla.",
+      "Repasa redes y criptografía básica con un proyecto práctico."
+    ],
+    courses: "Redes de computadoras, Sistemas operativos, optativas de criptografía."
+  },
+  inf: {
+    name: "Infraestructura, nube y DevOps",
+    short: "Haces que el software corra de forma estable: servidores, contenedores, despliegues automáticos, monitoreo y costos en la nube.",
+    ask: "¿Con qué frecuencia tiene el equipo guardias o alertas fuera de horario?",
+    try: [
+      "Contenedoriza uno de tus proyectos con Docker y despliégalo con un pipeline en GitHub Actions.",
+      "Mantén un servidor Linux (en casa o un VPS barato) durante un mes.",
+      "Explora una nube pública con su capa gratuita y levanta un servicio pequeño."
+    ],
+    courses: "Sistemas operativos, Redes de computadoras."
+  },
+  inv: {
+    name: "Investigación y posgrado",
+    short: "Haces preguntas que todavía no tienen respuesta, diseñas experimentos o demostraciones y publicas. El camino suele pasar por la tesis y una maestría.",
+    ask: "¿Cómo entraste a tu grupo de investigación y cómo se financió tu posgrado?",
+    try: [
+      "Platica con un profesor sobre su línea de investigación y pídele una lectura para un mes.",
+      "Pregunta por ayudantías o servicio social en un laboratorio.",
+      "Lee un artículo reciente de un tema que te guste y resúmelo en una página."
+    ],
+    courses: "Las materias donde quisiste saber más allá del temario."
+  }
+};
+
+var QUESTIONS = [
+  { q: "Tienes un fin de semana libre y ganas de hacer un proyecto propio. ¿Cuál eliges?", opts: [
+    { t: "Analizar un conjunto de datos que me intriga y ver qué encuentro", p: { dat: 2, ml: 2, rsk: 1 } },
+    { t: "Construir una aplicación que otras personas puedan usar", p: { web: 3, bak: 1 } },
+    { t: "Montar un servidor en casa o automatizar mi entorno de trabajo", p: { inf: 3, sec: 1, bak: 1 } },
+    { t: "Leer un artículo científico e intentar reproducir sus resultados", p: { inv: 3, ml: 2 } },
+    { t: "Resolver retos de seguridad tipo CTF", p: { sec: 3, inf: 1 } }
+  ]},
+  { q: "¿Qué parte de un problema te engancha más?", opts: [
+    { t: "Encontrar el patrón escondido en los números", p: { ml: 2, dat: 1, rsk: 2, inv: 1 } },
+    { t: "Diseñar cómo encajan las piezas del sistema", p: { bak: 3, inf: 1, con: 1 } },
+    { t: "Lograr que a quien lo use le resulte claro y agradable", p: { web: 3, con: 1 } },
+    { t: "Encontrar dónde se puede romper o abusar", p: { sec: 3, inf: 1 } },
+    { t: "Explicarlo bien para que otros puedan decidir", p: { con: 3, dat: 1 } }
+  ]},
+  { q: "¿Cómo imaginas un buen día de trabajo?", opts: [
+    { t: "Horas de concentración en un problema difícil, casi sin interrupciones", p: { inv: 2, ml: 1, sec: 1, bak: 1 } },
+    { t: "Conversaciones con gente distinta y problemas nuevos cada semana", p: { con: 3, web: 1 } },
+    { t: "Con un equipo estable, entregando mejoras a un producto", p: { web: 2, bak: 2, inf: 1 } },
+    { t: "Vigilando que todo funcione y atendiendo lo que se caiga", p: { inf: 3, sec: 2 } },
+    { t: "Armando modelos y reportes para que otros tomen decisiones", p: { dat: 2, rsk: 2, con: 1 } }
+  ]},
+  { q: "¿Cómo te llevas con probabilidad, estadística y álgebra?", opts: [
+    { t: "Son lo que más disfruto de la carrera", p: { rsk: 3, ml: 3, inv: 2 } },
+    { t: "Me gustan cuando tienen una aplicación clara", p: { dat: 2, ml: 1, rsk: 1 } },
+    { t: "Las uso cuando toca, pero prefiero programar", p: { bak: 2, web: 1, inf: 1 } },
+    { t: "Me atraen más la lógica, los algoritmos y la criptografía", p: { sec: 3, inv: 1, bak: 1 } },
+    { t: "Las aprobé, pero no es donde quiero estar", p: { web: 2, inf: 2, con: 1 } }
+  ]},
+  { q: "En un proyecto en equipo, ¿qué rol terminas tomando?", opts: [
+    { t: "Organizo qué hay que entregar y cuándo", p: { con: 3, web: 1 } },
+    { t: "Me quedo con la parte técnica más complicada", p: { bak: 2, inv: 1, sec: 1 } },
+    { t: "Limpio los datos y armo los resultados", p: { dat: 3, ml: 1 } },
+    { t: "Me encargo de que todo corra y se pueda desplegar", p: { inf: 3, bak: 1 } },
+    { t: "Hago la interfaz y la presentación", p: { web: 3, con: 1 } }
+  ]},
+  { q: "¿Qué pesa más para ti al elegir un primer trabajo?", opts: [
+    { t: "Aprender rápido de muchas industrias", p: { con: 3, dat: 1 } },
+    { t: "Profundizar en una técnica hasta dominarla", p: { inv: 2, ml: 2, sec: 1 } },
+    { t: "Una industria grande con carrera clara y estabilidad", p: { rsk: 2, dat: 1, bak: 1, con: 1 } },
+    { t: "Ver que personas reales usan lo que construyo", p: { web: 3, bak: 1 } },
+    { t: "Que el trabajo tenga impacto científico o social", p: { inv: 2, ml: 1, rsk: 1, dat: 1 } }
+  ]},
+  { q: "Algo falla y no entiendes por qué. ¿Qué haces primero?", opts: [
+    { t: "Reviso registros y trazas hasta ubicar dónde se rompe", p: { bak: 2, inf: 2 } },
+    { t: "Pruebo con los datos para ver si el problema está en ellos", p: { dat: 3, ml: 1 } },
+    { t: "Me pregunto cómo podría alguien aprovechar esa falla", p: { sec: 3 } },
+    { t: "Lo reproduzco en el navegador y reviso qué ve la persona usuaria", p: { web: 3 } },
+    { t: "Busco el fundamento teórico de lo que debería pasar", p: { inv: 2, ml: 1, rsk: 1 } }
+  ]},
+  { q: "¿Qué sector te da más curiosidad?", opts: [
+    { t: "Seguros, banca o finanzas", p: { rsk: 3, dat: 1, con: 1 } },
+    { t: "Salud, ciencia o educación", p: { inv: 1, ml: 2, dat: 1 } },
+    { t: "Startups y productos digitales", p: { web: 2, bak: 2 } },
+    { t: "Gobierno, telecomunicaciones o grandes empresas", p: { con: 2, inf: 1, sec: 1 } },
+    { t: "Aún no sé, me gustaría probar varios", p: { con: 2, dat: 1 }, unsure: true }
+  ]},
+  { q: "¿Qué abrirías con más ganas mañana?", opts: [
+    { t: "Un notebook de Python o un tablero de Power BI", p: { dat: 2, ml: 2 } },
+    { t: "Un editor con un framework de backend", p: { bak: 3 } },
+    { t: "La terminal con Docker o Wireshark", p: { inf: 2, sec: 2, bak: 1 } },
+    { t: "Figma o un proyecto de React", p: { web: 3 } },
+    { t: "LaTeX o un paquete estadístico", p: { inv: 2, rsk: 2, ml: 1 } }
+  ]},
+  { q: "Dentro de cinco años, ¿qué te gustaría que fuera cierto?", opts: [
+    { t: "Soy la persona a quien consultan sobre un tema técnico específico", p: { inv: 1, ml: 1, sec: 1, bak: 1, inf: 1 } },
+    { t: "Lidero equipos o proyectos", p: { con: 3, web: 1 } },
+    { t: "Terminé un posgrado", p: { inv: 3, ml: 1, rsk: 1 } },
+    { t: "Tengo un producto o negocio propio", p: { web: 3, bak: 1, con: 1 } },
+    { t: "Tomo decisiones con datos en una empresa", p: { dat: 3, rsk: 1, con: 1 } }
+  ]}
+];
+
+var MAXP = {};
+Object.keys(AREAS).forEach(function (k) {
+  MAXP[k] = QUESTIONS.reduce(function (sum, q) {
+    return sum + Math.max.apply(null, q.opts.map(function (o) { return o.p[k] || 0; }));
+  }, 0);
+});
+
+function scoreAnswers(answers) {
+  var raw = {};
+  Object.keys(AREAS).forEach(function (k) { raw[k] = 0; });
+  answers.forEach(function (choice, i) {
+    var p = QUESTIONS[i].opts[choice].p;
+    Object.keys(p).forEach(function (k) { raw[k] += p[k]; });
+  });
+  return Object.keys(AREAS).map(function (k, idx) {
+    return { key: k, pct: Math.round(raw[k] / MAXP[k] * 100), idx: idx };
+  }).sort(function (a, b) { return b.pct - a.pct || a.idx - b.idx; });
+}
+//DATA-END
+
+function el(tag, attrs) {
+  var n = document.createElement(tag);
+  if (attrs) Object.keys(attrs).forEach(function (k) {
+    if (k === 'class') n.className = attrs[k];
+    else if (k === 'text') n.textContent = attrs[k];
+    else n.setAttribute(k, attrs[k]);
+  });
+  for (var i = 2; i < arguments.length; i++) {
+    var c = arguments[i];
+    if (c == null) continue;
+    n.append(c.nodeType ? c : document.createTextNode(c));
+  }
+  return n;
+}
+
+var screens = { intro: document.getElementById('s-intro'), quiz: document.getElementById('s-quiz'), result: document.getElementById('s-result'), history: document.getElementById('s-history'), admin: document.getElementById('s-admin') };
+var body = document.getElementById('quiz-body');
+var ticks = document.getElementById('ticks');
+var counter = document.getElementById('counter');
+var backBtn = document.getElementById('back');
+var answers = [];
+var current = 0;
+var locked = false;
+
+function show(name) {
+  Object.keys(screens).forEach(function (k) { screens[k].hidden = (k !== name); });
+  window.scrollTo(0, 0);
+}
+
+function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+function renderQuestion() {
+  var q = QUESTIONS[current];
+  counter.textContent = pad(current + 1) + ' / ' + QUESTIONS.length;
+  backBtn.disabled = current === 0;
+  ticks.setAttribute('aria-valuenow', String(current));
+  ticks.textContent = '';
+  for (var i = 0; i < QUESTIONS.length; i++) ticks.append(el('div', { class: 'tick' + (i < current ? ' done' : '') }));
+  body.textContent = '';
+  var list = el('div', { class: 'opts' });
+  q.opts.forEach(function (o, idx) {
+    var b = el('button', { class: 'opt', type: 'button', 'aria-pressed': answers[current] === idx ? 'true' : 'false', text: o.t });
+    b.addEventListener('click', function () { choose(idx, b); });
+    list.append(b);
+  });
+  body.append(el('h2', { text: q.q }), list);
+}
+
+function choose(idx, btn) {
+  if (locked) return;
+  locked = true;
+  answers[current] = idx;
+  Array.prototype.forEach.call(body.querySelectorAll('.opt'), function (b) { b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
+  setTimeout(function () {
+    locked = false;
+    if (current < QUESTIONS.length - 1) { current++; renderQuestion(); }
+    else renderResult();
+  }, 170);
+}
+
+function renderResult() {
+  var ranked = scoreAnswers(answers);
+  var top = ranked.slice(0, 3);
+  var unsure = answers.some(function (c, i) { return QUESTIONS[i].opts[c].unsure; });
+  var root = screens.result;
+  root.textContent = '';
+
+  var head = el('div', null,
+    el('p', { class: 'mono', text: 'Tu resultado' }),
+    el('h1', { text: 'Tres áreas para probar primero' }),
+    el('p', { class: 'sub', text: 'Esto ordena las áreas según qué tanto coinciden tus respuestas con lo que cada una suele pedir. Sirve para empezar a explorar, no para decidir tu carrera.' })
+  );
+  root.append(head);
+  var saveNote = el('div', { class: 'note', 'aria-live': 'polite', text: 'Guardando tu resultado…' });
+  root.append(saveNote);
+  saveAttempt(answers.slice(), ranked).then(function () {
+    saveNote.textContent = 'Guardado. Puedes volver a verlo en Mis respuestas.';
+  }).catch(function (e) {
+    saveNote.textContent = 'No se pudo guardar tu resultado (' + (e && e.message ? e.message : 'error') + '). Usa el botón Copiar mi resultado para no perderlo.';
+  });
+
+  var notes = [];
+  if (top[0].pct - top[2].pct <= 10) notes.push('Tus tres primeras áreas están muy cerca. Es lo normal en quinto semestre y significa que conviene probar dos de ellas antes de inclinarte por una.');
+  else if (top[0].pct - top[1].pct >= 15) notes.push('Una de tus áreas se separa claramente de las demás. Aun así, prueba la segunda con un proyecto pequeño para comparar.');
+  if (unsure) notes.push('Dijiste que aún no sabes qué sector te interesa. Eso es común y no te retrasa: lo que más ayuda es hacer un proyecto pequeño en dos áreas y ver cuál te deja con ganas de seguir.');
+  notes.forEach(function (t) { root.append(el('div', { class: 'note', text: t })); });
+
+  var bars = el('div', { class: 'bars' });
+  ranked.forEach(function (r, i) {
+    var fill = el('div', { class: 'bar-fill' });
+    fill.style.width = r.pct + '%';
+    bars.append(el('div', { class: 'bar-row' + (i < 3 ? ' top' : '') },
+      el('div', { class: 'bar-name', text: AREAS[r.key].name }),
+      el('div', { class: 'bar-track' }, fill),
+      el('div', { class: 'bar-pct', text: r.pct + '%' })
+    ));
+  });
+  root.append(el('div', { class: 'panel' },
+    el('p', { class: 'mono', text: 'Afinidad por área' }),
+    el('div', { style: 'height:14px' }),
+    bars,
+    el('p', { class: 'legend', text: '100% significaría que en cada pregunta elegiste la respuesta que más se parece a esa área.' })
+  ));
+
+  var labels = ['Mejor coincidencia', 'Segunda', 'Tercera'];
+  var cards = el('div', { class: 'cards' });
+  top.forEach(function (r, i) {
+    var a = AREAS[r.key];
+    var tryList = el('ul', null);
+    a.try.forEach(function (t) { tryList.append(el('li', { text: t })); });
+    cards.append(el('article', { class: 'panel area' },
+      el('p', { class: 'mono rank' }, el('mark', { text: labels[i] })),
+      el('h3', { text: a.name }),
+      el('div', { class: 'block' }, el('p', { class: 'mono', text: 'Qué haces' }), el('p', { text: a.short })),
+      el('div', { class: 'block' }, el('p', { class: 'mono', text: 'Pregunta para alguien que ya trabaja ahí' }), el('p', { class: 'ask', text: a.ask })),
+      el('div', { class: 'block' }, el('p', { class: 'mono', text: 'Para probarla este semestre' }), tryList),
+      el('div', { class: 'block' }, el('p', { class: 'mono', text: 'Materias que ayudan' }), el('p', { text: a.courses }))
+    ));
+  });
+  root.append(cards);
+
+  var others = el('details', { class: 'panel others' }, el('summary', { text: 'Ver las otras seis áreas' }));
+  ranked.slice(3).forEach(function (r) {
+    others.append(el('div', { class: 'other' }, el('h3', { text: AREAS[r.key].name }), el('p', { text: AREAS[r.key].short })));
+  });
+  root.append(others);
+
+  var steps = el('ol', { class: 'steps' },
+    el('li', { text: 'Elige dos áreas de tu lista, aunque una no sea la primera.' }),
+    el('li', { text: 'Haz un proyecto pequeño en cada una durante el mes, con las ideas de arriba.' }),
+    el('li', { text: 'Habla con una persona que trabaje en cada área y hazle la pregunta que te dejamos.' })
+  );
+  root.append(el('div', { class: 'panel' }, el('h2', { text: 'Cómo usar este resultado', style: 'font-size:1.35rem;margin-bottom:1rem' }), steps));
+
+  var summary = 'Mi mapa de áreas: ' + top.map(function (r, i) { return (i + 1) + ') ' + AREAS[r.key].name + ' (' + r.pct + '%)'; }).join('  ');
+  var status = el('p', { class: 'status', 'aria-live': 'polite' });
+  var shareBox = el('div', null);
+  var copyBtn = el('button', { class: 'btn', type: 'button', text: 'Copiar mi resultado' });
+  copyBtn.addEventListener('click', function () {
+    var done = function () { status.textContent = 'Copiado. Puedes pegarlo en un mensaje.'; };
+    var fallback = function () {
+      shareBox.textContent = '';
+      var ta = el('textarea', { class: 'share', id: 'share-text', readonly: 'readonly' });
+      ta.value = summary;
+      shareBox.append(ta);
+      ta.focus(); ta.select();
+      status.textContent = 'Selecciona el texto y cópialo.';
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(summary).then(done, fallback);
+      else fallback();
+    } catch (e) { fallback(); }
+  });
+  var again = el('button', { class: 'btn ghost', type: 'button', text: 'Volver a empezar' });
+  again.addEventListener('click', reset);
+  var histBtn = el('button', { class: 'btn ghost', type: 'button', text: 'Mis respuestas' });
+  histBtn.addEventListener('click', renderHistory);
+  root.append(el('div', { class: 'footer-actions' }, copyBtn, histBtn, again), status, shareBox);
+
+  show('result');
+}
+
+function reset() { answers = []; current = 0; locked = false; show('intro'); }
+
+var SUPABASE_URL = 'https://vhdrnrzerjysjzpyzgif.supabase.co';
+var SUPABASE_KEY = 'sb_publishable_D6zlOACzmjEzb2_CdqupZQ_Vyj1ZbQz';
+var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' }
+});
+var session = null;
+var isAdmin = false;
+
+var loginForm = document.getElementById('login');
+var homeBox = document.getElementById('home');
+var authMsg = document.getElementById('auth-msg');
+var who = document.getElementById('who');
+var toAdmin = document.getElementById('to-admin');
+
+function updateHome() {
+  var logged = !!session;
+  loginForm.hidden = logged;
+  homeBox.hidden = !logged;
+  if (logged) {
+    who.textContent = 'Sesión: ' + session.user.email;
+    sb.from('mapa_admins').select('email').limit(1).then(function (r) {
+      isAdmin = !r.error && r.data && r.data.length > 0;
+      toAdmin.hidden = !isAdmin;
+    });
+  } else {
+    isAdmin = false;
+    toAdmin.hidden = true;
+  }
+}
+
+sb.auth.getSession().then(function (r) { session = r.data.session; updateHome(); });
+sb.auth.onAuthStateChange(function (ev, s) {
+  session = s;
+  updateHome();
+  if (ev === 'SIGNED_IN' && window.location.hash.indexOf('access_token') !== -1) {
+    history.replaceState(null, '', window.location.pathname);
+  }
+});
+
+loginForm.addEventListener('submit', function (e) {
+  e.preventDefault();
+  var email = document.getElementById('email').value.trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(email)) { authMsg.textContent = 'Escribe un correo válido.'; return; }
+  var btn = document.getElementById('send-link');
+  btn.disabled = true;
+  authMsg.textContent = 'Enviando…';
+  sb.auth.signInWithOtp({ email: email, options: { emailRedirectTo: window.location.origin + window.location.pathname } }).then(function (r) {
+    btn.disabled = false;
+    authMsg.textContent = r.error
+      ? 'No se pudo enviar el enlace: ' + r.error.message
+      : 'Listo. Revisa tu correo, incluida la carpeta de spam, y abre el enlace. Funciona desde cualquier dispositivo.';
+  });
+});
+
+document.getElementById('logout').addEventListener('click', function () { sb.auth.signOut().then(function () { answers = []; show('intro'); }); });
+document.getElementById('to-history').addEventListener('click', renderHistory);
+toAdmin.addEventListener('click', renderAdmin);
+
+function saveAttempt(ans, ranked) {
+  var scores = {};
+  ranked.forEach(function (r) { scores[r.key] = r.pct; });
+  return sb.from('mapa_respuestas').insert({ answers: ans, scores: scores }).then(function (r) { if (r.error) throw r.error; });
+}
+
+function fmtDate(iso) { return new Date(iso).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }); }
+
+function topOf(scores) {
+  return Object.keys(AREAS).map(function (k, i) { return { key: k, pct: scores[k] || 0, idx: i }; })
+    .sort(function (a, b) { return b.pct - a.pct || a.idx - b.idx; });
+}
+
+function topLine(scores) {
+  return topOf(scores).slice(0, 3).map(function (r, i) { return (i + 1) + ') ' + AREAS[r.key].name; }).join('   ');
+}
+
+function qaList(ans) {
+  var ul = el('ul', { class: 'qa' });
+  ans.forEach(function (c, i) {
+    var q = QUESTIONS[i];
+    if (!q || !q.opts[c]) return;
+    ul.append(el('li', null, el('p', { class: 'q', text: q.q }), el('p', { class: 'a', text: q.opts[c].t })));
+  });
+  return ul;
+}
+
+function navBack() {
+  var b = el('button', { class: 'linkbtn', type: 'button', text: '← Inicio' });
+  b.addEventListener('click', function () { show('intro'); });
+  return el('div', { class: 'topnav' }, b);
+}
+
+function renderHistory() {
+  var root = screens.history;
+  root.textContent = '';
+  root.append(navBack(), el('p', { class: 'status', text: 'Cargando tus respuestas…' }));
+  show('history');
+  sb.from('mapa_respuestas').select('id,created_at,answers,scores').eq('user_id', session.user.id).order('created_at', { ascending: false }).then(function (r) {
+    root.textContent = '';
+    root.append(navBack());
+    if (r.error) { root.append(el('div', { class: 'note', text: 'No se pudieron cargar tus respuestas: ' + r.error.message })); return; }
+    var rows = r.data || [];
+    root.append(el('div', null,
+      el('p', { class: 'mono', text: 'Tu historial' }),
+      el('h1', { text: 'Mis respuestas' }),
+      el('p', { class: 'sub', text: rows.length ? 'Cada intento queda guardado con su fecha. Compara cómo cambian tus áreas a medida que pruebas cosas.' : 'Todavía no has terminado el cuestionario.' })
+    ));
+    if (!rows.length) {
+      var go = el('button', { class: 'btn', type: 'button', text: 'Hacer el cuestionario' });
+      go.addEventListener('click', function () { answers = []; current = 0; renderQuestion(); show('quiz'); });
+      root.append(el('div', null, go));
+      return;
+    }
+    var asc = rows.slice().reverse();
+    var latest = topOf(rows[0].scores);
+    var thead = el('tr', null, el('th', { text: 'Área' }));
+    asc.forEach(function (row) { thead.append(el('th', { text: new Date(row.created_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) })); });
+    var tbody = el('tbody');
+    latest.forEach(function (a) {
+      var tr = el('tr', null, el('td', { text: AREAS[a.key].name }));
+      asc.forEach(function (row) {
+        var t3 = topOf(row.scores).slice(0, 3).map(function (x) { return x.key; });
+        tr.append(el('td', { class: 'num' + (t3.indexOf(a.key) !== -1 ? ' hi' : ''), text: ((row.scores[a.key] || 0)) + '%' }));
+      });
+      tbody.append(tr);
+    });
+    root.append(el('div', null,
+      el('div', { class: 'tablewrap' }, el('table', null, el('thead', null, thead), tbody)),
+      el('p', { class: 'legend', text: 'El fondo resaltado marca las tres áreas con más afinidad en cada intento.' })
+    ));
+    var list = el('div', { class: 'attempts' });
+    rows.forEach(function (row) {
+      var del = el('button', { class: 'btn ghost', type: 'button', text: 'Borrar este intento' });
+      var armed = false;
+      del.addEventListener('click', function () {
+        if (!armed) { armed = true; del.textContent = 'Confirmar borrado'; return; }
+        del.disabled = true;
+        sb.from('mapa_respuestas').delete().eq('id', row.id).then(function (d) {
+          if (d.error) { del.disabled = false; del.textContent = 'No se pudo borrar. Intentar de nuevo'; armed = false; }
+          else renderHistory();
+        });
+      });
+      list.append(el('details', { class: 'attempt' },
+        el('summary', null, el('span', { class: 'mono when', text: fmtDate(row.created_at) }), topLine(row.scores)),
+        qaList(row.answers),
+        el('div', { class: 'bar-tools' }, del)
+      ));
+    });
+    root.append(el('div', null, el('p', { class: 'mono', text: 'Cada intento' }), el('div', { style: 'height:10px' }), list));
+    var again = el('button', { class: 'btn', type: 'button', text: 'Hacer el cuestionario otra vez' });
+    again.addEventListener('click', function () { answers = []; current = 0; renderQuestion(); show('quiz'); });
+    root.append(el('div', null, again));
+  });
+}
+
+function renderAdmin() {
+  var root = screens.admin;
+  root.textContent = '';
+  root.append(navBack(), el('p', { class: 'status', text: 'Cargando respuestas…' }));
+  show('admin');
+  sb.from('mapa_respuestas').select('id,email,created_at,answers,scores').order('created_at', { ascending: false }).limit(1000).then(function (r) {
+    root.textContent = '';
+    root.append(navBack());
+    if (r.error) { root.append(el('div', { class: 'note', text: 'No se pudieron cargar las respuestas: ' + r.error.message })); return; }
+    var rows = r.data || [];
+    var people = {};
+    rows.forEach(function (x) { people[x.email] = (people[x.email] || 0) + 1; });
+    root.append(el('div', null,
+      el('p', { class: 'mono', text: 'Vista docente' }),
+      el('h1', { text: 'Respuestas del grupo' }),
+      el('p', { class: 'sub', text: rows.length + ' intentos de ' + Object.keys(people).length + ' personas. Esta vista solo aparece con tu cuenta.' })
+    ));
+    var filter = el('input', { class: 'field', id: 'admin-filter', type: 'search', placeholder: 'Filtrar por correo', autocomplete: 'off' });
+    var list = el('div', { class: 'attempts' });
+    function draw() {
+      var q = filter.value.trim().toLowerCase();
+      list.textContent = '';
+      var shown = rows.filter(function (x) { return !q || x.email.indexOf(q) !== -1; });
+      if (!shown.length) list.append(el('p', { class: 'status', text: 'Sin resultados.' }));
+      shown.forEach(function (x) {
+        list.append(el('details', { class: 'attempt' },
+          el('summary', null, el('span', { class: 'mono when', text: x.email + ' · ' + fmtDate(x.created_at) }), topLine(x.scores)),
+          qaList(x.answers)
+        ));
+      });
+    }
+    filter.addEventListener('input', draw);
+    draw();
+    root.append(filter, list);
+  });
+}
+
+
+document.getElementById('start').addEventListener('click', function () { renderQuestion(); show('quiz'); });
+backBtn.addEventListener('click', function () { if (current > 0 && !locked) { current--; renderQuestion(); } });
+</script>
+</body>
+</html>
