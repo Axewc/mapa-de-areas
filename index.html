@@ -229,7 +229,7 @@ td.hi { font-weight: 600; background: var(--tint); }
       <input class="field" id="email" type="email" inputmode="email" autocomplete="email" placeholder="nombre@correo.com" required>
       <button class="btn" id="send-link" type="submit">Enviarme el enlace de acceso</button>
       <p class="fine" id="auth-msg" aria-live="polite"></p>
-      <p class="fine">Guardamos tu correo, tus respuestas y la fecha de cada intento para que puedas revisarlos después. Tu profesor, Axel Casas, puede ver esos datos. Puedes borrar cualquier intento desde Mis respuestas y no se usan para nada más que este cuestionario.</p>
+      <p class="fine">Guardamos tu correo, tus respuestas y la fecha de cada intento, además de tus diagnósticos y repasos de las rutas por vacante, para que puedas revisarlos después. Tu profesor, Axel Casas, puede ver esos datos. Puedes borrar cualquier intento desde Mis respuestas y tu progreso de una ruta desde la ruta misma. No se usan para nada más que este cuestionario.</p>
     </form>
     <div id="home" class="panel authbox" hidden>
       <p class="mono" id="who"></p>
@@ -1315,7 +1315,37 @@ function renderAdmin() {
     ));
     var filter = el('input', { class: 'field', id: 'admin-filter', type: 'search', placeholder: 'Filtrar por correo', autocomplete: 'off' });
     var list = el('div', { class: 'attempts' });
+    var rlist = el('div', { class: 'attempts ruta-attempts' });
+    var rrows = null, rerr = null;
+    sb.from('mapa_aprendizaje').select('id,email,created_at,ruta,kind,topic,scores').order('created_at', { ascending: false }).limit(1000).then(function (r2) {
+      rerr = r2.error; rrows = r2.data || []; drawRutas();
+    });
+    function drawRutas() {
+      rlist.textContent = '';
+      if (rerr) { rlist.append(el('div', { class: 'note', text: 'No se pudieron cargar las rutas: ' + rerr.message })); return; }
+      if (!rrows) { rlist.append(el('p', { class: 'status', text: 'Cargando…' })); return; }
+      var q = filter.value.trim().toLowerCase();
+      var shown = rrows.filter(function (x) { return !q || x.email.indexOf(q) !== -1; });
+      if (!shown.length) { rlist.append(el('p', { class: 'status', text: 'Sin resultados.' })); return; }
+      shown.forEach(function (x) {
+        var ru = RUTAS[x.ruta], line, detail = null;
+        if (x.kind === 'diagnostico') {
+          var known = ru ? ru.topics.filter(function (t) { return t.id in x.scores; }) : [];
+          line = 'Domina ' + known.filter(function (t) { return x.scores[t.id]; }).length + ' de ' + (ru ? ru.topics.length : known.length);
+          detail = el('ul', { class: 'qa' });
+          known.forEach(function (t) { detail.append(el('li', null, el('p', { class: 'a', text: (x.scores[t.id] ? '✓ ' : '✗ ') + t.name }))); });
+        } else {
+          var tp = ru ? ru.topics.filter(function (t) { return t.id === x.topic; })[0] : null;
+          line = (tp ? tp.name : x.topic) + ': ' + (x.scores[x.topic] || 0) + ' de ' + (tp ? tp.review.length : 2);
+        }
+        rlist.append(el('details', { class: 'attempt' },
+          el('summary', null, el('span', { class: 'mono when', text: x.email + ' · ' + fmtDate(x.created_at) + ' · ' + (ru ? ru.title : x.ruta) + ' · ' + (x.kind === 'diagnostico' ? 'Diagnóstico' : 'Repaso') }), line),
+          detail
+        ));
+      });
+    }
     function draw() {
+      drawRutas();
       var q = filter.value.trim().toLowerCase();
       list.textContent = '';
       var shown = rows.filter(function (x) { return !q || x.email.indexOf(q) !== -1; });
@@ -1329,7 +1359,10 @@ function renderAdmin() {
     }
     filter.addEventListener('input', draw);
     draw();
-    root.append(filter, list);
+    root.append(filter, list, el('div', null,
+      el('p', { class: 'mono', text: 'Rutas por vacante' }),
+      el('div', { style: 'height:10px' }), rlist
+    ));
   });
 }
 
@@ -1421,6 +1454,19 @@ function drawRuta(id, rows, err) {
     el('p', { class: 'mono', text: 'Los ' + r.topics.length + ' temas' + (hasDiag ? ' · primero los que te faltan' : '') }),
     el('div', { style: 'height:10px' }), list
   ));
+
+  if (rows.length) {
+    var del = el('button', { class: 'btn ghost', type: 'button', text: 'Borrar mi progreso en esta ruta' });
+    var armed = false;
+    del.addEventListener('click', function () {
+      if (!armed) { armed = true; del.textContent = 'Confirmar borrado'; return; }
+      del.disabled = true;
+      deleteRutaRows(id).then(function () { openRuta(id); }, function () {
+        del.disabled = false; armed = false; del.textContent = 'No se pudo borrar. Intentar de nuevo';
+      });
+    });
+    root.append(el('div', { class: 'bar-tools' }, del));
+  }
 }
 
 function startDiag(id) {

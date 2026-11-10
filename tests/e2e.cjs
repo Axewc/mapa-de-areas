@@ -24,11 +24,12 @@ async function answer(page, key) {
 
 const noHScroll = () => document.documentElement.scrollWidth <= window.innerWidth;
 
-async function openHome(context) {
+async function openHome(context, init) {
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await setupRoutes(page);
+  if (init) await page.addInitScript(init.fn, init.arg);
   await page.goto(INDEX_URL);
   await page.waitForSelector('#home:not([hidden])');
   return { page, errors };
@@ -159,6 +160,49 @@ async function main() {
     await page.waitForSelector('#s-learn .topic-row');
     assert.match(await rowOf('RAG').locator('.state').textContent(), /Por aprender/);
     assert.match(await rowOf('RAG').textContent(), /Último repaso: 1 de 2/);
+
+    // --- Tarea 7: borrar progreso, privacidad y vista docente ---
+    step = 'falla al borrar el progreso';
+    const delBtn = page.locator('#s-learn .bar-tools button');
+    await page.evaluate(() => { window.__failDelete = true; });
+    await delBtn.click();
+    assert.match(await delBtn.textContent(), /Confirmar borrado/);
+    await delBtn.click();
+    await page.waitForFunction(() => /No se pudo borrar/.test(document.querySelector('#s-learn .bar-tools button').textContent));
+    await page.evaluate(() => { window.__failDelete = false; });
+
+    step = 'borrar el progreso de la ruta';
+    await delBtn.click();
+    await delBtn.click();
+    await page.waitForFunction(() => window.__db.mapa_aprendizaje.length === 0);
+    await page.waitForSelector('#s-learn button:has-text("Hacer el diagnóstico")');
+    assert.equal(await page.locator('#s-learn .topic-row .state', { hasText: 'Sin evaluar' }).count(), 7);
+    assert.equal(await page.locator('#s-learn .bar-tools button').count(), 0);
+
+    step = 'aviso de privacidad';
+    const priv = await page.evaluate(() => document.querySelector('#login').textContent);
+    assert.match(priv, /diagnósticos y repasos de las rutas por vacante/);
+    assert.match(priv, /tu progreso de una ruta desde la ruta misma/);
+
+    step = 'vista docente';
+    const seed = { mapa_aprendizaje: [
+      { id: 'x1', user_id: 'u2', email: 'otra@test.mx', created_at: '2026-11-10T10:00:00Z', ruta: RUTA, kind: 'diagnostico', topic: null,
+        answers: [0, 0, 0, 0, 0, 0, 0], scores: { agentes: 1, multiagente: 0, evaluacion: 1, guardrails: 1, rag: 0, mcp: 1, observabilidad: 0 } },
+      { id: 'x2', user_id: 'u2', email: 'otra@test.mx', created_at: '2026-11-10T11:00:00Z', ruta: RUTA, kind: 'repaso', topic: 'rag',
+        answers: [0, 1], scores: { rag: 2 } },
+    ] };
+    const adm = await openHome(context, { fn: (s) => { window.__fakeAdmin = true; window.__seed = s; }, arg: seed });
+    await adm.page.waitForSelector('#to-admin:not([hidden])');
+    await adm.page.click('#to-admin');
+    await adm.page.waitForSelector('#s-admin .ruta-attempts details');
+    const atxt = await adm.page.textContent('#s-admin');
+    assert.match(atxt, /Rutas por vacante/);
+    assert.match(atxt, /otra@test\.mx[^]*Domina 4 de 7/);
+    assert.match(atxt, /RAG \(generación con búsqueda\): 2 de 2/);
+    await adm.page.fill('#admin-filter', 'nadie');
+    assert.equal(await adm.page.locator('#s-admin .ruta-attempts .status', { hasText: 'Sin resultados.' }).count(), 1);
+    assert.deepEqual(adm.errors, [], 'errores de JS en la vista docente');
+    await adm.page.close();
 
     assert.deepEqual(errors, [], 'errores de JS en la página');
     console.log('e2e: OK');
