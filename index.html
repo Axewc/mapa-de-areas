@@ -183,6 +183,23 @@ td.hi { font-weight: 600; background: var(--tint); }
 .projects b { font-weight: 600; }
 .projects .meta { display: block; margin-top: 0.15rem; }
 .vtag { font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+/* Rutas por vacante */
+.result a { color: var(--accent); overflow-wrap: anywhere; text-underline-offset: 3px; }
+.asks { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.topics { display: flex; flex-direction: column; gap: 10px; }
+.topic-row {
+  text-align: left; width: 100%;
+  background: var(--panel); border: 1.5px solid var(--line); border-radius: 4px;
+  padding: 0.85rem 1rem; line-height: 1.35;
+  display: grid; grid-template-columns: 1fr auto; gap: 0.4rem 1rem; align-items: center;
+}
+.topic-row:hover { border-color: var(--accent); }
+.topic-row .tname { font-weight: 600; min-width: 0; }
+.topic-row .ev { display: block; color: var(--muted); font-size: 0.85rem; font-weight: 400; margin-top: 0.15rem; }
+.state { justify-self: end; font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 2px; padding: 0.1rem 0.45rem; white-space: nowrap; }
+.state.pendiente { background: var(--mark); color: var(--ink); border-color: transparent; }
+.state.dominado { background: var(--tint); color: var(--ink); border-color: var(--accent); }
+@media (max-width: 480px) { .topic-row { grid-template-columns: 1fr; } .state { justify-self: start; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -210,6 +227,7 @@ td.hi { font-weight: 600; background: var(--tint); }
       <div class="actions">
         <button class="btn" id="start" type="button">Hacer el cuestionario</button>
         <button class="btn ghost" id="to-history" type="button">Mis respuestas</button>
+        <button class="btn ghost" id="to-learn" type="button">Aprender para una vacante</button>
         <button class="btn ghost" id="to-admin" type="button" hidden>Vista docente</button>
       </div>
       <div><button class="linkbtn" id="logout" type="button">Cerrar sesión</button></div>
@@ -228,6 +246,7 @@ td.hi { font-weight: 600; background: var(--tint); }
   <section id="s-result" class="result" hidden></section>
   <section id="s-history" class="result" hidden></section>
   <section id="s-admin" class="result" hidden></section>
+  <section id="s-learn" class="result" hidden></section>
 
 </main>
 
@@ -892,7 +911,7 @@ function el(tag, attrs) {
   return n;
 }
 
-var screens = { intro: document.getElementById('s-intro'), quiz: document.getElementById('s-quiz'), result: document.getElementById('s-result'), history: document.getElementById('s-history'), admin: document.getElementById('s-admin') };
+var screens = { intro: document.getElementById('s-intro'), quiz: document.getElementById('s-quiz'), result: document.getElementById('s-result'), history: document.getElementById('s-history'), admin: document.getElementById('s-admin'), learn: document.getElementById('s-learn') };
 var body = document.getElementById('quiz-body');
 var ticks = document.getElementById('ticks');
 var counter = document.getElementById('counter');
@@ -1028,6 +1047,18 @@ function renderResult() {
   top.forEach(function (r) { AREAS[r.key].projects.forEach(function (pr) { projTexts.push(pr.n + ' ' + pr.d); }); });
   var gl = glossFor(projTexts, 'Palabras de los proyectos que quizá no conozcas');
   if (gl) { gl.style.marginTop = '0'; root.append(gl); }
+
+  rutasFor(top.map(function (r) { return r.key; })).forEach(function (id) {
+    var ru = RUTAS[id];
+    var go = el('button', { class: 'btn', type: 'button', text: 'Ver qué piden y aprenderlo' });
+    go.addEventListener('click', function () { openRuta(id); });
+    root.append(el('article', { class: 'panel area vacancy' },
+      el('p', { class: 'mono rank' }, el('mark', { text: 'Una vacante real para tus áreas' })),
+      el('h3', { text: ru.title + ' · ' + ru.company }),
+      el('p', { text: ru.summary }),
+      el('div', null, go)
+    ));
+  });
 
   var others = el('details', { class: 'panel others' }, el('summary', { text: 'Ver las otras seis áreas' }));
   ranked.slice(3).forEach(function (r) {
@@ -1283,6 +1314,97 @@ function renderAdmin() {
   });
 }
 
+// ---------- Rutas por vacante ----------
+var STATE_LABEL = { nuevo: 'Sin evaluar', pendiente: 'Por aprender', dominado: 'Ya lo dominas' };
+
+function loadRutaRows(id) {
+  if (!session) return Promise.reject(new Error('no hay sesión'));
+  return sb.from('mapa_aprendizaje').select('id,created_at,kind,topic,answers,scores')
+    .eq('user_id', session.user.id).eq('ruta', id).order('created_at', { ascending: false })
+    .then(function (r) { if (r.error) throw r.error; return r.data || []; });
+}
+
+function saveRutaRow(row) {
+  return sb.from('mapa_aprendizaje').insert(row).then(function (r) { if (r.error) throw r.error; });
+}
+
+function deleteRutaRows(id) {
+  if (!session) return Promise.reject(new Error('no hay sesión'));
+  return sb.from('mapa_aprendizaje').delete().eq('user_id', session.user.id).eq('ruta', id)
+    .then(function (r) { if (r.error) throw r.error; });
+}
+
+function fmtDay(ymd) { return new Date(ymd + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }); }
+
+function evidenceText(st, topic) {
+  if (st.kind === 'diagnostico') return st.score ? 'Diagnóstico: acertaste' : 'Diagnóstico: no acertaste';
+  if (st.kind === 'repaso') return 'Último repaso: ' + st.score + ' de ' + topic.review.length;
+  return '';
+}
+
+function extLink(href, text) { return el('a', { href: href, target: '_blank', rel: 'noopener', text: text }); }
+
+function openRuta(id) {
+  var root = screens.learn;
+  root.textContent = '';
+  root.append(navBack(), el('p', { class: 'status', text: 'Cargando tu progreso…' }));
+  show('learn');
+  loadRutaRows(id).then(function (rows) { drawRuta(id, rows, null); }, function (e) { drawRuta(id, [], e); });
+}
+
+function drawRuta(id, rows, err) {
+  var r = RUTAS[id], root = screens.learn;
+  var status = topicStatus(r, rows);
+  var hasDiag = rows.some(function (x) { return x.kind === 'diagnostico'; });
+  root.textContent = '';
+  root.append(navBack(), el('div', null,
+    el('p', { class: 'mono', text: 'Ruta por vacante' }),
+    el('h1', { text: r.title }),
+    el('p', { class: 'sub', text: r.company + ' · ' + r.place }),
+    el('p', { class: 'sub', text: r.summary })
+  ));
+  var asks = el('ul', { class: 'asks' });
+  r.asks.forEach(function (a) { asks.append(el('li', { text: a })); });
+  root.append(el('div', { class: 'panel area' },
+    el('p', { class: 'mono', text: 'Lo que pide la vacante' }), asks,
+    el('p', { class: 'legend' }, extLink(r.url, 'Ver la vacante original'), ' · leída el ' + fmtDay(r.seen))
+  ));
+  if (err) root.append(el('div', { class: 'note', text: 'No se pudo cargar tu progreso (' + (err.message || 'error') + '). Los temas aparecen sin evaluar.' }));
+
+  var diagBtn = el('button', { class: 'btn', type: 'button', text: hasDiag ? 'Repetir el diagnóstico' : 'Hacer el diagnóstico' });
+  diagBtn.addEventListener('click', function () { startDiag(id); });
+  root.append(el('div', { class: 'panel area' },
+    el('h2', { text: 'Diagnóstico', style: 'font-size:1.35rem' }),
+    el('p', { text: 'Una pregunta por tema para saber por dónde empezar. Si no sabes una, elige «' + NO_SE + '»: te sirve más que adivinar.' }),
+    el('p', { class: 'mono', text: r.topics.length + ' preguntas · 4 minutos · sí hay respuestas correctas' }),
+    el('div', null, diagBtn)
+  ));
+
+  var order = r.topics.map(function (t, i) { return { t: t, i: i }; });
+  if (hasDiag) order.sort(function (a, b) {
+    return ((status[a.t.id].state === 'pendiente' ? 0 : 1) - (status[b.t.id].state === 'pendiente' ? 0 : 1)) || a.i - b.i;
+  });
+  var list = el('div', { class: 'topics' });
+  order.forEach(function (o) {
+    var st = status[o.t.id], ev = evidenceText(st, o.t);
+    var b = el('button', { class: 'topic-row', type: 'button' },
+      el('span', { class: 'tname' }, o.t.name, ev ? el('span', { class: 'ev', text: ev }) : null),
+      el('span', { class: 'state ' + st.state, text: STATE_LABEL[st.state] })
+    );
+    b.addEventListener('click', function () { renderTopic(id, o.t.id); });
+    list.append(b);
+  });
+  root.append(el('div', null,
+    el('p', { class: 'mono', text: 'Los ' + r.topics.length + ' temas' + (hasDiag ? ' · primero los que te faltan' : '') }),
+    el('div', { style: 'height:10px' }), list
+  ));
+}
+
+function startDiag(id) { /* Tarea 5 */ }
+
+function renderTopic(id, topicId) { /* Tarea 6 */ }
+
+document.getElementById('to-learn').addEventListener('click', function () { openRuta(Object.keys(RUTAS)[0]); });
 
 document.getElementById('start').addEventListener('click', function () { startQuiz(chosen); });
 backBtn.addEventListener('click', function () { if (current > 0 && !locked) { current--; renderQuestion(); } });
