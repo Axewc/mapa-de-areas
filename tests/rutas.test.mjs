@@ -1,15 +1,11 @@
-// Pruebas de la lógica pura de index.html (bloque DATA-START … DATA-END).
+// Pruebas de la lógica pura de js/data-areas.js.
 // Correr con: node --test tests/
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
+import { createRequire } from 'node:module';
 
-const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-const block = html.split('//DATA-START')[1].split('//DATA-END')[0];
-const { RUTAS, NO_SE, scoreDiag, scoreReview, topicStatus, rutasFor, GLOSS } = vm.runInNewContext(
-  block + ';({AREAS,RUTAS,NO_SE,scoreDiag,scoreReview,topicStatus,rutasFor,GLOSS})', {}
-);
+const require = createRequire(import.meta.url);
+const { RUTAS, NO_SE, scoreDiag, scoreReview, topicStatus, rutasFor, GLOSS } = require('../js/data-areas.js');
 
 const q = (ok) => ({ q: '¿?', opts: ['w', 'x', 'y', 'z'], ok, why: 'porque sí, con detalle suficiente' });
 const R = {

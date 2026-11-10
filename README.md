@@ -1,6 +1,6 @@
 # Mapa de áreas
 
-Página estática (un solo `index.html`) que usa Supabase para el acceso por correo y para guardar los intentos.
+Página estática (`index.html` más `css/` y `js/`, sin build) que usa Supabase para el acceso por correo y para guardar los intentos.
 
 ## Qué ya está hecho en Supabase (proyecto fbd-lab-tracker)
 
@@ -19,7 +19,7 @@ insert into public.mapa_admins (email) values ('correo@ejemplo.com');
 - Versión 2, «Explorar»: preguntas sobre actividades cotidianas, sin nombres de herramientas. Es la recomendada para quien apenas decide.
 - Versión 1, «Con herramientas»: menciona Python, Docker, Power BI, etc., y explica cada término junto a la pregunta.
 
-Ambas tienen 10 preguntas de 5 opciones y puntúan las mismas nueve áreas, así que los intentos son comparables. La versión se guarda en `quiz_version` (1 o 2) y aparece en Mis respuestas y en la vista docente. Las áreas y sus proyectos están en el bloque `AREAS` de `index.html`.
+Ambas tienen 10 preguntas de 5 opciones y puntúan las mismas nueve áreas, así que los intentos son comparables. La versión se guarda en `quiz_version` (1 o 2) y aparece en Mis respuestas y en la vista docente. Las áreas y sus proyectos están en el bloque `AREAS` de `js/data-areas.js`.
 
 ## Rutas por vacante
 
@@ -32,7 +32,7 @@ Una ruta toma una vacante real y enseña los temas que pide. La primera es **AI 
 - **Datos:** se guardan en `public.mapa_aprendizaje`, una fila por diagnóstico o repaso. Las políticas son las mismas que las de `mapa_respuestas`: cada quien crea, ve y borra lo suyo, y el docente ve todo. No hay `update`. El SQL aplicado está en `sql/mapa_aprendizaje.sql`.
 - **Vista docente:** la sección «Rutas por vacante» lista diagnósticos y repasos y usa el mismo filtro por correo.
 
-Para agregar una vacante, agrega un objeto a `RUTAS` en `index.html`, dentro del bloque `//DATA-START … //DATA-END`:
+Para agregar una vacante, agrega un objeto a `RUTAS` en `js/data-areas.js`:
 
 - Copia la forma de `getnet-ai-deploy`: `title`, `company`, `place`, `url`, `seen`, `areas`, `summary`, `asks` y `topics`.
 - Cada tema lleva `id`, `name`, `plain`, `why`, `ideas`, `task`, `res`, `diag` y `review`.
@@ -57,7 +57,7 @@ SHOTS_DIR=/tmp/capturas node tests/e2e.cjs   # además guarda capturas a 390 y 1
 
 Con cualquiera de estas opciones, el sitio queda en una URL pública:
 
-1. Crea un proyecto nuevo en Vercel llamado `mapa-de-areas` y sube la carpeta con `index.html` (arrastrando la carpeta al panel o con `vercel deploy --prod` dentro de esta carpeta). No necesita framework ni comando de build.
+1. Crea un proyecto nuevo en Vercel llamado `mapa-de-areas` y sube la carpeta completa (`index.html`, `css/` y `js/`) (arrastrando la carpeta al panel o con `vercel deploy --prod` dentro de esta carpeta). No necesita framework ni comando de build.
 2. No lo subas al proyecto `pilates-project`, porque reemplazaría BersamaFlow.
 
 Para usarlo en un subdominio de bersama.dev, agrega el dominio al proyecto nuevo en Vercel y crea el registro DNS que Vercel te indique en el proveedor donde administras bersama.dev.
