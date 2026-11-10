@@ -35,6 +35,40 @@ async function openHome(context, init) {
   return { page, errors };
 }
 
+const SHOTS = process.env.SHOTS_DIR || null;
+
+// Recorre inicio → ruta → diagnóstico → resultado → tema y verifica que no haya scroll horizontal.
+async function visualPass(browser, viewport, colorScheme) {
+  const ctx = await browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1 });
+  const { page, errors } = await openHome(ctx);
+  const tag = viewport.width + '-' + colorScheme;
+  const check = async (name) => {
+    assert.ok(await page.evaluate(noHScroll), 'scroll horizontal en ' + name + ' (' + tag + ')');
+    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, tag + '-' + name + '.png'), fullPage: true });
+  };
+  await check('inicio');
+  await page.click('#to-learn');
+  await page.waitForSelector('#s-learn .topic-row');
+  await check('ruta');
+  await page.click('text=Hacer el diagnóstico');
+  await page.waitForSelector('#s-quiz:not([hidden])');
+  await check('diagnostico');
+  for (let i = 0; i < 7; i++) await answer(page, '5');
+  await page.waitForSelector('#s-learn .diag-result');
+  await page.locator('#s-learn details.attempt').first().evaluate((d) => { d.open = true; });
+  await check('resultado-diagnostico');
+  await page.click('text=Volver a la ruta');
+  await page.waitForSelector('#s-learn .topic-row');
+  await page.locator('#s-learn .topic-row', { hasText: 'MCP' }).click();
+  await page.waitForSelector('#s-learn .lesson');
+  await page.locator('#s-learn .review .rq').nth(0).locator('.opt').nth(0).click();
+  await page.locator('#s-learn .review .rq').nth(1).locator('.opt').nth(0).click();
+  await page.waitForSelector('#s-learn .review .verdict');
+  await check('tema');
+  assert.deepEqual(errors, [], 'errores de JS (' + tag + ')');
+  await ctx.close();
+}
+
 async function main() {
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
@@ -205,6 +239,14 @@ async function main() {
     await adm.page.close();
 
     assert.deepEqual(errors, [], 'errores de JS en la página');
+
+    // --- Tarea 8: anchos y temas ---
+    for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+      for (const cs of ['light', 'dark']) {
+        step = 'revisión visual ' + vp.width + ' px, tema ' + cs;
+        await visualPass(browser, vp, cs);
+      }
+    }
     console.log('e2e: OK');
   } catch (e) {
     console.error('e2e: FALLÓ en «' + step + '»');
