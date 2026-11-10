@@ -639,6 +639,65 @@ function scoreAnswers(answers, v) {
     return { key: k, pct: Math.round(raw[k] / MAXP[v][k] * 100), idx: idx };
   }).sort(function (a, b) { return b.pct - a.pct || a.idx - b.idx; });
 }
+
+// Rutas por vacante: una vacante real, sus temas y cómo saber cuáles ya dominas.
+// Para agregar otra, agrega un objeto con la misma forma. `areas` usa las claves de AREAS.
+var RUTAS = {
+  "getnet-ai-deploy": {
+    title: "AI Deployment Engineer",
+    company: "Getnet",
+    place: "Ciudad de México · híbrido",
+    url: "https://job-boards.eu.greenhouse.io/getnet/jobs/5019637101",
+    seen: "2026-11-10",
+    areas: ["ml", "bak", "inf"],
+    summary: "Diseñar, construir y poner en marcha soluciones con IA dentro de la empresa: primero agentes individuales y luego sistemas de varios agentes que trabajan juntos.",
+    asks: [
+      "Proactividad y capacidad de ejecución: tomar la iniciativa y llevar las ideas a resultados concretos.",
+      "Aprendizaje continuo: la IA cambia cada semana y hay que seguirle el paso.",
+      "Sentido de responsabilidad: hacerte dueño de tus proyectos y de sus resultados.",
+      "Puntos extra: haber construido algo real con IA, en el trabajo, en un proyecto personal o en un emprendimiento."
+    ],
+    topics: []
+  }
+};
+
+var NO_SE = 'Aún no lo sé';
+
+// answers[i] es el índice elegido en la pregunta del tema i; opts.length significa «Aún no lo sé».
+function scoreDiag(ruta, answers) {
+  var out = {};
+  ruta.topics.forEach(function (t, i) { out[t.id] = answers[i] === t.diag.ok ? 1 : 0; });
+  return out;
+}
+
+function scoreReview(topic, answers) {
+  var out = {};
+  out[topic.id] = topic.review.reduce(function (n, q, i) { return n + (answers[i] === q.ok ? 1 : 0); }, 0);
+  return out;
+}
+
+// Para cada tema, la evidencia más reciente (diagnóstico o repaso de ese tema) decide el estado.
+function topicStatus(ruta, rows) {
+  var out = {};
+  ruta.topics.forEach(function (t) {
+    var best = null;
+    rows.forEach(function (r) {
+      var applies = r.kind === 'diagnostico' ? (r.scores && t.id in r.scores) : (r.kind === 'repaso' && r.topic === t.id && r.scores && t.id in r.scores);
+      if (applies && (!best || r.created_at > best.created_at)) best = r;
+    });
+    if (!best) { out[t.id] = { state: 'nuevo', kind: null, score: null, at: null }; return; }
+    var score = Number(best.scores[t.id]) || 0;
+    var full = best.kind === 'diagnostico' ? 1 : t.review.length;
+    out[t.id] = { state: score >= full ? 'dominado' : 'pendiente', kind: best.kind, score: score, at: best.created_at };
+  });
+  return out;
+}
+
+function rutasFor(topKeys) {
+  return Object.keys(RUTAS).filter(function (id) {
+    return RUTAS[id].areas.some(function (k) { return topKeys.indexOf(k) !== -1; });
+  });
+}
 //DATA-END
 
 function el(tag, attrs) {
