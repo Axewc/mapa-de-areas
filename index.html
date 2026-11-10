@@ -921,6 +921,8 @@ var QUESTIONS = SETS[1].qs;
 var answers = [];
 var current = 0;
 var locked = false;
+var mode = 'mapa';   // 'mapa' (cuestionario de áreas) o 'diag' (diagnóstico de una ruta)
+var diagRuta = null;
 
 function show(name) {
   Object.keys(screens).forEach(function (k) { screens[k].hidden = (k !== name); });
@@ -936,6 +938,7 @@ function renderQuestion() {
   ticks.setAttribute('aria-valuenow', String(current));
   ticks.setAttribute('aria-valuemax', String(QUESTIONS.length));
   ticks.textContent = '';
+  ticks.style.gridTemplateColumns = 'repeat(' + QUESTIONS.length + ', 1fr)';
   for (var i = 0; i < QUESTIONS.length; i++) ticks.append(el('div', { class: 'tick' + (i < current ? ' done' : '') }));
   body.textContent = '';
   var list = el('div', { class: 'opts' });
@@ -945,11 +948,13 @@ function renderQuestion() {
     list.append(b);
   });
   body.append(el('h2', { text: q.q }), list);
-  if (version === 1) {
+  if (version === 1 || mode === 'diag') {
     var g = glossFor([q.q].concat(q.opts.map(function (o) { return o.t; })), '¿Hay términos que no conoces? Aquí se explican');
     if (g) body.append(g);
   }
-  body.append(el('p', { class: 'hint', text: 'Puedes responder con las teclas 1 a ' + q.opts.length + '. Nada de esto te encasilla: es para empezar a explorar.' }));
+  body.append(el('p', { class: 'hint', text: mode === 'diag'
+    ? 'Puedes responder con las teclas 1 a ' + q.opts.length + '. Si no lo sabes, elige «' + NO_SE + '»: te sirve más que adivinar.'
+    : 'Puedes responder con las teclas 1 a ' + q.opts.length + '. Nada de esto te encasilla: es para empezar a explorar.' }));
 }
 
 function glossFor(texts, title, limit) {
@@ -977,6 +982,7 @@ function choose(idx, btn) {
   setTimeout(function () {
     locked = false;
     if (current < QUESTIONS.length - 1) { current++; renderQuestion(); }
+    else if (mode === 'diag') renderDiagResult(diagRuta, answers.slice());
     else renderResult();
   }, 170);
 }
@@ -1105,7 +1111,7 @@ function renderResult() {
 }
 
 function setVersion(v) { version = v; QUESTIONS = SETS[v].qs; }
-function startQuiz(v) { setVersion(v); answers = []; current = 0; locked = false; renderQuestion(); show('quiz'); }
+function startQuiz(v) { mode = 'mapa'; setVersion(v); answers = []; current = 0; locked = false; renderQuestion(); show('quiz'); }
 function reset() { answers = []; current = 0; locked = false; show('intro'); }
 
 var SUPABASE_URL = 'https://vhdrnrzerjysjzpyzgif.supabase.co';
@@ -1400,7 +1406,58 @@ function drawRuta(id, rows, err) {
   ));
 }
 
-function startDiag(id) { /* Tarea 5 */ }
+function startDiag(id) {
+  mode = 'diag';
+  diagRuta = id;
+  QUESTIONS = RUTAS[id].topics.map(function (t) {
+    return { q: t.diag.q, opts: t.diag.opts.map(function (o) { return { t: o }; }).concat([{ t: NO_SE }]) };
+  });
+  answers = []; current = 0; locked = false;
+  renderQuestion();
+  show('quiz');
+}
+
+function saveNoteFor(promise, okText) {
+  var note = el('div', { class: 'note', 'aria-live': 'polite', text: 'Guardando…' });
+  promise.then(function () { note.textContent = okText; }).catch(function (e) {
+    note.textContent = 'No se pudo guardar tu resultado (' + (e && e.message ? e.message : 'error') + '). Puedes intentarlo de nuevo más tarde.';
+  });
+  return note;
+}
+
+function renderDiagResult(id, ans) {
+  var r = RUTAS[id], scores = scoreDiag(r, ans), root = screens.learn;
+  var n = r.topics.filter(function (t) { return scores[t.id]; }).length;
+  var list = el('div', { class: 'attempts' });
+  r.topics.forEach(function (t, i) {
+    var mine = ans[i] === t.diag.opts.length ? NO_SE : t.diag.opts[ans[i]];
+    list.append(el('details', { class: 'attempt' },
+      el('summary', null, el('span', { class: 'mono when', text: scores[t.id] ? 'Acertaste' : 'Por aprender' }), t.name),
+      el('ul', { class: 'qa' },
+        el('li', null, el('p', { class: 'q', text: 'Pregunta' }), el('p', { text: t.diag.q })),
+        el('li', null, el('p', { class: 'q', text: 'Tu respuesta' }), el('p', { class: 'a', text: mine })),
+        scores[t.id] ? null : el('li', null, el('p', { class: 'q', text: 'La correcta' }), el('p', { class: 'a', text: t.diag.opts[t.diag.ok] })),
+        el('li', null, el('p', { class: 'q', text: 'Por qué' }), el('p', { text: t.diag.why }))
+      )
+    ));
+  });
+  var back = el('button', { class: 'btn', type: 'button', text: 'Volver a la ruta' });
+  back.addEventListener('click', function () { openRuta(id); });
+  root.textContent = '';
+  root.append(navBack(),
+    el('div', { class: 'diag-result' },
+      el('p', { class: 'mono', text: 'Diagnóstico · ' + r.title }),
+      el('h1', { text: 'Dominas ' + n + ' de ' + r.topics.length }),
+      el('p', { class: 'sub', text: n === r.topics.length
+        ? 'Acertaste en todos los temas. Haz el repaso de cada uno para confirmarlo.'
+        : 'Empieza por los temas marcados «Por aprender». Cada uno trae una explicación, un ejercicio y dos preguntas de repaso.' })
+    ),
+    saveNoteFor(saveRutaRow({ ruta: id, kind: 'diagnostico', topic: null, answers: ans, scores: scores }), 'Guardado. Lo verás en la ruta.'),
+    el('div', null, el('p', { class: 'mono', text: 'Tema por tema' }), el('div', { style: 'height:10px' }), list),
+    el('div', null, back)
+  );
+  show('learn');
+}
 
 function renderTopic(id, topicId) { /* Tarea 6 */ }
 
