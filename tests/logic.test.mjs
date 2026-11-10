@@ -124,6 +124,17 @@ test('la respuesta correcta no siempre está en la misma posición', () => {
   assert.ok(new Set(oks).size >= 3);
 });
 
+test('la longitud de las opciones no delata la respuesta correcta', () => {
+  const qs = RUTAS['getnet-ai-deploy'].topics.flatMap(t => [{ ...t.diag, diag: true }, ...t.review]);
+  const isLongest = q => q.opts.every((o, i) => i === q.ok || o.length < q.opts[q.ok].length);
+  const isShortest = q => q.opts.every((o, i) => i === q.ok || o.length > q.opts[q.ok].length);
+  const diag = qs.filter(q => q.diag);
+  assert.ok(qs.filter(isLongest).length <= 0.4 * qs.length, 'la correcta es la más larga en ' + qs.filter(isLongest).length + ' de ' + qs.length);
+  assert.ok(qs.filter(isShortest).length <= 0.4 * qs.length, 'la correcta es la más corta en ' + qs.filter(isShortest).length + ' de ' + qs.length);
+  assert.ok(diag.filter(isLongest).length <= 3, 'diagnóstico: la correcta es la más larga en ' + diag.filter(isLongest).length + ' de 7');
+  assert.ok(diag.filter(isShortest).length <= 3, 'diagnóstico: la correcta es la más corta en ' + diag.filter(isShortest).length + ' de 7');
+});
+
 test('términos técnicos de las lecciones están en el glosario', () => {
   const keys = GLOSS.map(g => g[1]);
   ['llm', 'token', 'embedding', 'prompt'].forEach(k => assert.ok(keys.includes(k), k));

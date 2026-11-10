@@ -37,7 +37,11 @@ Para agregar una vacante, agrega un objeto a `RUTAS` en `index.html`, dentro del
 - Copia la forma de `getnet-ai-deploy`: `title`, `company`, `place`, `url`, `seen`, `areas`, `summary`, `asks` y `topics`.
 - Cada tema lleva `id`, `name`, `plain`, `why`, `ideas`, `task`, `res`, `diag` y `review`.
 - `areas` usa las claves de `AREAS`.
+- Cada pregunta (`diag` y las dos de `review`) lleva exactamente 4 opciones. La tabla acepta respuestas del 0 al 4, y el 4 es «Aún no lo sé».
+- Varía la posición y la longitud de la respuesta correcta. Hay una prueba que falla si la correcta suele ser la opción más larga o la más corta.
 - No cambies los `id` de temas que ya tengan progreso guardado.
+
+Con una sola ruta, el botón del inicio la abre directamente. Con dos o más, muestra la lista.
 
 El diseño y el plan están en `docs/superpowers/`.
 

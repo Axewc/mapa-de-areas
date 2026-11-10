@@ -171,6 +171,8 @@ async function main() {
     await page.waitForSelector('#s-learn .review .verdict');
     assert.match(await page.textContent('#s-learn .review .verdict'), /2 de 2/);
     assert.equal(await page.locator('#s-learn .review .opt.right').count(), 2);
+    assert.ok(await page.evaluate(() => document.activeElement && document.activeElement.classList.contains('verdict')), 'el foco va al veredicto');
+    await page.waitForFunction(() => /Ya lo dominas/.test(document.querySelector('#s-learn .lesson .state').textContent));
     await page.waitForFunction(() => window.__db.mapa_aprendizaje.some((r) => r.kind === 'repaso' && r.topic === 'agentes'));
     const rrow = await page.evaluate(() => window.__db.mapa_aprendizaje.find((r) => r.kind === 'repaso' && r.topic === 'agentes'));
     assert.deepEqual(rrow.answers, agOks);
@@ -224,6 +226,11 @@ async function main() {
         answers: [0, 0, 0, 0, 0, 0, 0], scores: { agentes: 1, multiagente: 0, evaluacion: 1, guardrails: 1, rag: 0, mcp: 1, observabilidad: 0 } },
       { id: 'x2', user_id: 'u2', email: 'otra@test.mx', created_at: '2026-11-10T11:00:00Z', ruta: RUTA, kind: 'repaso', topic: 'rag',
         answers: [0, 1], scores: { rag: 2 } },
+      // Filas armadas a mano por la API con nombres del prototipo de Object: no deben romper la vista.
+      { id: 'x3', user_id: 'u3', email: 'rara@test.mx', created_at: '2026-11-10T12:00:00Z', ruta: 'constructor', kind: 'diagnostico', topic: null,
+        answers: [0], scores: {} },
+      { id: 'x4', user_id: 'u3', email: 'rara@test.mx', created_at: '2026-11-10T12:30:00Z', ruta: RUTA, kind: 'repaso', topic: 'constructor',
+        answers: [0, 0], scores: {} },
     ] };
     const adm = await openHome(context, { fn: (s) => { window.__fakeAdmin = true; window.__seed = s; }, arg: seed });
     await adm.page.waitForSelector('#to-admin:not([hidden])');
@@ -233,10 +240,29 @@ async function main() {
     assert.match(atxt, /Rutas por vacante/);
     assert.match(atxt, /otra@test\.mx[^]*Domina 4 de 7/);
     assert.match(atxt, /RAG \(generación con búsqueda\): 2 de 2/);
+    assert.match(atxt, /constructor: 0 de 2/);
+    assert.doesNotMatch(atxt, /native code/);
+    assert.equal(await adm.page.locator('#s-admin .ruta-attempts details').count(), 4);
+    await adm.page.fill('#admin-filter', 'otra');
+    assert.equal(await adm.page.locator('#s-admin .ruta-attempts details').count(), 2);
     await adm.page.fill('#admin-filter', 'nadie');
     assert.equal(await adm.page.locator('#s-admin .ruta-attempts .status', { hasText: 'Sin resultados.' }).count(), 1);
     assert.deepEqual(adm.errors, [], 'errores de JS en la vista docente');
     await adm.page.close();
+
+    step = 'con varias rutas, el inicio muestra una lista';
+    const multi = await openHome(context);
+    await multi.page.evaluate(() => {
+      RUTAS['otra-vacante'] = Object.assign({}, RUTAS['getnet-ai-deploy'], { title: 'Otra vacante de prueba', company: 'Acme' });
+    });
+    await multi.page.click('#to-learn');
+    await multi.page.waitForSelector('#s-learn .ruta-list');
+    assert.equal(await multi.page.locator('#s-learn .ruta-list .topic-row').count(), 2);
+    await multi.page.locator('#s-learn .ruta-list .topic-row', { hasText: 'Otra vacante de prueba' }).click();
+    await multi.page.waitForSelector('#s-learn .topic-row');
+    assert.match(await multi.page.textContent('#s-learn h1'), /Otra vacante de prueba/);
+    assert.deepEqual(multi.errors, [], 'errores de JS con varias rutas');
+    await multi.page.close();
 
     assert.deepEqual(errors, [], 'errores de JS en la página');
 
