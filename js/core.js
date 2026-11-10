@@ -1,4 +1,4 @@
-// Reglas puras del hub de estudio: cajas, avance y fechas.
+// Reglas puras del hub de estudio: cajas, avance, fechas, sesión, racha y geometría del mapa.
 // Script clásico (ES5): define globales y se exporta para las pruebas con Node.
 
 var BOX_DAYS = [0, 1, 3, 7, 16, 35];
@@ -371,6 +371,43 @@ function sessionSummary(before, after, goalLine, stations, today) {
   };
 }
 
+// Geometría del mapa: los tramos que comparten varias líneas (misma pareja de estaciones)
+// se separan (i - (n - 1) / 2) * 7 px, en el orden de `lines`. Clave: pareja ordenada unida con '|'.
+function coreSegKey(a, b) { return a < b ? a + '|' + b : b + '|' + a; }
+
+function segmentOffsets(lines) {
+  var by = {}, out = {}, i, j, k, l;
+  for (i = 0; i < lines.length; i++) {
+    l = lines[i];
+    for (j = 1; j < l.stations.length; j++) {
+      k = coreSegKey(l.stations[j - 1], l.stations[j]);
+      if (!by[k]) by[k] = [];
+      if (by[k].indexOf(l.id) === -1) by[k].push(l.id);
+    }
+  }
+  for (i = 0; i < lines.length; i++) {
+    l = lines[i];
+    out[l.id] = {};
+    for (j = 1; j < l.stations.length; j++) {
+      k = coreSegKey(l.stations[j - 1], l.stations[j]);
+      out[l.id][k] = (by[k].indexOf(l.id) - (by[k].length - 1) / 2) * 7;
+    }
+  }
+  return out;
+}
+
+// Líneas cuyas áreas coinciden con las del cuestionario, en el orden de LINEAS.
+// `lines` es opcional: sin él usa la global LINEAS (js/data-lineas.js).
+function lineasFor(topKeys, lines) {
+  var ls = lines !== undefined ? lines : (typeof LINEAS !== 'undefined' ? LINEAS : []);
+  var out = [];
+  for (var i = 0; i < ls.length; i++) {
+    var a = ls[i].areas || [];
+    for (var j = 0; j < a.length; j++) if (topKeys.indexOf(a[j]) !== -1) { out.push(ls[i].id); break; }
+  }
+  return out;
+}
+
 if (typeof module !== 'undefined') module.exports = {
   BOX_DAYS: BOX_DAYS, BOX_WEIGHT: BOX_WEIGHT, todayYmd: todayYmd, addDays: addDays,
   emptyState: emptyState, validState: validState, itemIds: itemIds, getQuestion: getQuestion,
@@ -380,5 +417,6 @@ if (typeof module !== 'undefined') module.exports = {
   nextDue: nextDue,
   XP: XP, recordAnswer: recordAnswer, finishSession: finishSession, setGoal: setGoal,
   totalXp: totalXp, level: level, weekKey: weekKey, streak: streak, mergeState: mergeState,
-  applyShortcut: applyShortcut, sessionSummary: sessionSummary
+  applyShortcut: applyShortcut, sessionSummary: sessionSummary,
+  segmentOffsets: segmentOffsets, lineasFor: lineasFor
 };

@@ -10,7 +10,7 @@ const {
   currentStation, getQuestion, validState, emptyState,
   buildSession, enqueueRepeat, describeSession, nextDue,
   recordAnswer, finishSession, setGoal, totalXp, level, weekKey, streak, mergeState,
-  applyShortcut, sessionSummary
+  applyShortcut, sessionSummary, segmentOffsets, lineasFor
 } = require('../js/core.js');
 
 function q(tag) { return { q: 'P ' + tag, opts: ['a', 'b', 'c', 'd'], ok: 0, why: 'Porque ' + tag }; }
@@ -247,4 +247,25 @@ test('las funciones no mutan sus argumentos', () => {
   const s = emptyState(); const frozen = JSON.stringify(s);
   recordAnswer(s, 'a.0', true, '2026-11-10', 1); finishSession(s, '2026-11-10');
   assert.equal(JSON.stringify(s), frozen);
+});
+
+test('segmentOffsets separa tramos compartidos', () => {
+  const o = segmentOffsets([{ id: 'p', stations: ['a', 'b', 'c'] }, { id: 'q', stations: ['x', 'a', 'b'] }]);
+  assert.equal(o.p['a|b'], -3.5); assert.equal(o.q['a|b'], 3.5); assert.equal(o.p['b|c'], 0);
+  assert.equal(o.q['a|x'], 0);
+});
+test('segmentOffsets: tres líneas en el mismo tramo, en cualquier sentido', () => {
+  const o = segmentOffsets([{ id: 'p', stations: ['a', 'b'] }, { id: 'q', stations: ['b', 'a'] }, { id: 'r', stations: ['c', 'a', 'b'] }]);
+  assert.deepEqual([o.p['a|b'], o.q['a|b'], o.r['a|b']], [-7, 0, 7]);
+});
+test('lineasFor', () => {
+  const { LINEAS } = require('../js/data-lineas.js');
+  // L1 a L4: solo SatoriTech tiene infraestructura (las líneas de la Tarea 6 también pueden tenerla)
+  assert.deepEqual([...lineasFor(['inf'], LINEAS.slice(0, 4))], ['satori-cloud-jr']);
+  assert.deepEqual([...lineasFor(['web', 'dat'], LINEAS.slice(0, 4))], ['edar-dev-jr', 'sears-datos-jr', 'mvs-tester-jr']);
+  assert.deepEqual([...lineasFor(['rsk'], LINEAS.slice(0, 4))], []);
+});
+test('lineasFor usa la global LINEAS si no recibe líneas', () => {
+  globalThis.LINEAS = [{ id: 'u', areas: ['ml'] }, { id: 'w', areas: ['dat', 'ml'] }];
+  try { assert.deepEqual([...lineasFor(['ml'])], ['u', 'w']); } finally { delete globalThis.LINEAS; }
 });
