@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** convertir Mapa de áreas en un hub de estudio diario. Siete líneas (vacantes reales) y 27 estaciones (habilidades); sesiones de 5 tarjetas con repetición espaciada, XP y racha; uso sin cuenta y sincronización opcional con Supabase.
+**Goal:** convertir Mapa de áreas en un hub de estudio diario. Nueve líneas (vacantes reales) y 32 estaciones (habilidades); sesiones de 5 tarjetas con repetición espaciada, XP y racha; uso sin cuenta y sincronización opcional con Supabase.
 
 **Architecture:**
 - Sitio estático sin build. `index.html` se reparte en `css/` y `js/`, y los scripts son clásicos.
@@ -27,10 +27,10 @@
 - XP: 10 por acierto, 2 por error y 20 por terminar la sesión. Nivel: `1 + floor(xp / 200)`.
 - Racha: días cumplidos consecutivos hasta hoy o ayer. Se tolera un día faltante por semana (de lunes a domingo).
 - Fechas: texto `AAAA-MM-DD` con la fecha local del dispositivo. La fecha de hoy se calcula en cada respuesta y al cerrar la sesión, no al empezarla.
-- Siete líneas con los ids, números y estaciones de la tabla «Las siete líneas» del spec. Ids de las estaciones:
-  - nuevas: `git`, `datos`, `sql`, `apis`, `pruebas-auto`, `hojas`, `tableros`, `indicadores`, `casos-prueba`, `defectos`, `linux`, `nube`, `monitoreo`, `redes`, `amenazas`, `incidentes`, `python`, `estadistica`, `ml`, `llm`;
+- Nueve líneas con los ids, números y estaciones de la tabla «Las nueve líneas» del spec. Ids de las estaciones:
+  - nuevas: `git`, `datos`, `sql`, `apis`, `pruebas-auto`, `hojas`, `tableros`, `indicadores`, `casos-prueba`, `defectos`, `linux`, `nube`, `monitoreo`, `redes`, `amenazas`, `incidentes`, `python`, `estadistica`, `ml`, `llm`, `requerimientos`, `diagramas`, `agil`, `seguros`, `riesgo`;
   - adaptadas de Getnet: `agentes`, `multiagente`, `evaluacion`, `guardrails`, `rag`, `mcp`, `observabilidad`.
-- Ids de las líneas: `edar-dev-jr`, `sears-datos-jr`, `mvs-tester-jr`, `satori-cloud-jr`, `safe-soc`, `banorte-ds-jr`, `getnet-ai-deploy`.
+- Ids de las líneas: `edar-dev-jr`, `sears-datos-jr`, `mvs-tester-jr`, `satori-cloud-jr`, `safe-soc`, `banorte-ds-jr`, `getnet-ai-deploy`, `liverpool-negocio-jr`, `mapfre-suscriptor-jr`.
 - Interfaz en español de México, de tú, sin jerga. Cada término técnico de una estación aparece en `GLOSS`.
 - Hábito sin manipulación: sin notificaciones, sin mensajes de culpa y sin castigo por faltar.
 - Teléfono primero: sin scroll horizontal a 390 px, objetivos táctiles de 44 px, teclas 1 a 4 y Enter en la sesión, `aria-live` en la explicación, y `prefers-reduced-motion`.
@@ -55,7 +55,7 @@
 | `css/app.css` | Tokens (claro y oscuro, 7 colores de línea) y estilos |
 | `js/data-areas.js` | `AREAS`, `SETS`, `GLOSS`, `MAXP` y `scoreAnswers` (el bloque DATA actual, sin RUTAS desde la Tarea 12) |
 | `js/data-estaciones.js` | `ESTACIONES`: objeto `{ id: Estacion }` |
-| `js/data-lineas.js` | `LINEAS`: arreglo de `Linea`, en orden L1 a L7 |
+| `js/data-lineas.js` | `LINEAS`: arreglo de `Linea`, en orden L1 a L9 |
 | `js/core.js` | Reglas puras: cajas, avance, sesión, XP, racha, combinación de estados, atajo y geometría del mapa |
 | `js/store.js` | `localStorage` y sincronización con Supabase |
 | `js/ui.js` | `el`, `show`, `screens`, `glossFor`, `extLink`, `fmtDate`, `showNotice`, barra inferior |
@@ -448,6 +448,37 @@ test('L5 a L7 declaran la experiencia que piden', () => {
 
 ---
 
+### Tarea 6b: contenido, parte C (L8 y L9)
+
+Agregada a petición de Axel: dos vacantes de áreas que no tenían línea, consultoría (`con`) y riesgos (`rsk`).
+
+**Files:**
+- Modify: `js/data-estaciones.js`, `js/data-lineas.js`, `js/data-areas.js` (`GLOSS`) y `tests/content.test.mjs`
+
+**Interfaces:**
+- Consumes: las formas y pruebas de las Tareas 5 y 6.
+- Produces: 5 estaciones nuevas y las líneas L8 y L9, con los datos de la tabla del spec.
+  - Estaciones: `requerimientos`, `diagramas`, `agil`, `seguros` y `riesgo`.
+  - L8 `liverpool-negocio-jr`: Analista de Negocios Jr., El Puerto de Liverpool (Corporativo), Santa Fe CDMX, híbrido. Hace de enlace entre negocio y sistemas: recaba información, analiza necesidades y elabora requerimientos funcionales, documenta para desarrollo y pruebas, y capacita a los equipos de prueba. Pide: Ingeniería en sistemas o afín, metodologías ágiles, Java o HTML, bases de datos relacionales, Excel intermedio y herramientas de diagramación. URL `https://to.indeed.com/aapw7vcyjhrb`, áreas `["con", "web"]`, estaciones `requerimientos`, `diagramas`, `agil`, `sql` y `hojas`.
+  - L9 `mapfre-suscriptor-jr`: Suscriptor Jr., MAPFRE, Benito Juárez CDMX. Apoya el análisis, la evaluación y la gestión de riesgos para suscribir pólizas del ramo de daños; revisa contratos, administra endosos y coordina con siniestros y reaseguro. Pide: ingeniería mecánica, industrial o afín (pasante o titulado), 1 año deseable en seguros, reaseguro o administración de riesgos, e inglés B2. URL `https://to.indeed.com/aaj9dyj24vr8`, áreas `["rsk"]`, estaciones `hojas`, `estadistica`, `seguros` y `riesgo`. La `note` dice que pide ingeniería afín e inglés B2.
+  - Las coordenadas siguen el plan de diseño que dejó el reporte de la Tarea 5.
+
+- [ ] **Paso 1:** cambiar en `tests/content.test.mjs` la prueba de conteo para que espere 32 estaciones y 9 líneas, en orden L1 a L9. Agregar:
+
+```js
+test('todas las áreas salvo inv tienen al menos una línea', () => {
+  const cubiertas = new Set(LINEAS.flatMap(l => l.areas));
+  Object.keys(AREAS).filter(k => k !== 'inv').forEach(k => assert.ok(cubiertas.has(k), k));
+});
+```
+
+- [ ] **Paso 2:** correr `node --test tests/*.test.mjs`. Resultado esperado: FAIL, con 27 estaciones en lugar de 32.
+- [ ] **Paso 3:** escribir el contenido con las mismas reglas de la Tarea 5. En `seguros` y `riesgo` el tono es de introducción para alguien de computación: qué es una póliza, prima, suma asegurada, deducible y reaseguro; frecuencia y severidad, pérdida esperada, y por qué importan los datos y los modelos.
+- [ ] **Paso 4:** correr `node --test tests/*.test.mjs`. Resultado esperado: todas pasan.
+- [ ] **Paso 5:** commit con el mensaje «Agrega estaciones y líneas L8 y L9».
+
+---
+
 ### Tarea 7: guardado en el dispositivo
 
 **Files:**
@@ -574,7 +605,7 @@ test('falla de red: devuelve el estado local y el error, sin lanzar', async () =
 step = 'primera visita sin cuenta: elegir meta';
 await page.goto(INDEX_URL);
 await page.waitForSelector('#s-pick:not([hidden])');
-assert.equal(await page.locator('#s-pick .line-card').count(), 7);
+assert.equal(await page.locator('#s-pick .line-card').count(), 9);
 assert.match(await page.locator('#s-pick .line-card').first().textContent(), /Para empezar/);
 await page.locator('#s-pick .line-card', { hasText: 'Desarrollador de Software Jr.' }).click();
 await page.waitForSelector('#s-hoy:not([hidden])');
@@ -621,9 +652,9 @@ step = 'estás al día';
     - «Descubre tu área» y, con sesión, «Mis respuestas»;
     - «Borrar mis datos», con confirmación en dos clics: `clearLocal`, `deleteRemote` si hay sesión, y luego `s-pick`;
     - «Vista docente», si `isAdmin`.
-  - **CSS:** tokens nuevos del spec (papel cálido, `--l1` a `--l7` en claro y oscuro, resaltador), con el lenguaje visual de las maquetas.
-  - **Colores de línea en claro:** `--l1 #1B8F5A`, `--l2 #E0722B`, `--l3 #7A4CC2`, `--l4 #0F8FA8`, `--l5 #C2323C`, `--l6 #C2327E`, `--l7 #1F4FD8`. En oscuro se aclaran hasta tener un contraste de al menos 3:1 sobre el papel oscuro.
-  - **Distinción sin color:** cada línea se muestra siempre con su número (`L1` a `L7`) en un `.lbadge`.
+  - **CSS:** tokens nuevos del spec (papel cálido, `--l1` a `--l9` en claro y oscuro, resaltador), con el lenguaje visual de las maquetas.
+  - **Colores de línea en claro:** `--l1 #1B8F5A`, `--l2 #E0722B`, `--l3 #7A4CC2`, `--l4 #0F8FA8`, `--l5 #C2323C`, `--l6 #C2327E`, `--l7 #1F4FD8`, `--l8 #8A6D1F`, `--l9 #4D5B66`. En oscuro se aclaran hasta tener un contraste de al menos 3:1 sobre el papel oscuro.
+  - **Distinción sin color:** cada línea se muestra siempre con su número (`L1` a `L9`) en un `.lbadge`.
 - [ ] **Paso 4:** correr `node tests/e2e.cjs && node --test tests/*.test.mjs`. Resultado esperado: todo pasa.
 - [ ] **Paso 5:** commit con el mensaje «Agrega estructura del hub: elegir meta, Hoy y Yo».
 
@@ -716,14 +747,14 @@ step = 'medianoche a media sesión';
 - [ ] **Paso 1: agregar los escenarios que fallan**
 
 ```js
-step = 'mapa: 7 líneas, 27 estaciones';
+step = 'mapa: 9 líneas, 32 estaciones';
 await page.click('#tabbar [data-tab=mapa]');
-assert.equal(await page.locator('#s-mapa svg [data-station]').count(), 27);
-assert.equal(await page.locator('#s-mapa .line-list [data-line]').count(), 7);
+assert.equal(await page.locator('#s-mapa svg [data-station]').count(), 32);
+assert.equal(await page.locator('#s-mapa .line-list [data-line]').count(), 9);
 
 step = 'estación compartida cuenta en todas sus líneas';
 await page.click('#s-mapa [data-station=sql]');
-assert.match(await page.textContent('#s-estacion'), /L1.*L2.*L4.*L6/s);
+assert.match(await page.textContent('#s-estacion'), /L1.*L2.*L4.*L6.*L8/s);
 // atajo con las 2 correctas → «Listo: la estación queda vista»
 // Mapa → la lista muestra L2 > 0% y L4 > 0%
 
@@ -737,7 +768,7 @@ await page.click('#tabbar [data-tab=hoy]');
 assert.match(await page.textContent('#s-hoy'), /Analista SOC/);
 ```
 
-- [ ] **Paso 2:** correr `node tests/e2e.cjs`. Resultado esperado: FAIL en «mapa: 7 líneas».
+- [ ] **Paso 2:** correr `node tests/e2e.cjs`. Resultado esperado: FAIL en «mapa: 9 líneas».
 - [ ] **Paso 3:** implementar según la maqueta 3 y revisar con una captura a 390 px que ninguna etiqueta se encime. Si se enciman, se ajustan las coordenadas en `data-lineas.js` y `content.test.mjs` debe seguir pasando.
 - [ ] **Paso 4:** correr `node tests/e2e.cjs && node --test tests/*.test.mjs`. Resultado esperado: todo pasa.
 - [ ] **Paso 5:** commit con el mensaje «Agrega Mapa, Línea y Estación con atajo».
