@@ -95,4 +95,38 @@ test('ruta Getnet: metadatos de la vacante', () => {
   assert.equal(r.asks.length, 4);
 });
 
+// --- Tarea 2: contenido ---
+
+test('ruta Getnet: 7 temas en orden', () => {
+  assert.deepEqual([...RUTAS['getnet-ai-deploy'].topics.map(t => t.id)],
+    ['agentes', 'multiagente', 'evaluacion', 'guardrails', 'rag', 'mcp', 'observabilidad']);
+});
+
+test('cada tema está completo', () => {
+  for (const t of RUTAS['getnet-ai-deploy'].topics) {
+    for (const k of ['name', 'plain', 'why']) assert.ok(typeof t[k] === 'string' && t[k].length > 10, t.id + '.' + k);
+    assert.ok(t.ideas.length >= 3 && t.ideas.length <= 4, t.id);
+    assert.ok(t.task && t.task.n && t.task.d && t.task.t, t.id);
+    assert.ok(t.res.length >= 2 && t.res.length <= 3, t.id);
+    t.res.forEach(r => { assert.ok(r.n, t.id); assert.match(r.u, /^https:\/\//); });
+    assert.equal(t.review.length, 2, t.id);
+    [t.diag, ...t.review].forEach(q => {
+      assert.equal(q.opts.length, 4, t.id);
+      assert.ok(Number.isInteger(q.ok) && q.ok >= 0 && q.ok < 4, t.id);
+      assert.ok(q.why.length > 20, t.id);
+      assert.ok(!q.opts.includes(NO_SE), t.id);
+    });
+  }
+});
+
+test('la respuesta correcta no siempre está en la misma posición', () => {
+  const oks = RUTAS['getnet-ai-deploy'].topics.flatMap(t => [t.diag.ok, ...t.review.map(r => r.ok)]);
+  assert.ok(new Set(oks).size >= 3);
+});
+
+test('términos técnicos de las lecciones están en el glosario', () => {
+  const keys = GLOSS.map(g => g[1]);
+  ['llm', 'token', 'embedding', 'prompt'].forEach(k => assert.ok(keys.includes(k), k));
+});
+
 export { RUTAS, GLOSS };
