@@ -35,7 +35,7 @@ Convertir Mapa de áreas en un hub de estudio que se abre a diario: sesiones de 
 - Modelo de habilidades compartidas entre vacantes («líneas» y «estaciones»).
 - Sesión diaria con repetición espaciada, XP y racha.
 - Pantallas Hoy, Sesión, Mapa, Línea, Estación y Yo, con diseño nuevo.
-- 3 líneas y 15 estaciones: la de Getnet y dos vacantes nuevas de Indeed.
+- 7 líneas y 27 estaciones a partir de vacantes reales: la de Getnet y seis de Indeed.
 - Progreso guardado en el dispositivo, con sincronización opcional a Supabase.
 - Vista docente del progreso.
 - Separar `index.html` en archivos, sin build.
@@ -43,7 +43,7 @@ Convertir Mapa de áreas en un hub de estudio que se abre a diario: sesiones de 
 **No entra:**
 - Ranking (entrega 1b).
 - Cuestionario nuevo (entrega 2).
-- Más vacantes (entrega 3).
+- Más vacantes, además de estas siete (entrega 3).
 - Notificaciones, correo de recordatorio o app instalable.
 - Borrar la tabla `mapa_aprendizaje`: deja de usarse, pero no se toca. Tiene una fila, de la prueba de Axel.
 
@@ -64,7 +64,7 @@ Una estación se aprende una vez y cuenta para todas las líneas que pasan por e
   ],
   extra: [ { q, opts, ok, why }, { q, opts, ok, why } ],  // 2 preguntas de aplicación
   task: { n: "…", d: "…", t: "1 tarde" },                 // ejercicio para hacer fuera del sitio
-  res: [ { n: "…", u: "https://…" } ]                     // 2 o 3 recursos oficiales
+  res: [ { n: "…", u: "https://…" } ]                     // de 1 a 3 recursos oficiales
 }
 ```
 
@@ -93,19 +93,37 @@ Una estación se aprende una vez y cuenta para todas las líneas que pasan por e
 }
 ```
 
-### Las tres líneas de esta entrega
+### Las siete líneas de esta entrega
 
-| Línea | Vacante | Nivel | Estaciones |
-| --- | --- | --- | --- |
-| L1 | Desarrollador de Software Jr., EDAR Tech ([Indeed](https://to.indeed.com/aatdz7r8llx4)) | Para empezar | Git, Datos, SQL, APIs, Pruebas |
-| L2 | Desarrollador de IA, Corporativo UBK ([Indeed](https://to.indeed.com/aawdsps4hdr2)) | Meta a 2 o 3 años | Python, SQL, APIs, ML clásico, LLM y embeddings, RAG, Evaluación |
-| L3 | AI Deployment Engineer, Getnet ([Greenhouse](https://job-boards.eu.greenhouse.io/getnet/jobs/5019637101)) | Meta a 2 o 3 años | Agentes, Multiagente, Guardrails, MCP, Observabilidad, RAG, Evaluación |
+Ampliado a petición de Axel después de aprobar el spec: de 3 a 7 líneas. Todas las vacantes son de la Ciudad de México y las leí completas el 10 de noviembre de 2026.
 
-- Son 15 estaciones distintas. SQL y APIs unen L1 con L2; RAG y Evaluación unen L2 con L3.
-- **Contenido nuevo:** 8 estaciones (Git, Datos, SQL, APIs, Pruebas, Python, ML clásico, LLM y embeddings).
-- **Contenido que se adapta:** las 7 de Getnet. Sus ideas clave pasan a ser pasos, sus 3 preguntas se conservan y se agregan 3 por estación.
-- En total: 90 preguntas, de las cuales 21 ya existen.
-- La vacante de UBK pide de 3 a 5 años de experiencia. La línea lo dice y se presenta como mapa de lo que hay que aprender, no como vacante para aplicar hoy.
+| Línea | Vacante | Nivel | Áreas | Estaciones |
+| --- | --- | --- | --- | --- |
+| L1 | Desarrollador de Software Jr., EDAR Tech ([Indeed](https://to.indeed.com/aatdz7r8llx4)) · $12–15 mil, para estudiantes | Para empezar | bak, web | Git, Datos, SQL, APIs, Pruebas automáticas |
+| L2 | Analista de Datos Jr., Sears ([Indeed](https://to.indeed.com/aaldbdtkrfpw)) · temporal, presencial | Para empezar | dat | Hojas de cálculo, Datos, SQL, Tableros, Indicadores |
+| L3 | Tester Funcional Jr., MVS ([Indeed](https://to.indeed.com/aa4ldtjsjhgg)) · $13 mil, acepta proyectos escolares | Para empezar | bak, web | Casos de prueba, Reporte de defectos, Hojas de cálculo, Pruebas automáticas |
+| L4 | Ingeniero de Operaciones Cloud Jr., SatoriTech ([Indeed](https://to.indeed.com/aadcj6rbvmmm)) · $20–25 mil | Para empezar | inf | Linux y terminal, Nube, Monitoreo y registros, SQL, Git |
+| L5 | Analista SOC, SAFE ([Indeed](https://to.indeed.com/aabbr778kp7b)) · $20–26 mil, pide 2 años | Meta a 2 años | sec, inf | Redes, Linux y terminal, Monitoreo y registros, Amenazas y vulnerabilidades, Respuesta a incidentes |
+| L6 | Científico de Datos Jr., Banorte ([Indeed](https://to.indeed.com/aa2js7jv6y78)) · pide de 2 a 4 años | Meta a 2 o 3 años | ml, dat | Python, SQL, Estadística, ML clásico, LLM y embeddings, RAG, Evaluación |
+| L7 | AI Deployment Engineer, Getnet ([Greenhouse](https://job-boards.eu.greenhouse.io/getnet/jobs/5019637101)) | Meta a 2 o 3 años | ml, bak, inf | Agentes, Multiagente, Guardrails, MCP, Observabilidad, RAG, Evaluación |
+
+- **27 estaciones distintas.** Las que se comparten:
+  - SQL: L1, L2, L4 y L6.
+  - Hojas de cálculo: L2 y L3.
+  - Datos: L1 y L2.
+  - Git: L1 y L4.
+  - Pruebas automáticas: L1 y L3.
+  - Linux y terminal, y Monitoreo y registros: L4 y L5.
+  - RAG y Evaluación: L6 y L7.
+- **Contenido nuevo:** 20 estaciones. Las 7 de Getnet se adaptan: sus ideas clave pasan a ser pasos, sus 3 preguntas se conservan y se agregan 3 por estación.
+- **En total:** 162 preguntas, de las cuales 21 ya existen.
+- **«Pruebas automáticas»** (escribir pruebas en código) es distinta de **«Casos de prueba»** (diseñar y ejecutar pruebas a mano).
+- **«Monitoreo y registros»** es general: métricas, logs y alertas de servidores. **«Observabilidad»** se queda en llamadas a modelos de IA.
+- **Vacantes que piden experiencia** (L5, L6 y L7): cada línea dice cuánta piden y se presenta como mapa de lo que hay que aprender, no como vacante para aplicar hoy.
+- **Lo que quedó fuera:**
+  - Desarrollador de IA de Corporativo UBK: pide de 3 a 5 años y la cubre mejor la de Banorte.
+  - Analista de Riesgo de Crédito de BBVA: pide 2 años en banca y cierra el 12 de noviembre.
+  - Las áreas de riesgos (`rsk`), consultoría (`con`) e investigación (`inv`) se quedan sin línea por ahora. Las retoma la entrega 3.
 - De las vacantes solo se guarda lo necesario para estudiar: puesto, empresa, lugar, lo que piden y el enlace. No se copian correos ni datos de contacto.
 - Las vacantes caducan. Cada línea muestra «leída el…» y el enlace puede dejar de funcionar sin romper la línea.
 
@@ -191,7 +209,7 @@ Una sola clave de `localStorage`, `mapa.v2`:
 
 El sitio se piensa para teléfono. Hay una barra inferior con tres pestañas: **Hoy**, **Mapa** y **Yo**. Las maquetas aprobadas muestran Hoy, Sesión y Mapa.
 
-1. **Primera visita:** «Elige tu meta», con las tres líneas como tarjetas (puesto, empresa, nivel, número de estaciones). Al elegir, entra a Hoy. Sin correo.
+1. **Primera visita:** «Elige tu meta», con las siete líneas como tarjetas (puesto, empresa, nivel, número de estaciones), primero las de nivel «Para empezar». Al elegir, entra a Hoy. Sin correo.
 2. **Hoy:**
    - racha y semana (siete puntos, de lunes a domingo);
    - tarjeta de la meta: «% listo», estaciones que faltan y la línea en miniatura con la estación actual;
@@ -203,7 +221,7 @@ El sitio se piensa para teléfono. Hay una barra inferior con tres pestañas: **
    - Tarjeta de pregunta: etiqueta («Repaso · SQL» o «Nuevo · SQL»), pregunta y 4 opciones; teclas 1 a 4.
    - Al responder: se marca la correcta, aparece «Correcto» o «Casi» con la explicación, el XP y cuándo vuelve a salir. Luego «Siguiente».
    - Cierre: XP ganado, racha, cuánto subió el «% listo», estación visitada si la hubo, y cuántos repasos tocan mañana. Botones «Listo» y «Otra sesión».
-4. **Mapa:** las líneas dibujadas como mapa de transporte en SVG, con las coordenadas de cada línea.
+4. **Mapa:** las líneas dibujadas como mapa de transporte en SVG, con las coordenadas de cada línea. Con siete líneas, el mapa se escala al ancho de la pantalla y crece hacia abajo; ninguna etiqueta se encima con otra ni con una línea (se revisa en las capturas).
    - Estación visitada, rellena; estación actual, resaltada; estación compartida, con doble punto.
    - Tocar una estación abre su página. Debajo, la lista de líneas con su porcentaje, que también sirve a lectores de pantalla.
    - Se usa el lenguaje genérico de los mapas de transporte (líneas de color, estaciones, transbordos), sin logotipos ni iconografía de ningún sistema real.
@@ -227,7 +245,7 @@ El sitio se piensa para teléfono. Hay una barra inferior con tres pestañas: **
 ## Lenguaje visual
 
 - **Idea:** mapa de transporte sobre papel. Cada vacante es una línea de color; cada habilidad, una estación.
-- **Color:** papel cálido claro, tinta casi negra, resaltador amarillo para lo que está activo y un color por línea (verde, magenta y azul). Tema oscuro con los mismos papeles.
+- **Color:** papel cálido claro, tinta casi negra, resaltador amarillo para lo que está activo y un color por línea (siete, distinguibles también por su número L1 a L7 y por el patrón de su punto). Tema oscuro con los mismos papeles.
 - **Tipografía:** se conservan Bricolage Grotesque para títulos, IBM Plex Sans para texto e IBM Plex Mono para etiquetas.
 - **Movimiento:** breve y con función (avance de la barra, aparición de la explicación). Se respeta `prefers-reduced-motion`.
 - **Accesibilidad:** el acierto y el error se dicen con texto, no solo con color; la explicación se anuncia con `aria-live`; todo funciona con teclado; objetivos táctiles de 44 px como mínimo; sin scroll horizontal a 390 px.
@@ -268,7 +286,7 @@ Son scripts clásicos, no módulos, para que el sitio también abra desde `file:
   - XP, día cumplido y racha, con el día de descanso y el cambio de semana;
   - `mergeState`: gana el más reciente por ítem, máximo por día, ítems desconocidos conservados;
   - atajo: dos aciertos llevan los 6 ítems a la caja 3;
-  - integridad: 15 estaciones con 4 pasos y 2 preguntas extra, ids únicos, 4 opciones, URLs `https`, cada estación de cada línea existe y tiene coordenadas, y la prueba de longitud de las opciones.
+  - integridad: 27 estaciones con 4 pasos y 2 preguntas extra, ids únicos, 4 opciones, URLs `https`, cada estación de cada línea existe y tiene coordenadas, y la prueba de longitud de las opciones.
 - **Flujo** (Playwright con el Supabase falso), todo sin cuenta salvo donde se indica:
   1. primera visita → elegir meta → sesión completa con teclado → cierre con XP y racha de 1;
   2. recargar la página → el progreso sigue ahí;
