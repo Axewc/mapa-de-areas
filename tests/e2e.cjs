@@ -112,6 +112,54 @@ async function main() {
     await page.click('text=Volver a la ruta');
     await page.waitForSelector('#s-learn .topic-row');
 
+    // --- Tarea 6: lección y repaso ---
+    step = 'abrir la lección de un tema';
+    const rowOf = (name) => page.locator('#s-learn .topic-row', { hasText: name });
+    await rowOf('Orquestación de agentes').click();
+    await page.waitForSelector('#s-learn .lesson');
+    const lesson = await page.textContent('#s-learn');
+    assert.match(lesson, /Qué es/);
+    assert.match(lesson, /Por qué le importa a una empresa de pagos/);
+    assert.match(lesson, /Ideas clave/);
+    assert.match(lesson, /Ejercicio para una tarde/);
+    assert.ok(await page.locator('#s-learn .lesson a[target="_blank"][rel="noopener"]').count() >= 2);
+    await page.waitForFunction(() => /Por aprender/.test(document.querySelector('#s-learn .lesson .state').textContent));
+
+    step = 'las teclas no responden fuera del cuestionario';
+    await page.keyboard.press('1');
+    assert.equal(await page.locator('#s-learn .review .opt[aria-pressed="true"]').count(), 0);
+
+    step = 'repaso 2 de 2 domina el tema';
+    const revOks = (id) => page.evaluate(([r, tid]) => RUTAS[r].topics.find((t) => t.id === tid).review.map((q) => q.ok), [RUTA, id]);
+    const agOks = await revOks('agentes');
+    for (const [qi, ok] of agOks.entries()) await page.locator('#s-learn .review .rq').nth(qi).locator('.opt').nth(ok).click();
+    await page.waitForSelector('#s-learn .review .verdict');
+    assert.match(await page.textContent('#s-learn .review .verdict'), /2 de 2/);
+    assert.equal(await page.locator('#s-learn .review .opt.right').count(), 2);
+    await page.waitForFunction(() => window.__db.mapa_aprendizaje.some((r) => r.kind === 'repaso' && r.topic === 'agentes'));
+    const rrow = await page.evaluate(() => window.__db.mapa_aprendizaje.find((r) => r.kind === 'repaso' && r.topic === 'agentes'));
+    assert.deepEqual(rrow.answers, agOks);
+    assert.equal(rrow.scores.agentes, 2);
+    await page.click('text=Volver a la ruta');
+    await page.waitForSelector('#s-learn .topic-row');
+    assert.match(await rowOf('Orquestación de agentes').locator('.state').textContent(), /Ya lo dominas/);
+    assert.match(await rowOf('Orquestación de agentes').textContent(), /Último repaso: 2 de 2/);
+
+    step = 'repaso 1 de 2 regresa el tema a por aprender';
+    await rowOf('RAG').click();
+    await page.waitForSelector('#s-learn .lesson');
+    const ragOks = await revOks('rag');
+    // Responde primero la segunda pregunta: el orden no debe bloquear la primera.
+    await page.locator('#s-learn .review .rq').nth(1).locator('.opt').nth((ragOks[1] + 1) % 4).click();
+    await page.locator('#s-learn .review .rq').nth(0).locator('.opt').nth(ragOks[0]).click();
+    await page.waitForSelector('#s-learn .review .verdict');
+    assert.match(await page.textContent('#s-learn .review .verdict'), /1 de 2/);
+    assert.equal(await page.locator('#s-learn .review .opt.wrong').count(), 1);
+    await page.click('text=Volver a la ruta');
+    await page.waitForSelector('#s-learn .topic-row');
+    assert.match(await rowOf('RAG').locator('.state').textContent(), /Por aprender/);
+    assert.match(await rowOf('RAG').textContent(), /Último repaso: 1 de 2/);
+
     assert.deepEqual(errors, [], 'errores de JS en la página');
     console.log('e2e: OK');
   } catch (e) {

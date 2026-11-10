@@ -22,6 +22,7 @@
   --accent-ink: #FFFFFF;
   --tint: #E3EAFB;
   --mark: #FFE27A;
+  --bad: #B3261E;
   --f-display: 'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif;
   --f-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --f-mono: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
@@ -30,14 +31,14 @@
   :root:not([data-theme="light"]) {
     --paper: #0F1615; --panel: #172120; --ink: #E7EEEB; --muted: #9BAAA5;
     --line: #2B3A36; --grid: #16201F; --accent: #8FAEFF; --accent-ink: #0B1220;
-    --tint: #1B2948; --mark: #5A4A12;
+    --tint: #1B2948; --mark: #5A4A12; --bad: #F2B8B5;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --paper: #0F1615; --panel: #172120; --ink: #E7EEEB; --muted: #9BAAA5;
   --line: #2B3A36; --grid: #16201F; --accent: #8FAEFF; --accent-ink: #0B1220;
-  --tint: #1B2948; --mark: #5A4A12;
+  --tint: #1B2948; --mark: #5A4A12; --bad: #F2B8B5;
   color-scheme: dark;
 }
 
@@ -200,6 +201,18 @@ td.hi { font-weight: 600; background: var(--tint); }
 .state.pendiente { background: var(--mark); color: var(--ink); border-color: transparent; }
 .state.dominado { background: var(--tint); color: var(--ink); border-color: var(--accent); }
 @media (max-width: 480px) { .topic-row { grid-template-columns: 1fr; } .state { justify-self: start; } }
+.lesson { display: flex; flex-direction: column; gap: 1.5rem; }
+.lesson .state { justify-self: auto; display: inline-block; margin-top: 0.75rem; }
+.rq { display: flex; flex-direction: column; gap: 10px; }
+.rq + .rq { margin-top: 1.5rem; }
+.rq .qtext { font-weight: 600; }
+.rq .why { color: var(--muted); font-size: 0.92rem; }
+.opt[disabled] { cursor: default; }
+.opt[disabled]:hover { border-color: var(--line); }
+.opt.right, .opt.right:hover { border-color: var(--accent); background: var(--tint); }
+.opt.wrong, .opt.wrong:hover { border-color: var(--bad); border-style: dashed; }
+.opt .tag-r { grid-column: 2; font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.verdict { font-family: var(--f-display); font-size: 1.3rem; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -1330,8 +1343,12 @@ function loadRutaRows(id) {
     .then(function (r) { if (r.error) throw r.error; return r.data || []; });
 }
 
+// La ruta espera el último guardado antes de leer, para no mostrar un estado viejo.
+var lastSave = Promise.resolve();
 function saveRutaRow(row) {
-  return sb.from('mapa_aprendizaje').insert(row).then(function (r) { if (r.error) throw r.error; });
+  var p = sb.from('mapa_aprendizaje').insert(row).then(function (r) { if (r.error) throw r.error; });
+  lastSave = p.catch(function () {});
+  return p;
 }
 
 function deleteRutaRows(id) {
@@ -1355,7 +1372,7 @@ function openRuta(id) {
   root.textContent = '';
   root.append(navBack(), el('p', { class: 'status', text: 'Cargando tu progreso…' }));
   show('learn');
-  loadRutaRows(id).then(function (rows) { drawRuta(id, rows, null); }, function (e) { drawRuta(id, [], e); });
+  lastSave.then(function () { return loadRutaRows(id); }).then(function (rows) { drawRuta(id, rows, null); }, function (e) { drawRuta(id, [], e); });
 }
 
 function drawRuta(id, rows, err) {
@@ -1459,7 +1476,106 @@ function renderDiagResult(id, ans) {
   show('learn');
 }
 
-function renderTopic(id, topicId) { /* Tarea 6 */ }
+function renderTopic(id, topicId) {
+  var r = RUTAS[id], root = screens.learn;
+  var idx = r.topics.map(function (x) { return x.id; }).indexOf(topicId), t = r.topics[idx];
+  var toRuta = function () { openRuta(id); };
+
+  var stateTag = el('span', { class: 'state nuevo', text: STATE_LABEL.nuevo });
+  lastSave.then(function () { return loadRutaRows(id); }).then(function (rows) {
+    var st = topicStatus(r, rows)[t.id];
+    stateTag.className = 'state ' + st.state;
+    stateTag.textContent = STATE_LABEL[st.state];
+  }, function () {});
+
+  var ideas = el('ul');
+  t.ideas.forEach(function (x) { ideas.append(el('li', { text: x })); });
+  var res = el('ul');
+  t.res.forEach(function (x) { res.append(el('li', null, extLink(x.u, x.n))); });
+  var block = function (label) {
+    var b = el('div', { class: 'block' }, el('p', { class: 'mono', text: label }));
+    for (var i = 1; i < arguments.length; i++) b.append(arguments[i]);
+    return b;
+  };
+
+  var top = el('button', { class: 'linkbtn', type: 'button', text: '← La ruta' });
+  top.addEventListener('click', toRuta);
+  var back = el('button', { class: 'btn ghost', type: 'button', text: 'Volver a la ruta' });
+  back.addEventListener('click', toRuta);
+
+  var lesson = el('article', { class: 'lesson' },
+    el('div', null,
+      el('p', { class: 'mono', text: r.title + ' · tema ' + (idx + 1) + ' de ' + r.topics.length }),
+      el('h1', { text: t.name }),
+      stateTag
+    ),
+    el('div', { class: 'panel area' },
+      block('Qué es', el('p', { text: t.plain })),
+      block('Por qué le importa a una empresa de pagos', el('p', { text: t.why })),
+      block('Ideas clave', ideas)
+    ),
+    el('div', { class: 'panel area' },
+      block('Ejercicio para una tarde', el('ul', { class: 'projects' },
+        el('li', null, el('b', { text: t.task.n }), ' — ' + t.task.d, el('span', { class: 'mono meta', text: 'Tiempo estimado: ' + t.task.t }))
+      )),
+      block('Para leer más', res)
+    )
+  );
+  var gl = glossFor([t.plain, t.why, t.task.d].concat(t.ideas), 'Palabras que quizá no conozcas');
+  if (gl) { gl.style.marginTop = '0'; lesson.append(gl); }
+  lesson.append(drawReview(id, t), el('div', { class: 'footer-actions' }, back));
+
+  root.textContent = '';
+  root.append(el('div', { class: 'topnav' }, top), lesson);
+  show('learn');
+}
+
+function drawReview(id, t) {
+  var box = el('div', { class: 'panel review' });
+  var picks = [];
+  var finished = false;
+  var groups = t.review.map(function (q, qi) {
+    var opts = el('div', { class: 'opts' });
+    var btns = q.opts.map(function (o, oi) {
+      var b = el('button', { class: 'opt', type: 'button', 'aria-pressed': 'false' }, el('span', { class: 'k', text: String(oi + 1) }), el('span', { text: o }));
+      b.addEventListener('click', function () {
+        if (finished) return;
+        picks[qi] = oi;
+        btns.forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+        var done = 0;
+        for (var i = 0; i < t.review.length; i++) if (picks[i] !== undefined) done++;
+        if (done === t.review.length) finish();
+      });
+      opts.append(b);
+      return b;
+    });
+    var rq = el('div', { class: 'rq' }, el('p', { class: 'qtext', text: (qi + 1) + '. ' + q.q }), opts);
+    return { rq: rq, btns: btns, q: q };
+  });
+  function finish() {
+    finished = true;
+    var scores = scoreReview(t, picks);
+    groups.forEach(function (g, qi) {
+      g.btns.forEach(function (b, oi) {
+        b.disabled = true;
+        if (oi === g.q.ok) { b.classList.add('right'); b.append(el('span', { class: 'tag-r', text: 'Correcta' })); }
+        else if (oi === picks[qi]) { b.classList.add('wrong'); b.append(el('span', { class: 'tag-r', text: 'Tu respuesta' })); }
+      });
+      g.rq.append(el('p', { class: 'why', text: g.q.why }));
+    });
+    var again = el('button', { class: 'btn ghost', type: 'button', text: 'Repetir el repaso' });
+    again.addEventListener('click', function () { box.replaceWith(drawReview(id, t)); });
+    box.append(
+      el('p', { class: 'verdict', text: scores[t.id] + ' de ' + t.review.length + (scores[t.id] === t.review.length ? ' · ya lo dominas' : ' · sigue practicando') }),
+      saveNoteFor(saveRutaRow({ ruta: id, kind: 'repaso', topic: t.id, answers: picks.slice(), scores: scores }), 'Guardado. El estado del tema ya cambió en la ruta.'),
+      el('div', null, again)
+    );
+  }
+  box.append(el('h2', { text: 'Repaso: ' + t.review.length + ' preguntas', style: 'font-size:1.35rem;margin-bottom:0.4rem' }),
+    el('p', { class: 'legend', text: 'Responde las dos y verás cuáles acertaste. Con ' + t.review.length + ' de ' + t.review.length + ', el tema queda como dominado.', style: 'margin:0 0 1.25rem' }));
+  groups.forEach(function (g) { box.append(g.rq); });
+  return box;
+}
 
 document.getElementById('to-learn').addEventListener('click', function () { openRuta(Object.keys(RUTAS)[0]); });
 
