@@ -205,11 +205,180 @@ function nextDue(state, today) {
   return best;
 }
 
+var XP = { right: 10, wrong: 2, done: 20 };
+
+function coreDay(state, ymd) {
+  var d = state.days[ymd];
+  return { xp: d && d.xp > 0 ? d.xp : 0, done: !!(d && d.done) };
+}
+
+function coreWithDay(state, ymd, day) {
+  var days = {};
+  for (var k in state.days) if (Object.prototype.hasOwnProperty.call(state.days, k)) days[k] = state.days[k];
+  days[ymd] = day;
+  return { v: state.v, goal: state.goal, goalT: state.goalT, items: state.items, days: days };
+}
+
+// Registra una respuesta: mueve la caja (salvo en repeticiones) y suma XP al día.
+function recordAnswer(state, itemId, correct, today, now, opts) {
+  var items = {}, k;
+  for (k in state.items) if (Object.prototype.hasOwnProperty.call(state.items, k)) items[k] = state.items[k];
+  if (!(opts && opts.repeat)) items[itemId] = reviewItem(state.items[itemId], correct, today, now);
+  var day = coreDay(state, today);
+  var next = coreWithDay(state, today, { xp: day.xp + (correct ? XP.right : XP.wrong), done: day.done });
+  next.items = items;
+  return next;
+}
+
+function finishSession(state, today) {
+  var day = coreDay(state, today);
+  return coreWithDay(state, today, { xp: day.xp + XP.done, done: true });
+}
+
+function setGoal(state, lineId, now) {
+  return { v: state.v, goal: lineId, goalT: now, items: state.items, days: state.days };
+}
+
+function totalXp(state) {
+  var sum = 0;
+  for (var k in state.days) {
+    if (Object.prototype.hasOwnProperty.call(state.days, k) && state.days[k] && state.days[k].xp > 0) sum += state.days[k].xp;
+  }
+  return sum;
+}
+
+function level(xp) { return 1 + Math.floor(xp / 200); }
+
+// Lunes de la semana de esa fecha.
+function weekKey(ymd) {
+  var p = ymd.split('-');
+  var dow = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])).getUTCDay();
+  return addDays(ymd, -((dow + 6) % 7));
+}
+
+function coreIsDone(state, ymd) {
+  var d = state.days[ymd];
+  return !!(d && d.done);
+}
+
+// Racha que termina en E (o en el día anterior si E no está cumplido).
+function coreStreakAt(state, end, oldest) {
+  var d = coreIsDone(state, end) ? end : addDays(end, -1);
+  var count = 0, rest = [], used = {}, pending = [];
+  while (oldest !== null && d >= oldest) {
+    if (coreIsDone(state, d)) {
+      count++;
+      rest = rest.concat(pending);
+      pending = [];
+    } else {
+      var wk = weekKey(d);
+      if (used[wk]) break;
+      used[wk] = true;
+      pending.push(d);
+    }
+    d = addDays(d, -1);
+  }
+  return { count: count, rest: rest };
+}
+
+function streak(state, today) {
+  var oldest = null, done = [], k;
+  for (k in state.days) {
+    if (Object.prototype.hasOwnProperty.call(state.days, k) && coreIsDone(state, k)) {
+      done.push(k);
+      if (oldest === null || k < oldest) oldest = k;
+    }
+  }
+  if (!done.length) return { current: 0, best: 0, rest: [] };
+  var cur = coreStreakAt(state, today, oldest);
+  var best = cur.count;
+  for (var i = 0; i < done.length; i++) {
+    var c = coreStreakAt(state, done[i], oldest).count;
+    if (c > best) best = c;
+  }
+  return { current: cur.count, best: best, rest: cur.rest };
+}
+
+function coreCopyState(s) {
+  var items = {}, days = {}, k;
+  for (k in s.items) if (Object.prototype.hasOwnProperty.call(s.items, k)) items[k] = s.items[k];
+  for (k in s.days) if (Object.prototype.hasOwnProperty.call(s.days, k)) days[k] = { xp: s.days[k].xp, done: s.days[k].done };
+  return { v: 2, goal: s.goal === undefined ? null : s.goal, goalT: s.goalT > 0 ? s.goalT : 0, items: items, days: days };
+}
+
+// Combina dos estados: ítem más reciente, XP máximo, done si cualquiera, meta más reciente.
+function mergeState(a, b) {
+  var va = validState(a), vb = validState(b);
+  if (!va && !vb) return emptyState();
+  if (!vb) return coreCopyState(a);
+  if (!va) return coreCopyState(b);
+  var out = coreCopyState(a), k;
+  for (k in b.items) {
+    if (!Object.prototype.hasOwnProperty.call(b.items, k)) continue;
+    var cur = out.items[k], bt = b.items[k] && b.items[k].t > 0 ? b.items[k].t : 0;
+    if (!cur || bt > (cur.t > 0 ? cur.t : 0)) out.items[k] = b.items[k];
+  }
+  for (k in b.days) {
+    if (!Object.prototype.hasOwnProperty.call(b.days, k)) continue;
+    var d = coreDay(b, k), e = out.days[k];
+    out.days[k] = e ? { xp: Math.max(coreDay(out, k).xp, d.xp), done: coreDay(out, k).done || d.done } : { xp: d.xp, done: d.done };
+  }
+  if ((b.goalT > 0 ? b.goalT : 0) > out.goalT) { out.goal = b.goal === undefined ? null : b.goal; out.goalT = b.goalT; }
+  return out;
+}
+
+// Atajo de una estación: dos aciertos en las preguntas extra la dan por sabida.
+function applyShortcut(state, station, answers, today, now) {
+  var ok0 = answers[0] === station.extra[0].ok, ok1 = answers[1] === station.extra[1].ok;
+  var items = {}, k, ids = itemIds(station);
+  for (k in state.items) if (Object.prototype.hasOwnProperty.call(state.items, k)) items[k] = state.items[k];
+  var passed = ok0 && ok1;
+  if (passed) {
+    for (var i = 0; i < ids.length; i++) items[ids[i]] = { b: 3, due: addDays(today, BOX_DAYS[3]), t: now };
+  } else {
+    items[station.id + '.4'] = reviewItem(state.items[station.id + '.4'], ok0, today, now);
+    items[station.id + '.5'] = reviewItem(state.items[station.id + '.5'], ok1, today, now);
+  }
+  return {
+    state: { v: state.v, goal: state.goal, goalT: state.goalT, items: items, days: state.days },
+    passed: passed
+  };
+}
+
+function sessionSummary(before, after, goalLine, stations, today) {
+  var order = [], seen = {}, i, id;
+  var lineIds = goalLine && goalLine.stations ? goalLine.stations : [];
+  for (i = 0; i < lineIds.length; i++) if (!seen[lineIds[i]]) { seen[lineIds[i]] = true; order.push(lineIds[i]); }
+  for (id in stations) if (Object.prototype.hasOwnProperty.call(stations, id) && !seen[id]) { seen[id] = true; order.push(id); }
+  var visited = [];
+  for (i = 0; i < order.length; i++) {
+    var st = stations[order[i]];
+    if (st && isVisited(after, st) && !isVisited(before, st)) visited.push(order[i]);
+  }
+  var tomorrow = addDays(today, 1), due = 0;
+  for (id in after.items) {
+    if (!Object.prototype.hasOwnProperty.call(after.items, id)) continue;
+    var it = after.items[id];
+    if (!it || !(it.b >= 1) || typeof it.due !== 'string' || it.due > tomorrow) continue;
+    if (stations[coreStationOf(id)]) due++;
+  }
+  return {
+    xp: totalXp(after) - totalXp(before),
+    streak: streak(after, today).current,
+    deltaPct: Math.round(100 * lineProgress(after, goalLine, stations) - 100 * lineProgress(before, goalLine, stations)),
+    visited: visited,
+    dueTomorrow: due
+  };
+}
+
 if (typeof module !== 'undefined') module.exports = {
   BOX_DAYS: BOX_DAYS, BOX_WEIGHT: BOX_WEIGHT, todayYmd: todayYmd, addDays: addDays,
   emptyState: emptyState, validState: validState, itemIds: itemIds, getQuestion: getQuestion,
   reviewItem: reviewItem, stationProgress: stationProgress, isVisited: isVisited,
   lineProgress: lineProgress, currentStation: currentStation,
   buildSession: buildSession, enqueueRepeat: enqueueRepeat, describeSession: describeSession,
-  nextDue: nextDue
+  nextDue: nextDue,
+  XP: XP, recordAnswer: recordAnswer, finishSession: finishSession, setGoal: setGoal,
+  totalXp: totalXp, level: level, weekKey: weekKey, streak: streak, mergeState: mergeState,
+  applyShortcut: applyShortcut, sessionSummary: sessionSummary
 };

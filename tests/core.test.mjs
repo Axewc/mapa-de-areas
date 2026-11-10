@@ -8,7 +8,9 @@ const require = createRequire(import.meta.url);
 const {
   reviewItem, stationProgress, lineProgress, isVisited, itemIds,
   currentStation, getQuestion, validState, emptyState,
-  buildSession, enqueueRepeat, describeSession, nextDue
+  buildSession, enqueueRepeat, describeSession, nextDue,
+  recordAnswer, finishSession, setGoal, totalXp, level, weekKey, streak, mergeState,
+  applyShortcut, sessionSummary
 } = require('../js/core.js');
 
 function q(tag) { return { q: 'P ' + tag, opts: ['a', 'b', 'c', 'd'], ok: 0, why: 'Porque ' + tag }; }
@@ -157,4 +159,92 @@ test('describeSession', () => {
   assert.equal(describeSession([newGit, newGit, newGit, newGit, newDatos], REAL), '5 min · 5 pasos nuevos de Git y más');
   assert.equal(describeSession([rev], REAL), '1 min · 1 repaso');
   assert.equal(describeSession([], REAL), '');
+});
+
+function daysDone(list) {
+  const days = {};
+  for (const d of list) days[d] = { xp: 20, done: true };
+  return { ...emptyState(), days };
+}
+
+test('recordAnswer suma XP y mueve la caja; la repetición solo suma XP', () => {
+  let s = recordAnswer(emptyState(), 'a.0', true, '2026-11-10', 1);
+  assert.equal(s.items['a.0'].b, 1); assert.equal(s.days['2026-11-10'].xp, 10);
+  s = recordAnswer(s, 'a.0', false, '2026-11-10', 2, { repeat: true });
+  assert.equal(s.items['a.0'].b, 1); assert.equal(s.days['2026-11-10'].xp, 12);
+});
+test('finishSession marca el día y suma 20', () => {
+  const s = finishSession(emptyState(), '2026-11-10');
+  assert.deepEqual({ ...s.days['2026-11-10'] }, { xp: 20, done: true });
+});
+test('setGoal, totalXp, level y weekKey', () => {
+  const s = setGoal(emptyState(), 'l', 7);
+  assert.equal(s.goal, 'l'); assert.equal(s.goalT, 7);
+  assert.equal(totalXp({ ...emptyState(), days: { x: { xp: 30, done: true }, y: { xp: 12, done: false } } }), 42);
+  assert.equal(level(0), 1); assert.equal(level(199), 1); assert.equal(level(200), 2);
+  assert.equal(weekKey('2026-11-10'), '2026-11-09');
+  assert.equal(weekKey('2026-11-08'), '2026-11-02');
+  assert.equal(weekKey('2026-11-09'), '2026-11-09');
+});
+test('racha: hoy pendiente no la rompe', () => {
+  assert.equal(streak(daysDone(['2026-11-08', '2026-11-09']), '2026-11-10').current, 2);
+});
+test('racha: un día faltante por semana se tolera, dos no', () => {
+  // semana del lunes 2: cumplidos lun 2, mar 3, jue 5 y vie 6; falta mié 4 → 4
+  assert.equal(streak(daysDone(['2026-11-02', '2026-11-03', '2026-11-05', '2026-11-06']), '2026-11-06').current, 4);
+  assert.equal(streak(daysDone(['2026-11-02', '2026-11-05', '2026-11-06']), '2026-11-06').current, 2);
+});
+test('racha: el descanso es por semana de lunes a domingo', () => {
+  // dom 8 falta (semana del 2) y lun 9 falta (semana del 9): sigue
+  assert.equal(streak(daysDone(['2026-11-06', '2026-11-07', '2026-11-10']), '2026-11-10').current, 3);
+});
+test('racha: sin días cumplidos es 0', () => {
+  assert.deepEqual({ ...streak(emptyState(), '2026-11-10') }, { current: 0, best: 0, rest: [] });
+});
+test('best toma la racha más larga del historial', () => {
+  // 5 días (1 a 5), hueco de 3 (6 a 8, misma semana), 2 días (9 y 10) → best 5, current 2
+  const s = daysDone(['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-09', '2026-11-10']);
+  const r = streak(s, '2026-11-10');
+  assert.equal(r.best, 5); assert.equal(r.current, 2);
+});
+test('mergeState: ítem más reciente, XP máximo, done si cualquiera, meta más reciente, desconocidos se conservan', () => {
+  const a = { ...emptyState(), goal: 'x', goalT: 5, items: { 'a.0': { b: 1, due: 'd', t: 10 }, 'zzz.0': { b: 2, due: 'd', t: 1 } }, days: { '2026-11-10': { xp: 30, done: false } } };
+  const b = { ...emptyState(), goal: 'y', goalT: 9, items: { 'a.0': { b: 3, due: 'e', t: 20 } }, days: { '2026-11-10': { xp: 12, done: true } } };
+  const m = mergeState(a, b);
+  assert.equal(m.items['a.0'].b, 3); assert.ok(m.items['zzz.0']);
+  assert.deepEqual({ ...m.days['2026-11-10'] }, { xp: 30, done: true });
+  assert.equal(m.goal, 'y');
+});
+test('mergeState: estado inválido se ignora', () => {
+  const a = { ...emptyState(), goal: 'x', goalT: 5 };
+  assert.equal(mergeState(a, { v: 9 }).goal, 'x');
+  assert.equal(mergeState(null, a).goal, 'x');
+  assert.deepEqual(mergeState(null, null), emptyState());
+});
+test('atajo: dos aciertos llevan los 6 ítems a la caja 3 con repaso en 7 días', () => {
+  const r = applyShortcut(emptyState(), A, [A.extra[0].ok, A.extra[1].ok], '2026-11-10', 1);
+  assert.equal(r.passed, true);
+  assert.ok(itemIds(A).every(id => r.state.items[id].b === 3 && r.state.items[id].due === '2026-11-17'));
+});
+test('atajo: un error estudia normal y cuenta esas dos respuestas', () => {
+  const r = applyShortcut(emptyState(), A, [A.extra[0].ok, (A.extra[1].ok + 1) % 4], '2026-11-10', 1);
+  assert.equal(r.passed, false);
+  assert.equal(r.state.items['a.4'].b, 1); assert.equal(r.state.items['a.5'].b, 1); assert.equal(r.state.items['a.0'], undefined);
+});
+test('sessionSummary', () => {
+  const mk = (ids, due, xp) => {
+    const items = {};
+    for (const id of ids) items[id] = { b: 1, due, t: 0 };
+    return { ...emptyState(), items, days: { '2026-11-10': { xp, done: xp > 10 } } };
+  };
+  const before = mk(['a.0', 'a.1', 'a.2', 'a.3'], '2026-11-11', 10);
+  const after = mk(itemIds(A).concat(['zzz.0']), '2026-11-11', 30);
+  after.items['a.4'].due = '2026-11-12'; after.items['a.5'].due = '2026-11-12';
+  const r = sessionSummary(before, after, L, S, '2026-11-10');
+  assert.deepEqual({ ...r, visited: r.visited.slice() }, { xp: 20, streak: 1, deltaPct: 7, visited: ['a'], dueTomorrow: 4 });
+});
+test('las funciones no mutan sus argumentos', () => {
+  const s = emptyState(); const frozen = JSON.stringify(s);
+  recordAnswer(s, 'a.0', true, '2026-11-10', 1); finishSession(s, '2026-11-10');
+  assert.equal(JSON.stringify(s), frozen);
 });
