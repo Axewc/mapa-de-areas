@@ -24,6 +24,12 @@ var currentScreen = null;
 var TAB_OF = { hoy: 'hoy', mapa: 'mapa', linea: 'mapa', estacion: 'mapa', yo: 'yo', intro: 'yo', result: 'yo', history: 'yo', admin: 'yo', learn: 'yo' };
 var NO_TABBAR = { sesion: true, quiz: true, pick: true };
 var tabNav = false; // true mientras se atiende un clic en la barra inferior (app.js)
+// Pantalla donde estuvo el último foco (null: fuera de las pantallas o aún sin foco).
+var lastFocusScreen = null;
+if (typeof document !== 'undefined') document.addEventListener('focusin', function (e) {
+  var sec = e.target && e.target.closest ? e.target.closest('main > section[id^="s-"]') : null;
+  lastFocusScreen = sec ? sec.id.slice(2) : null;
+});
 
 // Foco al título principal de la pantalla (h1 o, si no hay, h2), sin mover la página.
 function focusHeading(screen) {
@@ -35,8 +41,9 @@ function focusHeading(screen) {
 
 // keep: no regresa al inicio de la página (para volver a dibujar la misma pantalla).
 // Foco: si el cambio vino de la barra inferior, se queda en su botón; si no, pasa al título de la pantalla.
-// Al redibujar (keep) solo se mueve si el elemento enfocado desapareció.
+// Al redibujar (keep) solo se mueve si el elemento enfocado de esa pantalla desapareció.
 function show(name, keep) {
+  var first = currentScreen === null;
   Object.keys(screens).forEach(function (k) { screens[k].hidden = (k !== name); });
   currentScreen = name;
   var bar = document.getElementById('tabbar');
@@ -49,8 +56,9 @@ function show(name, keep) {
     });
   }
   if (!keep) window.scrollTo(0, 0);
+  // Al arrancar (sin interacción todavía) no se toma el foco.
   var lost = !document.activeElement || document.activeElement === document.body;
-  if (keep ? lost : !tabNav) focusHeading(screens[name]);
+  if (keep ? (lost && lastFocusScreen === name) : (!first && !tabNav)) focusHeading(screens[name]);
 }
 
 // Aviso discreto: uno a la vez, se cierra solo a los 6 s o con su botón. #notices es role="status".

@@ -113,9 +113,18 @@ async function main() {
     assert.deepEqual(levels, [true, true, true, true, true, true, false, false, false], 'primero las de «Para empezar»');
     for (let n = 1; n <= 9; n++) assert.equal(await page.locator('#s-pick .line-card .lbadge', { hasText: 'L' + n }).count(), 1, 'insignia L' + n);
     assert.equal(await page.isVisible('#tabbar'), false, 'sin barra inferior al elegir meta');
+    const firstFocus = await page.evaluate(() => {
+      const h = document.querySelector('#s-pick h1');
+      const cs = getComputedStyle(h);
+      return { onHeading: document.activeElement === h, style: cs.outlineStyle, width: cs.outlineWidth };
+    });
+    assert.equal(firstFocus.onHeading, false, 'al cargar no se toma el foco');
+    // outline-width inicial es «medium» (3px) aunque no haya aro; lo que cuenta es que el estilo sea none.
+    assert.ok(firstFocus.style === 'none' || firstFocus.width === '0px', 'sin aro de foco en el título al cargar');
     await page.locator('#s-pick .line-card', { hasText: 'Desarrollador de Software Jr.' }).click();
     await page.waitForSelector('#s-hoy:not([hidden])');
     await page.waitForFunction(() => document.activeElement === document.querySelector('#s-hoy h1'));
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#s-hoy h1')).outlineStyle), 'none', 'el título enfocado no dibuja aro');
     assert.match(await page.textContent('#s-hoy'), /0%/);
     assert.match(await page.textContent('#s-hoy'), /te faltan 5 estaciones/);
     assert.match(await page.textContent('#s-hoy .session-cta'), /5 min · 5 pasos nuevos de Git y más/);
@@ -189,6 +198,7 @@ async function main() {
     await del.click();
     await lg.page.waitForSelector('#s-pick:not([hidden])');
     await lg.page.waitForFunction(() => window.__db.mapa_progreso.length === 0);
+    await lg.page.waitForFunction(() => document.activeElement === document.querySelector('#s-pick h1'));
     assert.equal(await localState(lg.page), null);
     assert.equal(await lg.page.locator('#s-pick button:has-text("Volver")').count(), 0, 'sin meta no hay a dónde volver');
     assert.deepEqual(lg.errors, [], 'errores de JS al iniciar sesión');
@@ -224,6 +234,23 @@ async function main() {
     assert.deepEqual(sl.errors, []);
     await ctxS.close();
 
+    step = 'borrar mis datos con SIGNED_IN durante el borrado';
+    const ctxR = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const rs = await openHome(ctxR, { session: true, slowSync: 800, local: JSON.stringify(progressState()) });
+    await rs.page.waitForSelector('#s-hoy:not([hidden])');
+    await rs.page.click('#tabbar [data-tab=yo]');
+    const delR = rs.page.locator('#s-yo button.danger');
+    await delR.click();
+    await delR.click();
+    await rs.page.evaluate(() => { setTimeout(() => window.__fakeLogin(), 100); setTimeout(() => window.__fakeLogin(), 400); });
+    await rs.page.waitForSelector('#s-pick:not([hidden])', { timeout: 10000 });
+    await rs.page.waitForTimeout(2500); // más que select + upsert lentos de las sincronizaciones tardías
+    assert.equal(await localState(rs.page), null, 'un SIGNED_IN durante el borrado no devuelve el progreso');
+    assert.equal(await rs.page.evaluate(() => window.__db.mapa_progreso.length), 0, 'ni recrea la fila remota');
+    assert.equal(await rs.page.isVisible('#s-pick'), true);
+    assert.deepEqual(rs.errors, []);
+    await ctxR.close();
+
     step = 'borrar mis datos con falla al borrar en la nube';
     const ctxX = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const fx = await openHome(ctxX, { session: true, failDelete: true, local: JSON.stringify(progressState()) });
@@ -237,6 +264,7 @@ async function main() {
     assert.equal(await fx.page.evaluate(() => window.__db.mapa_progreso.length), 1);
     assert.equal((await delX.textContent()).trim(), 'Borrar mis datos');
     assert.equal(await delX.isDisabled(), false);
+    assert.equal(await fx.page.evaluate(() => syncNow().then((r) => r !== null)), true, 'tras la falla se puede sincronizar otra vez');
     assert.deepEqual(fx.errors, []);
     await ctxX.close();
 

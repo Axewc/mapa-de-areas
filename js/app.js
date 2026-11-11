@@ -31,8 +31,12 @@ var dataEpoch = 0;
 var pendingSyncs = [];
 
 // Con sesión: combina con la fila remota y guarda en los dos lados. Nunca rechaza.
-// Resuelve con el estado nuevo, o con null si se descartó porque los datos se borraron mientras tanto.
+// Resuelve con el estado nuevo, o con null si se descartó o no empezó porque los datos se están borrando.
+// true mientras corre «Borrar mis datos»: no empieza ninguna sincronización nueva.
+var deleting = false;
+
 function syncNow() {
+  if (deleting) return Promise.resolve(null);
   if (!session) return Promise.resolve(state);
   var epoch = dataEpoch;
   var p = syncRemote(sb, session.user.id, state).then(function (r) {

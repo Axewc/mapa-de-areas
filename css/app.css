@@ -71,6 +71,8 @@ mark { background: linear-gradient(transparent 55%, var(--hl) 55%); color: inher
 
 button { font: inherit; color: inherit; cursor: pointer; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* Títulos que reciben el foco por programa (show()): sin aro; los controles reales lo conservan. */
+h1[tabindex="-1"]:focus, h2[tabindex="-1"]:focus { outline: none; }
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;

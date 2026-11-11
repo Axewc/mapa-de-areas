@@ -83,6 +83,8 @@ function deleteCard() {
     // Primero se invalidan las sincronizaciones en curso y se espera a que terminen;
     // así ninguna devuelve el progreso borrado ni recrea la fila remota.
     var uid = session ? session.user.id : null;
+    deleting = true; // bloquea sincronizaciones nuevas (p. ej. un SIGNED_IN) hasta terminar, con éxito o no
+    var done = function () { deleting = false; };
     invalidateData().then(function () {
       return uid ? deleteRemote(sb, uid) : { error: null };
     }).then(function (r) {
@@ -97,7 +99,7 @@ function deleteCard() {
       state = emptyState();
       renderPick();
       showNotice('Listo. Borramos tu progreso.');
-    });
+    }).then(done, function (e) { done(); throw e; });
   });
   return el('section', { class: 'card stack', 'aria-labelledby': 'delete-h' },
     el('h2', { id: 'delete-h', text: 'Borrar mis datos' }), hint, el('div', null, del));
