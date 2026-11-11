@@ -96,6 +96,74 @@ var LINEAS = [
     note: "De $20,000 a $25,000 al mes. 100% presencial, de lunes a viernes de 9 a 19 h. Pide título y experiencia previa en soporte o infraestructura.",
     stations: ["linux", "nube", "monitoreo", "sql", "git"],
     map: { "linux": [344, 450, "l"], "nube": [320, 610, "l"], "monitoreo": [275, 545, "l"], "sql": [185, 395, "l"], "git": [245, 360, "r"] }
+  },
+  {
+    id: "safe-soc",
+    n: 5,
+    color: "l5",
+    title: "Analista SOC Tier 2",
+    company: "SAFE",
+    place: "Miguel Hidalgo, Ciudad de México · presencial",
+    level: "Meta a 2 años",
+    url: "https://to.indeed.com/aabbr778kp7b",
+    seen: "2026-11-10",
+    areas: ["sec", "inf"],
+    summary: "Monitorear, analizar y dar seguimiento a los eventos de seguridad: investigas alertas, respondes a incidentes y analizas amenazas y vulnerabilidades para encontrar patrones y riesgos. También entregas reportes periódicos de lo que encontraste.",
+    asks: [
+      "Al menos 2 años de experiencia en un puesto parecido.",
+      "Herramientas SIEM, como Splunk, QRadar o ArcSight.",
+      "Investigar alertas y responder a incidentes de seguridad.",
+      "Analizar amenazas, vulnerabilidades y riesgos, y detectar patrones.",
+      "Carrera en ciberseguridad, sistemas o tecnologías de la información."
+    ],
+    note: "De $20,000 a $26,000 al mes, 100% presencial. Pide al menos 2 años de experiencia en un puesto parecido: es una meta, no un primer empleo.",
+    stations: ["redes", "linux", "monitoreo", "amenazas", "incidentes"],
+    map: { "redes": [344, 410, "l"], "linux": [344, 450, "l"], "monitoreo": [275, 545, "l"], "amenazas": [270, 585, "l"], "incidentes": [270, 625, "l"] }
+  },
+  {
+    id: "banorte-ds-jr",
+    n: 6,
+    color: "l6",
+    title: "Científico de Datos Jr.",
+    company: "Grupo Financiero Banorte",
+    place: "Santa Fe, Ciudad de México · híbrido",
+    level: "Meta a 2 o 3 años",
+    url: "https://to.indeed.com/aa2js7jv6y78",
+    seen: "2026-11-10",
+    areas: ["ml", "dat"],
+    summary: "Desarrollar, documentar, poner en marcha y monitorear modelos de ML e IA junto con científicos de datos senior y las áreas de negocio. Haces análisis exploratorio, trabajas en soluciones de IA generativa y agéntica, y presentas los resultados con claridad.",
+    asks: [
+      "Carrera en Actuaría, Matemáticas, Estadística, Física, Computación o Ciencia de Datos.",
+      "De 2 a 4 años de experiencia en ciencia de datos, ML o IA.",
+      "Python y SQL en la práctica; modelos supervisados y no supervisados, estadística aplicada, ingeniería de variables, evaluación de modelos e interpretabilidad básica (SHAP).",
+      "Fundamentos de LLM, prompt engineering, embeddings y RAG, y evaluación básica de respuestas generativas.",
+      "Git, TensorFlow o PyTorch, nube (GCP, AWS o Azure) e inglés."
+    ],
+    note: "Híbrido. Pide de 2 a 4 años de experiencia en ciencia de datos, ML o IA.",
+    stations: ["python", "sql", "estadistica", "ml", "llm", "rag", "evaluacion"],
+    map: { "python": [180, 490, "r"], "sql": [185, 395, "l"], "estadistica": [100, 275, "l"], "ml": [95, 455, "l"], "llm": [75, 565, "r"], "rag": [75, 605, "l"], "evaluacion": [115, 605, "r"] }
+  },
+  {
+    id: "getnet-ai-deploy",
+    n: 7,
+    color: "l7",
+    title: "AI Deployment Engineer",
+    company: "Getnet (Grupo Santander)",
+    place: "Ciudad de México · híbrido",
+    level: "Meta a 2 o 3 años",
+    url: "https://job-boards.eu.greenhouse.io/getnet/jobs/5019637101",
+    seen: "2026-11-10",
+    areas: ["ml", "bak", "inf"],
+    summary: "Diseñar, construir y poner en marcha soluciones con IA dentro de la empresa: primero agentes individuales y luego sistemas de varios agentes que trabajan juntos.",
+    asks: [
+      "Proactividad y capacidad de ejecución: tomar la iniciativa y llevar las ideas a resultados concretos.",
+      "Aprendizaje continuo en orquestación de agentes, sistemas multiagente, evaluación y monitoreo, guardrails y seguridad, RAG, MCP, y observabilidad y métricas.",
+      "Sentido de responsabilidad: hacerte dueño de tus proyectos y de sus resultados.",
+      "Puntos extra: haber construido algo real con IA, en el trabajo, en un proyecto personal o en un emprendimiento."
+    ],
+    note: "Híbrido. No pide años de experiencia: valora haber construido algo real con IA, en el trabajo, en un proyecto propio o en un emprendimiento.",
+    stations: ["agentes", "multiagente", "guardrails", "mcp", "observabilidad", "rag", "evaluacion"],
+    map: { "agentes": [160, 700, "r"], "multiagente": [120, 705, "l"], "guardrails": [120, 665, "r"], "mcp": [85, 685, "l"], "observabilidad": [80, 645, "r"], "rag": [75, 605, "l"], "evaluacion": [115, 605, "r"] }
   }
 ];
 

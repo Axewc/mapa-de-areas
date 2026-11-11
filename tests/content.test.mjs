@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { ESTACIONES } = require('../js/data-estaciones.js');
 const { LINEAS } = require('../js/data-lineas.js');
-const { AREAS, GLOSS } = require('../js/data-areas.js');
+const { AREAS, GLOSS, RUTAS } = require('../js/data-areas.js');
 const { glossHits } = require('../js/ui.js');
 
 const ids = Object.keys(ESTACIONES);
@@ -98,6 +98,58 @@ test('L1 a L4: vacantes y estaciones de la tabla del spec', () => {
   });
 });
 
+test('hay 27 estaciones y 7 líneas, en orden L1 a L7', () => {
+  assert.equal(Object.keys(ESTACIONES).length, 27);
+  assert.deepEqual(LINEAS.map(l => l.id), ['edar-dev-jr', 'sears-datos-jr', 'mvs-tester-jr', 'satori-cloud-jr', 'safe-soc', 'banorte-ds-jr', 'getnet-ai-deploy']);
+});
+
+test('L5 a L7: vacantes y estaciones de la tabla del spec', () => {
+  const by = Object.fromEntries(LINEAS.map(l => [l.id, l]));
+  const exp = {
+    'safe-soc': [5, 'Meta a 2 años', ['sec', 'inf'], 'https://to.indeed.com/aabbr778kp7b', ['redes', 'linux', 'monitoreo', 'amenazas', 'incidentes']],
+    'banorte-ds-jr': [6, 'Meta a 2 o 3 años', ['ml', 'dat'], 'https://to.indeed.com/aa2js7jv6y78', ['python', 'sql', 'estadistica', 'ml', 'llm', 'rag', 'evaluacion']],
+    'getnet-ai-deploy': [7, 'Meta a 2 o 3 años', ['ml', 'bak', 'inf'], 'https://job-boards.eu.greenhouse.io/getnet/jobs/5019637101', ['agentes', 'multiagente', 'guardrails', 'mcp', 'observabilidad', 'rag', 'evaluacion']]
+  };
+  for (const id of Object.keys(exp)) {
+    const l = by[id];
+    assert.ok(l, id);
+    assert.equal(l.n, exp[id][0], id);
+    assert.equal(l.level, exp[id][1], id);
+    assert.equal(l.seen, '2026-11-10', id);
+    assert.deepEqual([...l.areas], exp[id][2], id);
+    assert.equal(l.url, exp[id][3], id);
+    assert.deepEqual([...l.stations], exp[id][4], id);
+  }
+});
+
+test('L5 a L7 declaran la experiencia que piden', () => {
+  for (const id of ['safe-soc', 'banorte-ds-jr', 'getnet-ai-deploy']) assert.match(LINEAS.find(l => l.id === id).note, /año/);
+});
+
+test('las 21 preguntas de Getnet se conservan', () => {
+  // cada diag.q y review[*].q de RUTAS['getnet-ai-deploy'] aparece, con sus mismas opts y ok, en alguna pregunta de la estación del mismo id
+  const topics = RUTAS['getnet-ai-deploy'].topics;
+  let n = 0;
+  for (const t of topics) {
+    const st = ESTACIONES[t.id];
+    assert.ok(st, 'falta la estación ' + t.id);
+    for (const orig of [t.diag, ...t.review]) {
+      const got = preguntas(st).find(q => q.q === orig.q);
+      assert.ok(got, t.id + ': falta «' + orig.q + '»');
+      assert.deepEqual([...got.opts], [...orig.opts], t.id + ': ' + orig.q);
+      assert.equal(got.ok, orig.ok, t.id + ': ' + orig.q);
+      n++;
+    }
+    // la pregunta del diagnóstico va en un paso; los dos repasos, en extra
+    assert.ok(st.steps.some(s => s.q.q === t.diag.q), t.id + ': el diagnóstico no está en un paso');
+    t.review.forEach(r => assert.ok(st.extra.some(q => q.q === r.q), t.id + ': el repaso no está en extra'));
+    // la tarea y los recursos se conservan
+    assert.deepEqual({ ...st.task }, { ...t.task }, t.id + '.task');
+    assert.deepEqual(st.res.map(r => ({ ...r })), t.res.map(r => ({ ...r })), t.id + '.res');
+  }
+  assert.equal(n, 21);
+});
+
 test('cada estación de cada línea existe y tiene coordenadas dentro del lienzo (16 ≤ x ≤ 344, y ≥ 16)', () => {
   for (const l of LINEAS) {
     assert.deepEqual(Object.keys(l.map).sort(), [...l.stations].sort(), l.id + ': map y stations no coinciden');
@@ -160,7 +212,7 @@ test('glossHits: la clave cuenta solo como palabra completa', () => {
   assert.deepEqual(glossHits(['axb y c+d'], g).map(x => x[0]), ['Dos']);
 });
 
-test('cada estación tiene en el glosario sus términos de la Tarea 5', () => {
+test('cada estación tiene en el glosario sus términos', () => {
   const need = {
     git: ['git', 'commit', 'branch', 'pull request'], datos: ['llave primaria', 'llave foránea', 'null'],
     sql: ['select', 'join', 'group by', 'having', 'distinct'], apis: ['endpoint', 'métodos http', 'código de estado', 'json'],
@@ -168,7 +220,15 @@ test('cada estación tiene en el glosario sus términos de la Tarea 5', () => {
     tableros: ['power query', 'segmentación', 'visual de tarjeta'], indicadores: ['rotación', 'ausentismo', 'plantilla'],
     'casos-prueba': ['partición de equivalencia', 'valores límite'], defectos: ['severidad', 'log'],
     linux: ['linux', 'terminal', 'grep', 'systemctl', 'df -h', 'free -h', 'comando top'], nube: ['ec2', 'de iam', 'rds', 'aws cli', 'región de aws'],
-    monitoreo: ['cloudwatch', 'métrica', 'saturación', 'sre']
+    monitoreo: ['cloudwatch', 'métrica', 'saturación', 'sre'],
+    redes: ['dirección ip', 'puerto', 'dns', 'firewall', 'tcp'], amenazas: ['vulnerabilidad', 'cve', 'phishing', 'parche'],
+    incidentes: ['incidente', 'contención', 'falso positivo', 'siem'], python: ['python', 'pandas', 'dataframe'],
+    estadistica: ['mediana', 'desviación estándar', 'correlación', 'valor p'],
+    ml: ['aprendizaje supervisado', 'sobreajuste', 'conjunto de prueba', 'feature engineering', 'shap'],
+    llm: ['llm', 'token', 'embedding', 'prompt'], rag: ['chunk', 'bm25', 'embedding'],
+    evaluacion: ['conjunto de evaluación', 'regresión', 'rúbrica'], agentes: ['agente', 'flujo fijo'],
+    multiagente: ['orquestador'], guardrails: ['inyección de instrucciones', 'pydantic'], mcp: ['mcp', 'servidor mcp'],
+    observabilidad: ['traza', 'opentelemetry', 'latencia']
   };
   for (const id of Object.keys(need)) {
     if (!ESTACIONES[id]) continue;
