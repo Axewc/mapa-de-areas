@@ -76,7 +76,7 @@ var ESTACIONES = {
     id: "sql",
     name: "SQL",
     plain: "SQL es el lenguaje con el que le pides datos a una base: qué columnas, de qué tabla y con qué condiciones.",
-    why: "EDAR Tech pide consultas SQL y SatoriTech pide consultas y validaciones en Oracle. Sears no lo pide por nombre, pero en un puesto como ese los datos de los reportes casi siempre salen de una base que se consulta con SQL.",
+    why: "EDAR Tech pide consultas SQL y SatoriTech pide consultas y validaciones en Oracle. Sears no lo pide por nombre, pero en un puesto como ese los datos de los reportes casi siempre salen de una base que se consulta con SQL. Liverpool pide bases de datos relacionales para su Analista de Negocios Jr.",
     steps: [
       {
         idea: "La consulta básica es SELECT columnas FROM tabla WHERE condición. SELECT dice qué columnas quieres, FROM de qué tabla y WHERE qué filas. Ejemplo: SELECT nombre FROM empleados WHERE area = 'Ventas'.",
@@ -179,7 +179,7 @@ var ESTACIONES = {
     id: "hojas",
     name: "Hojas de cálculo",
     plain: "Excel y programas parecidos: tablas donde ordenas, filtras, calculas y resumes datos sin programar.",
-    why: "Sears pide Excel intermedio para analizar indicadores, y MVS lo pide para validar datos durante las pruebas: filtros, validaciones y tablas. Es la herramienta que usa todo mundo en la oficina.",
+    why: "Sears y Liverpool piden Excel intermedio, y MVS lo pide para validar datos durante las pruebas: filtros, validaciones y tablas. Es la herramienta que usa todo mundo en la oficina.",
     steps: [
       {
         idea: "Convierte tus datos en tabla (Insertar > Tabla): cada columna lleva encabezado, los filtros aparecen solos y las fórmulas se copian a las filas nuevas. Primero ordena y filtra; luego calcula.",
@@ -590,7 +590,7 @@ var ESTACIONES = {
     id: "estadistica",
     name: "Estadística",
     plain: "Resumir datos con pocos números y saber qué tanto puedes confiar en lo que parecen decir.",
-    why: "Banorte pide estadística aplicada y análisis exploratorio de datos para su Científico de Datos Jr. Antes de entrenar un modelo hay que entender los datos: cómo se reparten, qué valores son raros y qué variables se mueven juntas.",
+    why: "Banorte pide estadística aplicada y análisis exploratorio de datos para su Científico de Datos Jr. Antes de entrenar un modelo hay que entender los datos: cómo se reparten, qué valores son raros y qué variables se mueven juntas. Y en MAPFRE, evaluar riesgos parte de lo mismo: qué tan seguido pasa algo y cuánto cuesta cuando pasa.",
     steps: [
       {
         idea: "La media es el promedio; la mediana, el valor de en medio al ordenar. Los valores extremos jalan la media: si cuatro personas ganan $15,000 y una $200,000, la media es $52,000, pero la mediana es $15,000, que describe mejor al grupo.",
@@ -924,6 +924,177 @@ var ESTACIONES = {
     res: [
       { n: "OpenTelemetry: convenciones para IA generativa (qué registrar y con qué nombres)", u: "https://opentelemetry.io/docs/specs/semconv/gen-ai/" },
       { n: "Langfuse: herramienta libre de trazas para aplicaciones con LLM", u: "https://langfuse.com/docs/observability/overview" }
+    ]
+  },
+
+  "requerimientos": {
+    id: "requerimientos",
+    name: "Requerimientos",
+    plain: "Escribir con claridad qué debe hacer un sistema, y cómo sabrás que ya lo hace, a partir de lo que necesita la gente que lo va a usar.",
+    why: "Liverpool busca un Analista de Negocios Jr. que haga de enlace entre los usuarios funcionales y el área de sistemas: que recabe información, analice necesidades, elabore requerimientos funcionales y prepare la documentación para desarrollo y pruebas. Si el requerimiento está mal, el equipo construye con cuidado algo que nadie pidió.",
+    steps: [
+      {
+        idea: "Un requerimiento funcional dice qué hace el sistema: «el cliente puede apartar un producto en tienda». Un requerimiento no funcional dice qué tan bien lo hace: rapidez, seguridad, disponibilidad. Por ejemplo: «la búsqueda responde en menos de 2 segundos».",
+        q: { q: "¿Cuál de estos es un requerimiento no funcional?", opts: ["El cliente puede cancelar un pedido antes de que salga", "La página de pago carga en menos de 3 segundos", "El sistema manda un correo cuando sale el pedido", "El vendedor puede consultar el inventario de otra tienda"], ok: 1, why: "«Carga en menos de 3 segundos» no agrega una función: le pone una condición de rapidez a una que ya existe. Las otras tres describen cosas que el sistema hace. El correo de aviso puede sonar «técnico», pero es una función: algo que pasa cuando sale el pedido." }
+      },
+      {
+        idea: "Para recabar requerimientos, entrevista a quien hace el trabajo: qué hace hoy, paso a paso, dónde se atora y qué pasa cuando algo sale mal. Pide ejemplos reales. Lo que la gente pide («quiero un botón») no siempre es lo que necesita («saber si el pedido ya salió»).",
+        q: { q: "En una entrevista, la gerente de una tienda te dice: «Necesito un reporte en Excel con todos los pedidos». ¿Qué haces primero?", opts: ["Le preguntas qué quiere decidir con ese reporte", "Le pides a sistemas que lo programe hoy mismo", "Le dices que Excel ya no se usa y le propones otra cosa", "Anotas el requerimiento tal cual y cierras la entrevista"], ok: 0, why: "Antes de escribir el requerimiento hay que entender la necesidad: si lo que quiere es saber qué pedidos van retrasados, quizá basta una alerta o un filtro. Anotarlo tal cual parece respetar lo que pidió, pero te quedas sin saber para qué lo quiere, y es fácil construir algo que no le sirve." }
+      },
+      {
+        idea: "Una historia de usuario cuenta un requerimiento desde quien lo usa: «Como cliente, quiero ver cuándo llega mi pedido para planear quién lo recibe». Dice quién, qué quiere y para qué. Es corta a propósito: los detalles se platican con el equipo.",
+        q: { q: "¿Qué le falta a esta historia de usuario: «Como cliente, quiero filtrar los productos por talla»?", opts: ["El nombre del programador que la va a hacer", "La tabla de la base de datos donde se guarda la talla", "El lenguaje de programación en que se va a hacer", "El para qué: la razón por la que el cliente lo quiere"], ok: 3, why: "La forma completa es «como…, quiero…, para…». El «para» explica el valor y ayuda a decidir qué tan importante es y cómo resolverlo. La tabla y el lenguaje son decisiones técnicas del equipo de desarrollo: la historia describe la necesidad, no cómo se programa." }
+      },
+      {
+        idea: "Los criterios de aceptación dicen cuándo una historia está terminada, con frases que se pueden comprobar. Una forma común es «dado…, cuando…, entonces…»: dado un pedido ya enviado, cuando el cliente intenta cancelarlo, entonces ve un aviso y el pedido sigue igual.",
+        q: { q: "¿Cuál es un buen criterio de aceptación para «Como cliente, quiero recuperar mi contraseña para volver a entrar»?", opts: ["El proceso debe ser fácil y agradable para el cliente", "La función debe estar lista lo antes posible", "Al pedirlo, llega un correo con un enlace que vence en 30 minutos", "El equipo de pruebas debe quedar contento con el resultado"], ok: 2, why: "Un criterio sirve si alguien puede comprobarlo con un sí o un no: llegó el correo, traía el enlace y venció a los 30 minutos. «Fácil y agradable» suena bien, pero cada quien lo entiende distinto, así que nadie puede decir si se cumplió." }
+      }
+    ],
+    extra: [
+      { q: "Piden que el RFC sea obligatorio al registrar clientes. Antes de aprobarlo haces un análisis de impacto. ¿Qué buscas?", opts: ["Quién fue la primera persona que pidió el cambio", "Cuánto tardará diseño en elegir el color del formulario", "En qué año se creó el RFC en México", "Qué sistemas, procesos y pruebas cambian si se aprueba"], ok: 3, why: "El análisis de impacto busca todo lo que se mueve con el cambio: los clientes que ya existen sin RFC, los sistemas legados que leen esa tabla, los reportes y los casos de prueba. Saber quién lo pidió primero sirve para hacerle preguntas, pero no te dice qué se puede romper." },
+      { q: "Ya aprobaron la historia y el equipo de pruebas va a revisarla. ¿Qué les entregas para que preparen sus pruebas?", opts: ["La historia con sus criterios y ejemplos de datos", "Solo el título, para no limitarlos al probar", "El código fuente, para que vean qué debe hacer", "Nada: es mejor que descubran solos cómo funciona"], ok: 0, why: "Los criterios de aceptación son casi tal cual los casos de prueba: dicen qué entrada usar y qué resultado esperar. El código tienta, pero muestra cómo se hizo, no qué se pidió; una prueba basada en el código comprueba que el programa hace lo que hace, aunque esté mal." }
+    ],
+    task: { n: "Requerimientos de un trámite que conoces", d: "Elige un proceso que conozcas bien, como pedir comida a domicilio o inscribir materias en tu facultad. Entrevista a dos personas que lo usen, 15 minutos cada una. Escribe cinco historias de usuario con sus criterios de aceptación, dos requerimientos no funcionales y, para una historia, qué otros sistemas o procesos cambiarían si se hiciera.", t: "1 tarde" },
+    res: [
+      { n: "Historias de usuario, con ejemplos y plantilla (Atlassian)", u: "https://www.atlassian.com/es/agile/project-management/user-stories" },
+      { n: "¿Qué es el análisis de negocio? Introducción de la guía BABOK (IIBA, en inglés)", u: "https://www.iiba.org/knowledgehub/business-analysis-body-of-knowledge-babok-guide/1-Introduction/1-2-what-is-business-analysis/" }
+    ]
+  },
+
+  "diagramas": {
+    id: "diagramas",
+    name: "Diagramas de procesos",
+    plain: "Dibujar paso a paso cómo se hace un trabajo, quién hace cada paso y dónde se toman decisiones, para que todos lo entiendan igual.",
+    why: "Liverpool pide herramientas de diagramación, y el puesto incluye analizar necesidades, procesos y recursos, estructurar y sintetizar la información y comunicarla a directivos. Un diagrama de una página explica en un minuto lo que un documento tarda diez en decir, y deja ver dónde se atora un proceso.",
+    steps: [
+      {
+        idea: "Un diagrama de flujo usa pocas figuras: un óvalo para el inicio y el fin, un rectángulo para cada actividad, un rombo para cada decisión y flechas para el orden. Cada rombo hace una pregunta, y de él sale un camino por respuesta, como «sí» y «no».",
+        q: { q: "En un diagrama de flujo de devoluciones, ¿qué figura usas para «¿El cliente trae su comprobante?»?", opts: ["Un rectángulo, porque alguien revisa el comprobante", "Un rombo, porque es una decisión con dos salidas", "Un óvalo, porque ahí empieza el proceso", "Una flecha, porque conecta dos pasos"], ok: 1, why: "Es una pregunta con dos salidas (sí: se acepta la devolución; no: otro camino), y eso va en un rombo. El rectángulo tienta porque alguien revisa el comprobante, pero revisar sería la actividad; la pregunta que decide el camino va en el rombo." }
+      },
+      {
+        idea: "BPMN es un estándar para dibujar procesos de negocio. Usa carriles: una franja por cada persona o área (cliente, tienda, almacén). Cada actividad va en el carril de quien la hace, así se ve de un vistazo quién hace qué y cuándo el trabajo pasa de un área a otra.",
+        q: { q: "En un diagrama BPMN de pedidos, ¿para qué le das a Almacén su propio carril?", opts: ["Para que el diagrama se vea más ordenado y con colores", "Para indicar que Almacén es el área más importante del proceso", "Para que Almacén no pueda ver las actividades de las otras áreas", "Para ver qué actividades hace Almacén y cuándo recibe el trabajo"], ok: 3, why: "El carril dice quién se encarga de cada actividad, y cada flecha que cruza de un carril a otro es una entrega de trabajo, donde suelen aparecer los retrasos. Verse ordenado ayuda, pero no es el propósito; y un carril no da importancia ni oculta nada: es un dibujo, no un permiso." }
+      },
+      {
+        idea: "Antes de proponer cambios, dibuja el proceso como es hoy, no como dice el manual. Pregúntale a quien lo hace y marca dónde espera, repite o captura dos veces lo mismo. Luego dibuja el proceso propuesto y compara los dos.",
+        q: { q: "Vas a dibujar el proceso actual de devoluciones y la jefa de tienda te da el manual oficial. ¿Qué haces?", opts: ["Copias el manual al diagrama, porque es el proceso oficial", "Lo comparas con lo que hacen hoy quienes atienden", "Lo ignoras y dibujas el proceso que a ti te parece mejor", "Le pides a ella que dibuje el diagrama, para no equivocarte"], ok: 1, why: "El manual dice cómo debería ser; el diagrama del proceso actual tiene que mostrar cómo es, con los atajos y las esperas que nadie escribió. Copiarlo tienta porque es «oficial», pero si el problema está justo en lo que no se sigue, tu diagrama lo esconde." }
+      },
+      {
+        idea: "Para hablar con sistemas sirven dos diagramas de UML. El de caso de uso muestra qué actores (personas u otros sistemas) usan qué funciones. El diagrama de secuencia muestra, en orden, los mensajes entre la app, el servidor y la base de datos durante una acción, como pagar.",
+        q: { q: "Quieres explicarle al equipo de desarrollo en qué orden se hablan la app, el servidor de pagos y el banco cuando un cliente paga. ¿Qué diagrama usas?", opts: ["Un diagrama de secuencia", "Un diagrama de casos de uso", "Un organigrama del área de sistemas", "Una gráfica de barras de los pagos"], ok: 0, why: "El diagrama de secuencia pone a cada participante en una columna y los mensajes en orden, de arriba abajo: se ve quién pregunta, quién responde y en qué momento. El de casos de uso tienta porque también es de UML, pero solo dice quién usa qué función, no el orden de los mensajes." }
+      }
+    ],
+    extra: [
+      { q: "Dibujas el proceso de apartado en tienda y ves que el vendedor captura los datos del cliente en dos sistemas distintos. ¿Qué te dice el diagrama?", opts: ["Que el vendedor trabaja despacio y hay que capacitarlo", "Que el diagrama está mal, porque nadie captura dos veces", "Que hay una doble captura que se podría quitar", "Que hay que contratar a otro vendedor en esa tienda"], ok: 2, why: "Capturar lo mismo dos veces gasta tiempo y abre la puerta a errores, como un dato que no coincide entre los dos sistemas. Es justo lo que un diagrama del proceso actual deja ver. Culpar al vendedor tienta, pero el problema está en el proceso, no en la persona." },
+      { q: "En tu diagrama, después del rombo «¿Hay inventario?» solo sale la flecha del «sí». ¿Qué falta?", opts: ["Nada: si no hay inventario, el proceso simplemente se detiene", "Un óvalo extra justo antes del rombo", "Cambiar el rombo por un rectángulo", "El camino del «no»: qué pasa si no hay piezas"], ok: 3, why: "Cada salida de una decisión necesita su camino; si no, nadie sabe qué hacer con el pedido cuando no hay piezas: avisar al cliente, pedirlas a otra tienda o cancelar. «Se detiene» parece una respuesta, pero detenerse también es un camino que hay que dibujar, con su aviso y su fin." }
+    ],
+    task: { n: "El diagrama de un trámite real", d: "Elige un trámite que conozcas, como sacar una constancia en tu facultad o devolver algo en una tienda. En draw.io (gratis, en el navegador) dibuja un diagrama BPMN del proceso actual, con un carril por cada persona o área y todas las salidas de cada decisión. Marca en rojo dónde se espera o se captura dos veces, y dibuja una versión mejorada.", t: "1 tarde" },
+    res: [
+      { n: "BPMN 2.0: referencia de símbolos con ejemplos (Camunda, en inglés)", u: "https://camunda.com/bpmn/reference/" },
+      { n: "Especificación oficial de BPMN (Object Management Group, en inglés)", u: "https://www.omg.org/spec/BPMN/" }
+    ]
+  },
+
+  "agil": {
+    id: "agil",
+    name: "Metodologías ágiles",
+    plain: "Formas de trabajar en equipo que entregan el software en partes pequeñas y frecuentes, para corregir el rumbo con lo que aprendes en cada entrega.",
+    why: "Liverpool pide metodologías ágiles para su Analista de Negocios Jr. En un equipo ágil, el analista suele ayudar a escribir y ordenar el backlog, aclarar dudas del equipo durante el sprint y revisar con los usuarios lo que se entregó.",
+    steps: [
+      {
+        idea: "En vez de planear un año y entregar todo al final, un equipo ágil entrega en incrementos: partes que ya funcionan, cada pocas semanas. Así los usuarios lo prueban pronto y, si algo no era lo que querían, se corrige antes de gastar meses.",
+        q: { q: "¿Cuál es la principal ventaja de entregar en incrementos pequeños?", opts: ["Que ya no hace falta escribir requerimientos", "Que el proyecto siempre cuesta la mitad", "Que los usuarios opinan pronto y se corrige a tiempo", "Que el equipo ya no tiene que hacer pruebas"], ok: 2, why: "Cada incremento es una oportunidad de ver si vas bien: un error que se nota en la semana dos cuesta mucho menos que uno que se nota al final. Ágil no quita los requerimientos ni las pruebas: los hace en partes más pequeñas y más seguido." }
+      },
+      {
+        idea: "Scrum organiza el trabajo en sprints: periodos fijos de un mes o menos, a menudo de dos semanas. Hay tres responsabilidades: el Product Owner ordena el backlog para dar el mayor valor, el Scrum Master ayuda al equipo a aplicar Scrum y el resto del equipo construye el producto.",
+        q: { q: "En Scrum, ¿quién decide en qué orden va el backlog del producto?", opts: ["El Scrum Master", "El Product Owner", "El cliente que más se queje", "Quien termine primero su tarea"], ok: 1, why: "El Product Owner es responsable del backlog del producto y lo ordena para que primero vaya lo que más valor da. El Scrum Master tienta porque suena a jefe, pero su papel es ayudar al equipo a trabajar con Scrum y quitarle obstáculos, no decidir qué se construye." }
+      },
+      {
+        idea: "Los eventos de Scrum: la planeación del sprint elige qué se hará; la Daily Scrum, de 15 minutos al día, revisa el avance hacia la meta del sprint; la revisión del sprint muestra lo hecho a los interesados, y la retrospectiva busca cómo trabajar mejor.",
+        q: { q: "Al terminar el sprint, el equipo se reúne a platicar qué le estorbó y qué cambiará en su forma de trabajar. ¿Qué evento es?", opts: ["La Daily Scrum", "La planeación del sprint", "La revisión del sprint", "La retrospectiva"], ok: 3, why: "La retrospectiva mira cómo trabaja el equipo: qué salió bien, qué estorbó y qué va a cambiar. La revisión del sprint tienta porque también es al final, pero ahí se revisa el producto con los interesados, no la forma de trabajar." }
+      },
+      {
+        idea: "Kanban es otra forma ágil: un tablero con columnas (por hacer, en curso, en pruebas, hecho) donde cada tarjeta es una tarea. No usa sprints: el trabajo fluye. Su regla clave es limitar el trabajo en curso: si una columna está llena, primero se termina lo que ya hay en ella.",
+        q: { q: "En el tablero kanban, la columna «En pruebas» tiene límite de 3 y ya hay 3 tarjetas. Terminaste tu tarea de desarrollo. ¿Qué haces?", opts: ["La pasas a «En pruebas» de todos modos, porque ya está lista", "Ayudas a desatorar «En pruebas» antes de pasar la tuya", "Empiezas otras dos tareas nuevas para no perder tiempo", "Quitas el límite de la columna para que quepan todas"], ok: 1, why: "El límite avisa de un cuello de botella: si sigues empujando trabajo, se acumula sin terminarse. Lo que sirve es ayudar a que avance lo que ya está en pruebas. Empezar tareas nuevas parece productivo, pero llena el tablero de cosas a medias." }
+      }
+    ],
+    extra: [
+      { q: "A mitad del sprint, un directivo pide una función urgente que no estaba en el plan. En Scrum, ¿qué es lo adecuado?", opts: ["Llevarla al Product Owner para que la ordene en el backlog", "Meterla al sprint sin avisar a nadie", "Ignorar la petición hasta el próximo año", "Que el Scrum Master la programe él solo esa noche"], ok: 0, why: "Lo nuevo entra al backlog del producto y el Product Owner decide dónde va. Si de verdad es tan urgente, puede negociar con el equipo un cambio en el alcance del sprint o, en un caso extremo, cancelarlo. Meterla sin avisar tienta por ser «urgente», pero pone en riesgo la meta del sprint sin que nadie lo decida." },
+      { q: "En tu equipo, la Daily Scrum se alarga a una hora porque ahí se resuelven todos los problemas técnicos. ¿Qué conviene?", opts: ["Hacerla solo una vez a la semana, para que dure menos", "Que el Scrum Master la dirija y reparta las tareas del día", "Dejarla en 15 minutos y resolver los detalles aparte", "Cancelarla, porque no sirve si dura tanto"], ok: 2, why: "La Daily Scrum dura 15 minutos y sirve para revisar el avance hacia la meta del sprint y ajustar el plan del día. Los problemas largos se platican justo después, solo con quien necesita estar. Hacerla una vez por semana parece resolverlo, pero el equipo pierde la revisión diaria de cómo va." }
+    ],
+    task: { n: "Un sprint de tu propio proyecto", d: "Toma un proyecto escolar o personal y escribe su backlog: de 10 a 15 historias de usuario, ordenadas por valor. Arma un tablero en Trello o en Jira (los dos tienen plan gratuito) con columnas por hacer, en curso y hecho. Planea un sprint de una semana, revisa tu avance cada día en 5 minutos y, al final, escribe tu retrospectiva: qué salió bien y qué vas a cambiar.", t: "1 tarde" },
+    res: [
+      { n: "La Guía de Scrum 2020, en español (Schwaber y Sutherland, PDF)", u: "https://www.scrumguides.org/docs/scrumguide/v2020/2020-Scrum-Guide-Spanish-Latin-South-American.pdf" },
+      { n: "¿Qué es kanban? (Atlassian)", u: "https://www.atlassian.com/es/agile/kanban" }
+    ]
+  },
+
+  "seguros": {
+    id: "seguros",
+    name: "Seguros y reaseguro",
+    plain: "Cómo funciona un seguro: muchas personas o empresas pagan un poco cada una para que, a quien le pase un daño, la aseguradora le pague mucho.",
+    why: "MAPFRE busca un Suscriptor Jr. que apoye el análisis, la evaluación y la gestión de riesgos para suscribir pólizas del ramo de daños, que administre endosos y que se coordine con Siniestros, Verificación y Reaseguro. Este vocabulario es el idioma diario del puesto: si vienes de computación, empieza por aquí.",
+    steps: [
+      {
+        idea: "Un seguro es un contrato: pagas una prima y, si pasa un daño cubierto, la aseguradora te paga. La póliza es el documento con las reglas: qué cubre, qué no cubre (las exclusiones) y hasta cuánto. El siniestro es el daño que ocurre y se reclama.",
+        q: { q: "Una tienda paga $18,000 al año para asegurar su local contra incendio. ¿Cómo se llama ese pago?", opts: ["Siniestro", "Deducible", "Prima", "Suma asegurada"], ok: 2, why: "La prima es el precio del seguro: lo que pagas para estar protegido. El siniestro sería el incendio, si llega a pasar; el deducible es lo que pagas tú cuando reclamas, y la suma asegurada es lo máximo que te pagarían." }
+      },
+      {
+        idea: "La suma asegurada es lo máximo que paga la aseguradora. El deducible es la parte del daño que pagas tú antes de que el seguro pague: con un daño de $100,000 y un deducible de $10,000, la aseguradora paga $90,000.",
+        q: { q: "Una bodega tiene una suma asegurada de $2,000,000 y un deducible de $50,000. Un incendio causa daños por $300,000. Sin otros ajustes, ¿cuánto paga la aseguradora?", opts: ["$300,000", "$250,000", "$2,000,000", "$1,950,000"], ok: 1, why: "Tú pagas el deducible y la aseguradora el resto: 300,000 − 50,000 = 250,000. La suma asegurada es el tope, no lo que se paga: si el daño fue de 300,000, eso es lo que hay que cubrir, aunque el tope sea más alto." }
+      },
+      {
+        idea: "El coaseguro es un porcentaje del daño que también pagas tú, y se calcula después de restar el deducible. Con un daño de $100,000, deducible de $10,000 y coaseguro de 10%, pagas 10,000 + 9,000 = $19,000, y la aseguradora, $81,000.",
+        q: { q: "Un daño de $200,000, con deducible de $20,000 y coaseguro de 10%. ¿Cuánto pagas tú en total?", opts: ["$20,000", "$40,000", "$38,000", "$18,000"], ok: 2, why: "Primero restas el deducible: 200,000 − 20,000 = 180,000. El coaseguro es 10% de eso, 18,000, así que pagas 20,000 + 18,000 = 38,000. El error más común es sacar el 10% de los 200,000 completos, que da 40,000: el coaseguro se calcula después de quitar el deducible." }
+      },
+      {
+        idea: "Un endoso modifica una póliza que ya existe: agrega una cobertura, cambia la suma asegurada o corrige un dato, sin hacer otra póliza. El reaseguro es el seguro de las aseguradoras: ceden parte de un riesgo grande a una reaseguradora, que paga su parte si hay siniestro.",
+        q: { q: "Una aseguradora cubre una planta petroquímica por $3,000 millones y no quiere cargar sola con un siniestro tan grande. ¿Qué hace?", opts: ["Emite un endoso para bajar la prima", "Cede parte del riesgo con reaseguro", "Sube el deducible a $3,000 millones", "Divide la póliza entre los empleados de la planta"], ok: 1, why: "Con el reaseguro, la aseguradora pasa parte del riesgo, y parte de la prima, a una o varias reaseguradoras; así un solo siniestro enorme no la quiebra. El endoso tienta porque es una herramienta del día a día, pero solo cambia las condiciones de la póliza del cliente: no le quita riesgo a la aseguradora." }
+      }
+    ],
+    extra: [
+      { q: "MAPFRE suscribe pólizas del ramo de daños. ¿Cuál de estos seguros pertenece a ese ramo?", opts: ["Gastos médicos mayores de una familia", "Incendio y terremoto de una fábrica", "Seguro de vida de un empleado", "Accidentes personales de un estudiante"], ok: 1, why: "El ramo de daños cubre bienes y responsabilidades: edificios, maquinaria, mercancía, autos, y lo que debas pagarle a otros si les causas un daño. Vida, gastos médicos y accidentes personales cubren a personas. Gastos médicos tienta porque también tiene deducible y coaseguro, pero cubre la salud de alguien, no un bien." },
+      { q: "En una aseguradora, ¿qué hace el área de suscripción antes de aceptar asegurar una fábrica?", opts: ["Paga la indemnización cuando ya hubo un incendio", "Repara la maquinaria dañada después de un siniestro", "Diseña los planos de la fábrica para que no se queme", "Evalúa el riesgo y propone prima y condiciones"], ok: 3, why: "Suscribir es decidir qué riesgos acepta la aseguradora y en qué condiciones: se revisa qué hay en la fábrica, dónde está, qué protecciones tiene contra incendio y cuántos siniestros ha tenido, y con eso se fijan la prima, el deducible y las exclusiones. Pagar la indemnización le toca al área de Siniestros, con la que el suscriptor se coordina." }
+    ],
+    task: { n: "Lee una póliza de verdad", d: "Descarga las condiciones generales de un seguro de daños, como uno de hogar o de empresa, del sitio de una aseguradora en México. Anota qué cubre, tres exclusiones, cómo se calcula el deducible, si hay coaseguro y qué dice sobre los endosos. Luego inventa un siniestro y calcula cuánto pagaría cada parte.", t: "1 tarde" },
+    res: [
+      { n: "¿Qué es un seguro y por qué puede ayudarte más de lo que imaginas? (CONDUSEF)", u: "https://www.gob.mx/condusef/es/articulos/que-es-un-seguro-y-por-que-puede-ayudarte-mas-de-lo-que-imaginas" },
+      { n: "Haz más con tu dinero: seguros (CONDUSEF)", u: "https://webappsos.condusef.gob.mx/EducaTuCartera/seguros.html" },
+      { n: "Reaseguro (NAIC, la asociación de reguladores de seguros de Estados Unidos, en inglés)", u: "https://content.naic.org/cipr_topics/topic_reinsurance.htm" }
+    ]
+  },
+
+  "riesgo": {
+    id: "riesgo",
+    name: "Evaluación de riesgos",
+    plain: "Estimar con datos qué tan seguido puede pasar un daño y cuánto costaría, para decidir qué riesgos aceptar y cuánto cobrar por ellos.",
+    why: "MAPFRE pide apoyar el análisis, la evaluación y la gestión de riesgos para suscribir pólizas de daños, y conocimientos de administración de riesgos o seguridad industrial; parte del trabajo son visitas a las instalaciones del cliente. Aquí la computación pesa: el riesgo se estima con datos y modelos.",
+    steps: [
+      {
+        idea: "Un riesgo se mira con dos números: frecuencia y severidad. La frecuencia es qué tan seguido pasa un siniestro, como 2 incendios por cada 1,000 bodegas al año. La severidad es cuánto cuesta cada uno, en promedio. Un riesgo puede ser frecuente y barato, o raro y carísimo.",
+        q: { q: "Los choques pequeños de auto pasan muy seguido y cuestan poco; un sismo fuerte pasa poco y cuesta muchísimo. ¿Cómo describes el sismo?", opts: ["Alta frecuencia y baja severidad", "Baja frecuencia y alta severidad", "Alta frecuencia y alta severidad", "Baja frecuencia y baja severidad"], ok: 1, why: "Frecuencia es qué tan seguido pasa; severidad, cuánto cuesta. El sismo fuerte es raro y carísimo, lo contrario de los choques pequeños. Que sea raro no lo hace menos importante: es justo el tipo de riesgo que puede tumbar a una aseguradora que no se preparó." }
+      },
+      {
+        idea: "La pérdida esperada es frecuencia × severidad promedio. Si cada año se incendian 2 de cada 1,000 bodegas y cada incendio cuesta en promedio $500,000, la pérdida esperada por bodega es 0.002 × 500,000 = $1,000 al año. Es la base de la prima de riesgo.",
+        q: { q: "En un grupo de 500 tiendas hay en promedio 10 robos al año, y cada robo cuesta en promedio $40,000. ¿Cuál es la pérdida esperada por tienda al año?", opts: ["$400,000", "$40,000", "$800", "$8,000"], ok: 2, why: "La frecuencia por tienda es 10 ÷ 500 = 0.02 robos al año, y 0.02 × 40,000 = 800. Los $400,000 son la pérdida de todo el grupo (10 × 40,000), no la de una tienda. Para llegar a la prima, a esos $800 se les suman gastos y un margen, porque la pérdida de un año puede salir más alta que el promedio." }
+      },
+      {
+        idea: "La exposición es cuánto valor asegurado hay en juego y dónde está. Si muchas pólizas están juntas, un solo evento las daña todas a la vez: eso es acumulación, y en el sector le dicen cúmulo. Un sismo en la Ciudad de México puede tocar miles de pólizas el mismo día.",
+        q: { q: "Una aseguradora tiene el 40% de sus pólizas de daños en edificios de una misma zona de la Ciudad de México. ¿Qué riesgo le preocupa más?", opts: ["Que un sismo dañe muchas de esas pólizas a la vez", "Que los clientes paguen la prima con tarjeta", "Que sus empleados vivan lejos de esa zona", "Que haya demasiados edificios con elevador"], ok: 0, why: "Muchas pólizas juntas significan que un solo evento, como un sismo, puede causar miles de siniestros el mismo día: es un cúmulo. Por eso las aseguradoras miden cuánto tienen asegurado en cada zona y compran reaseguro para esos eventos. Las otras opciones no cambian cuánto podría perder de golpe." }
+      },
+      {
+        idea: "Los sismos fuertes son tan raros que la historia de siniestros no alcanza para estimarlos. Un modelo catastrófico simula miles de eventos posibles y, con los datos de cada edificio (ubicación, suelo, tipo de construcción, pisos), estima cuánto se perdería en cada uno.",
+        q: { q: "En la base de pólizas, el 30% de los edificios no tiene capturado el tipo de construcción ni el número de pisos. ¿Qué pasa con el modelo de sismo?", opts: ["Nada, porque el modelo solo usa la dirección", "Estima con más incertidumbre la pérdida de esos edificios", "Da resultados exactos, porque rellena los huecos con la verdad", "Deja de necesitar la ubicación de cada edificio"], ok: 1, why: "Un edificio de 12 pisos y uno de 2, en la misma calle, no responden igual a un sismo; si el modelo no sabe cómo es cada uno, tiene que suponer, y su estimación es menos confiable. La dirección importa mucho, pero no alcanza sola. Capturar y limpiar esos datos es un trabajo que alguien de computación hace bien." }
+      }
+    ],
+    extra: [
+      { q: "En la Ciudad de México hay dos bodegas iguales: una en la zona de lago, sobre el suelo blando del antiguo lago, y otra en la zona de lomas, sobre suelo firme. ¿Cuál tiene mayor riesgo de daño por sismo?", opts: ["La de lomas, porque al estar más alto se mueve más", "Las dos igual, porque el sismo es el mismo en toda la ciudad", "Ninguna: un sismo no puede dañar una bodega", "La del lago: su suelo blando amplifica el sismo"], ok: 3, why: "El suelo blando del antiguo lago amplifica y alarga el movimiento; por eso en 1985 los daños se concentraron en esa zona. Pensar que es igual en toda la ciudad tienta, pero el mismo sismo se siente muy distinto según el suelo, y los modelos usan ese dato para cada ubicación." },
+      { q: "En la visita a una fábrica ves que el almacén de solventes no tiene rociadores contra incendio y está junto al área de soldadura. ¿Qué haces como parte de la suscripción?", opts: ["Nada, porque el seguro cubre el incendio de todos modos", "Lo reportas como mayor riesgo de incendio, con recomendaciones", "Le pides al cliente que pague el siniestro por adelantado", "Rechazas todas las pólizas de esa colonia"], ok: 1, why: "Lo que ves en la visita cambia la evaluación: solventes junto a soldadura y sin rociadores hacen más probable un incendio y más grande el daño. Se documenta y puede llevar a recomendaciones de seguridad, una prima mayor o condiciones especiales. «El seguro paga de todos modos» es justo lo que la suscripción evita: aceptar un riesgo sin conocerlo." }
+    ],
+    task: { n: "Tu primer modelo de pérdidas", d: "En Python, inventa 1,000 bodegas, cada una con su valor y su zona. Simula 10,000 años: en cada uno, sortea qué bodegas se incendian (probabilidad de 0.2%) y cuánto cuesta cada incendio. Calcula la pérdida promedio por bodega y compárala con frecuencia × severidad. Luego agrega un sismo que, una vez cada 100 años en promedio, daña al 10% de las bodegas de una zona, y mira cómo cambia el peor año. Es una simulación Monte Carlo.", t: "1 tarde" },
+    res: [
+      { n: "Modelos de catástrofes (NAIC, la asociación de reguladores de seguros de Estados Unidos, en inglés)", u: "https://content.naic.org/insurance-topics/catastrophe-models-property" },
+      { n: "Loss Data Analytics: libro abierto de actuaría, con capítulos de frecuencia y severidad (en inglés)", u: "https://openacttexts.github.io/" }
     ]
   }
 };

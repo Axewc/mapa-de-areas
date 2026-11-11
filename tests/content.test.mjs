@@ -98,9 +98,35 @@ test('L1 a L4: vacantes y estaciones de la tabla del spec', () => {
   });
 });
 
-test('hay 27 estaciones y 7 líneas, en orden L1 a L7', () => {
-  assert.equal(Object.keys(ESTACIONES).length, 27);
-  assert.deepEqual(LINEAS.map(l => l.id), ['edar-dev-jr', 'sears-datos-jr', 'mvs-tester-jr', 'satori-cloud-jr', 'safe-soc', 'banorte-ds-jr', 'getnet-ai-deploy']);
+test('hay 32 estaciones y 9 líneas, en orden L1 a L9', () => {
+  assert.equal(Object.keys(ESTACIONES).length, 32);
+  assert.deepEqual(LINEAS.map(l => l.id), ['edar-dev-jr', 'sears-datos-jr', 'mvs-tester-jr', 'satori-cloud-jr', 'safe-soc', 'banorte-ds-jr', 'getnet-ai-deploy', 'liverpool-negocio-jr', 'mapfre-suscriptor-jr']);
+});
+
+test('todas las áreas salvo inv tienen al menos una línea', () => {
+  const cubiertas = new Set(LINEAS.flatMap(l => l.areas));
+  Object.keys(AREAS).filter(k => k !== 'inv').forEach(k => assert.ok(cubiertas.has(k), k));
+});
+
+test('L8 y L9: vacantes y estaciones de la tabla del spec', () => {
+  const by = Object.fromEntries(LINEAS.map(l => [l.id, l]));
+  const exp = {
+    'liverpool-negocio-jr': [8, ['con', 'web'], 'https://to.indeed.com/aapw7vcyjhrb', ['requerimientos', 'diagramas', 'agil', 'sql', 'hojas']],
+    'mapfre-suscriptor-jr': [9, ['rsk'], 'https://to.indeed.com/aaj9dyj24vr8', ['hojas', 'estadistica', 'seguros', 'riesgo']]
+  };
+  for (const id of Object.keys(exp)) {
+    const l = by[id];
+    assert.ok(l, id);
+    assert.equal(l.n, exp[id][0], id);
+    assert.equal(l.level, 'Para empezar', id);
+    assert.equal(l.seen, '2026-11-10', id);
+    assert.deepEqual([...l.areas], exp[id][1], id);
+    assert.equal(l.url, exp[id][2], id);
+    assert.deepEqual([...l.stations], exp[id][3], id);
+  }
+  // la de MAPFRE avisa que pide una ingeniería afín e inglés B2
+  assert.match(by['mapfre-suscriptor-jr'].note, /ingenier/i);
+  assert.match(by['mapfre-suscriptor-jr'].note, /B2/);
 });
 
 test('L5 a L7: vacantes y estaciones de la tabla del spec', () => {
@@ -228,7 +254,12 @@ test('cada estación tiene en el glosario sus términos', () => {
     llm: ['llm', 'token', 'embedding', 'prompt', 'ia generativa', 'agéntica'], rag: ['chunk', 'bm25', 'embedding'],
     evaluacion: ['conjunto de evaluación', 'regresión', 'rúbrica'], agentes: ['agente', 'flujo fijo'],
     multiagente: ['orquestador'], guardrails: ['inyección de instrucciones', 'pydantic'], mcp: ['mcp', 'servidor mcp'],
-    observabilidad: ['traza', 'opentelemetry', 'latencia']
+    observabilidad: ['traza', 'opentelemetry', 'latencia'],
+    requerimientos: ['requerimiento', 'no funcional', 'historia de usuario', 'criterios de aceptación', 'análisis de impacto', 'usuarios funcionales', 'sistemas legados'],
+    diagramas: ['diagrama de flujo', 'bpmn', 'carril', 'uml', 'caso de uso', 'actor', 'diagrama de secuencia', 'draw.io'],
+    agil: ['ágil', 'incremento', 'scrum', 'sprint', 'backlog', 'product owner', 'scrum master', 'daily scrum', 'retrospectiva', 'kanban', 'trabajo en curso'],
+    seguros: ['póliza', 'prima', 'suma asegurada', 'deducible', 'coaseguro', 'siniestro', 'exclusiones', 'endoso', 'reaseguro', 'ramo de daños', 'suscripción'],
+    riesgo: ['frecuencia y severidad', 'severidad', 'pérdida esperada', 'prima de riesgo', 'exposición', 'cúmulo', 'modelo catastrófico', 'zona de lago', 'monte carlo']
   };
   for (const id of Object.keys(need)) {
     if (!ESTACIONES[id]) continue;

@@ -1,4 +1,4 @@
-// Líneas del hub: cada una es una vacante real, leída completa en la fecha de `seen`. Van en orden L1 a L7.
+// Líneas del hub: cada una es una vacante real, leída completa en la fecha de `seen`. Van en orden L1 a L9.
 // Forma (spec «Modelo de contenido»): { id, n, color, title, company, place, level, url, seen, areas, summary, asks, note?, stations, map }
 // `stations` va en orden de estudio. `map` da { id: [x, y, lado?] } en un viewBox de 360 de ancho; lado 'l' o 'r' (por defecto 'r')
 // es donde va la etiqueta. Una estación compartida lleva las mismas coordenadas en todas sus líneas.
@@ -164,6 +164,51 @@ var LINEAS = [
     note: "Híbrido. No pide años de experiencia: valora haber construido algo real con IA, en el trabajo, en un proyecto propio o en un emprendimiento.",
     stations: ["agentes", "multiagente", "guardrails", "mcp", "observabilidad", "rag", "evaluacion"],
     map: { "agentes": [160, 700, "r"], "multiagente": [120, 705, "l"], "guardrails": [120, 665, "r"], "mcp": [85, 685, "l"], "observabilidad": [80, 645, "r"], "rag": [75, 605, "l"], "evaluacion": [115, 605, "r"] }
+  },
+  {
+    id: "liverpool-negocio-jr",
+    n: 8,
+    color: "l8",
+    title: "Analista de Negocios Jr. (Business Analysis)",
+    company: "El Puerto de Liverpool (Corporativo)",
+    place: "Santa Fe, Cuajimalpa, Ciudad de México · híbrido",
+    level: "Para empezar",
+    url: "https://to.indeed.com/aapw7vcyjhrb",
+    seen: "2026-11-10",
+    areas: ["con", "web"],
+    summary: "Hacer de enlace entre los usuarios de negocio y el área de sistemas: recabas información, analizas necesidades y procesos, elaboras los requerimientos funcionales y preparas la documentación para desarrollo y pruebas. También explicas a directivos el impacto de los cambios y capacitas a los equipos de pruebas.",
+    asks: [
+      "Ingeniería en sistemas, informática, computación o una carrera afín.",
+      "Metodologías ágiles.",
+      "Desarrollo en Java, HTML o ambos.",
+      "Bases de datos relacionales y Excel intermedio.",
+      "Herramientas de diagramación."
+    ],
+    note: "Híbrido: en el corporativo por la mañana y remoto por la tarde, con varios horarios.",
+    stations: ["requerimientos", "diagramas", "agil", "sql", "hojas"],
+    map: { "requerimientos": [310, 165, "l"], "diagramas": [305, 205, "l"], "agil": [285, 240, "l"], "sql": [185, 395, "l"], "hojas": [125, 240, "l"] }
+  },
+  {
+    id: "mapfre-suscriptor-jr",
+    n: 9,
+    color: "l9",
+    title: "Suscriptor Jr. (Daños)",
+    company: "MAPFRE",
+    place: "San Pedro de los Pinos, Benito Juárez, Ciudad de México",
+    level: "Para empezar",
+    url: "https://to.indeed.com/aaj9dyj24vr8",
+    seen: "2026-11-10",
+    areas: ["rsk"],
+    summary: "Apoyar el análisis, la evaluación y la gestión de riesgos para suscribir pólizas del ramo de daños. Revisas contratos, administras endosos y expedientes, das asesoría técnica a clientes, visitas sus instalaciones y te coordinas con Siniestros, Verificación y Reaseguro.",
+    asks: [
+      "Ingeniería Mecánica, Industrial, Petroquímica, Petrolera, Geociencias o afín, como pasante o titulado.",
+      "Deseable: 1 año en el sector asegurador, en suscripción o reaseguro de daños, energía, administración de riesgos, finanzas o seguridad industrial.",
+      "Conocimientos de administración de riesgos, finanzas o seguridad industrial.",
+      "Inglés B2."
+    ],
+    note: "Pide una ingeniería afín, como mecánica o industrial, e inglés B2. Si estudias computación, estas estaciones te dan la base de seguros y riesgos que el puesto da por hecha, para esta vacante o para otras parecidas del sector. Ofrece bono anual, vales y prestaciones superiores.",
+    stations: ["hojas", "estadistica", "seguros", "riesgo"],
+    map: { "hojas": [125, 240, "l"], "estadistica": [100, 275, "l"], "seguros": [35, 365, "r"], "riesgo": [35, 405, "r"] }
   }
 ];
 
