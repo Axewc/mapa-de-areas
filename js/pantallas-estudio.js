@@ -1,5 +1,5 @@
-// Pantallas de estudio: Elegir meta y Hoy. La Sesión (Tarea 10) y el Mapa (Tarea 11) quedan como stubs.
-// Script clásico (ES5). Usa las globales de app.js: state, commit y syncAndRefresh.
+// Pantallas de estudio: Elegir meta, Hoy y Sesión. El Mapa (Tarea 11) queda como stub.
+// Script clásico (ES5). Usa las globales de app.js: state, commit, syncNow y syncAndRefresh.
 
 var DIAS_LARGO = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
 var DIAS_CORTO = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
@@ -199,18 +199,263 @@ function renderHoy(keep) {
   show('hoy', keep);
 }
 
-// ---------- Stubs ----------
-// Sesión de estudio: la arma la Tarea 10. Por ahora solo permite salir.
-function startSession(opts) {
-  var root = screens.sesion;
-  root.textContent = '';
-  var exit = el('button', { class: 'linkbtn', type: 'button', text: '✕ Salir' });
-  exit.addEventListener('click', function () { renderHoy(); });
-  root.append(el('div', { class: 'topnav' }, exit), el('h1', { class: 'sr-only', text: 'Sesión de hoy' }),
-    el('p', { class: 'status', text: 'Preparando tu sesión…' }));
-  show('sesion');
+// ---------- Sesión ----------
+// Una sesión a la vez. Cada respuesta se guarda al momento (commit), así que salir a media sesión conserva lo respondido.
+// sesRun: { queue, idx, done (respondidas), before (estado al empezar), step: 'idea' | 'question' | 'end',
+//           ideaDone, answer (índice elegido o null), finishedDay, after (estado al cerrar) }
+var sesRun = null;
+var SES_KIND = { review: 'Repaso', 'new': 'Nuevo', extra: 'Reto' };
+var SES_GLOSS_TITLE = '¿Hay términos que no conoces? Aquí se explican';
+
+// Color de la estación: el de la línea meta si pasa por ella; si no, el de la primera línea que la tiene.
+function sesColor(stationId) {
+  var g = lineById(state.goal);
+  if (g && g.stations.indexOf(stationId) !== -1) return g.color;
+  for (var i = 0; i < LINEAS.length; i++) if (LINEAS[i].stations.indexOf(stationId) !== -1) return LINEAS[i].color;
+  return '';
 }
 
+// Tarjetas cuya estación o pregunta ya no existe en el contenido se saltan sin avisar.
+function sesPlayable(card) {
+  return !!(ESTACIONES[card.station] && getQuestion(ESTACIONES, card.item));
+}
+
+function sesIdeaOf(card) {
+  if (card.kind !== 'new' || card.repeat) return null;
+  var n = +card.item.slice(card.item.lastIndexOf('.') + 1);
+  var step = ESTACIONES[card.station].steps[n];
+  return step && step.idea ? step.idea : null;
+}
+
+function startSession(opts) {
+  if (currentScreen === 'sesion' && sesRun && sesRun.step !== 'end') return; // ya hay una sesión abierta
+  var cards = buildSession(state, todayYmd(), LINEAS, ESTACIONES, opts).filter(sesPlayable);
+  if (!cards.length) {
+    sesRun = null;
+    renderHoy();
+    showNotice('Por ahora no hay nada que repasar ni pasos nuevos. Vuelve cuando toque tu próximo repaso.');
+    return;
+  }
+  sesRun = { queue: cards, idx: 0, done: 0, before: state, step: null, ideaDone: false, answer: null, finishedDay: null, after: null };
+  sesCard(true);
+}
+
+function sesExit() {
+  var r = sesRun;
+  sesRun = null;
+  // Lo respondido ya está guardado; si la sesión quedó a medias, se sincroniza para no esperar a la siguiente.
+  if (r && r.done > 0 && !r.finishedDay) syncNow();
+  renderHoy();
+}
+
+function sesHead() {
+  var exit = el('button', { class: 'ses-exit', type: 'button', 'aria-label': 'Salir de la sesión', text: '✕ Salir' });
+  exit.addEventListener('click', sesExit);
+  return el('div', { class: 'ses-head' },
+    el('div', { class: 'ses-bar' }, exit, el('p', { class: 'ses-count' })),
+    el('div', { class: 'segs', role: 'progressbar', 'aria-label': 'Avance de la sesión', 'aria-valuemin': '0' }));
+}
+
+// Contador «n de total» y barra: un segmento por tarjeta (crece si se agrega una repetición), lleno si ya se respondió.
+function sesPaintHead() {
+  var r = sesRun, root = screens.sesion, total = r.queue.length;
+  root.querySelector('.ses-count').textContent = (r.idx + 1) + ' de ' + total;
+  var bar = root.querySelector('.segs');
+  bar.setAttribute('aria-valuemax', String(total));
+  bar.setAttribute('aria-valuenow', String(r.done));
+  bar.setAttribute('aria-valuetext', r.done + ' de ' + total + ' respondidas');
+  while (bar.children.length < total) bar.append(el('i'));
+  for (var i = 0; i < bar.children.length; i++) bar.children[i].className = i < r.done ? 'f' : '';
+}
+
+function sesTag(card) {
+  var label = card.repeat ? 'Otra vez' : SES_KIND[card.kind] || 'Repaso';
+  return el('p', { class: 'ses-tag' }, el('i', { 'aria-hidden': 'true' }), label + ' · ' + ESTACIONES[card.station].name);
+}
+
+function sesFocus(h) {
+  window.scrollTo(0, 0);
+  h.focus({ preventScroll: true });
+}
+
+function sesCard(first) {
+  var r = sesRun, card = r.queue[r.idx];
+  var idea = r.ideaDone ? null : sesIdeaOf(card);
+  r.step = idea ? 'idea' : 'question';
+  r.answer = null;
+  var root = screens.sesion;
+  root.textContent = '';
+  var color = sesColor(card.station);
+  var box, h;
+  if (idea) {
+    h = el('h2', { class: 'ses-idea', tabindex: '-1', text: idea });
+    var ok = el('button', { class: 'ses-next', type: 'button', text: 'Entendido' });
+    ok.addEventListener('click', sesAfterIdea);
+    box = el('div', { class: 'ses-card idea ' + color, 'data-item': card.item }, sesTag(card),
+      el('div', { class: 'ses-ideabox' }, el('p', { class: 'mono', text: 'La idea' }), h),
+      glossFor([idea], SES_GLOSS_TITLE), ok);
+  } else {
+    var q = getQuestion(ESTACIONES, card.item);
+    h = el('h2', { class: 'ses-q', tabindex: '-1', text: q.q });
+    var opts = el('div', { class: 'ses-opts', role: 'group', 'aria-label': 'Opciones' });
+    q.opts.forEach(function (t, i) {
+      var b = el('button', { class: 'opt', type: 'button', 'aria-pressed': 'false' }, el('span', { class: 'k', text: String(i + 1) }), el('span', { class: 'ot', text: t }));
+      // detail > 1: el segundo clic de un doble clic en «Siguiente» no contesta la tarjeta nueva.
+      b.addEventListener('click', function (e) { if (e.detail > 1) return; sesAnswer(i); });
+      opts.append(b);
+    });
+    box = el('div', { class: 'ses-card question ' + color, 'data-item': card.item }, sesTag(card), h, opts,
+      el('div', { class: 'fb', 'aria-live': 'polite' }),
+      glossFor([q.q].concat(q.opts, [q.why]), SES_GLOSS_TITLE),
+      el('p', { class: 'hint ses-keys', text: 'Puedes responder con las teclas 1 a 4.' }));
+  }
+  if (first) root.append(el('h1', { class: 'sr-only', text: 'Sesión de estudio' }));
+  root.append(sesHead(), box);
+  sesPaintHead();
+  if (first) show('sesion');
+  sesFocus(h);
+}
+
+function sesAfterIdea() {
+  if (!sesRun || sesRun.step !== 'idea') return;
+  sesRun.ideaDone = true;
+  sesCard(false);
+}
+
+function sesAnswer(i) {
+  var r = sesRun;
+  if (!r || r.step !== 'question' || r.answer !== null) return;
+  var card = r.queue[r.idx];
+  var q = getQuestion(ESTACIONES, card.item);
+  var right = i === q.ok;
+  r.answer = i;
+  // La fecha se toma al responder: una sesión que cruza la medianoche cuenta cada respuesta en su día.
+  commit(recordAnswer(state, card.item, right, todayYmd(), Date.now(), { repeat: !!card.repeat }));
+  r.queue = enqueueRepeat(r.queue, card, right);
+  r.done++;
+  var last = r.idx >= r.queue.length - 1;
+  if (last) {
+    var day = todayYmd();
+    commit(finishSession(state, day));
+    r.finishedDay = day;
+    r.after = state;
+    syncNow();
+  }
+
+  var root = screens.sesion;
+  Array.prototype.forEach.call(root.querySelectorAll('.opt'), function (b, j) {
+    b.setAttribute('aria-pressed', j === i ? 'true' : 'false');
+    b.setAttribute('aria-disabled', 'true');
+    if (j === q.ok) b.classList.add('right');
+    else if (j === i) b.classList.add('wrong');
+    else b.classList.add('dim');
+    if (!right && j === q.ok) b.append(el('span', { class: 'tag-r', text: 'Respuesta correcta' }));
+    if (!right && j === i) b.append(el('span', { class: 'tag-r', text: 'Tu respuesta' }));
+  });
+
+  var when;
+  if (card.repeat) when = 'Vuelve mañana.';
+  else if (!right) when = 'Vuelve mañana y una vez más al final de esta sesión.';
+  else {
+    var it = state.items[card.item];
+    var days = BOX_DAYS[it && it.b > 0 ? Math.min(it.b, 5) : 1];
+    when = days === 1 ? 'Vuelve a salir mañana.' : 'Vuelve a salir en ' + days + ' días.';
+  }
+  var fb = root.querySelector('.fb');
+  fb.classList.add(right ? 'good' : 'casi');
+  fb.append(
+    el('div', { class: 'fb-top' }, el('b', { text: right ? 'Correcto' : 'Casi' }), el('span', { class: 'chip', text: '+' + (right ? XP.right : XP.wrong) + ' XP' })),
+    el('p', { class: 'why', text: q.why }),
+    el('p', { class: 'small', text: when }));
+  var next = el('button', { class: 'ses-next', type: 'button', text: last ? 'Terminar' : 'Siguiente' });
+  next.addEventListener('click', sesNext);
+  fb.after(next);
+  root.querySelector('.ses-keys').hidden = true;
+  sesPaintHead();
+  next.scrollIntoView({ block: 'nearest' });
+}
+
+function sesNext() {
+  var r = sesRun;
+  if (!r || r.step !== 'question' || r.answer === null) return;
+  if (r.finishedDay || r.idx >= r.queue.length - 1) { sesEnd(); return; }
+  r.idx++;
+  r.ideaDone = false;
+  sesCard(false);
+}
+
+function sesEnd() {
+  var r = sesRun;
+  if (!r.finishedDay) { // no debería pasar: la sesión se cierra al responder la última tarjeta
+    r.finishedDay = todayYmd();
+    commit(finishSession(state, r.finishedDay));
+    r.after = state;
+    syncNow();
+  }
+  r.step = 'end';
+  var day = r.finishedDay;
+  var line = lineById(state.goal);
+  var sum = sessionSummary(r.before, r.after, line || { stations: [] }, ESTACIONES, day);
+  var root = screens.sesion;
+  root.textContent = '';
+
+  var rows = el('ul', { class: 'ses-sum' });
+  var rest = streak(r.after, day).rest.indexOf(addDays(day, -1)) !== -1;
+  rows.append(el('li', null, el('span', { class: 'chip', text: 'Racha · ' + plural(sum.streak, 'día', 'días') }),
+    rest ? el('span', { class: 'small', text: 'Ayer contó como tu día de descanso de la semana.' }) : null));
+  if (line && sum.deltaPct > 0) {
+    rows.append(el('li', { class: line.color }, lineBadge(line),
+      el('span', { class: 'ses-sum-t' }, el('b', { text: '% listo +' + sum.deltaPct }),
+        el('span', { class: 'small', text: 'Tu meta va en ' + pctOf(line) + '%' }))));
+  }
+  sum.visited.forEach(function (id) {
+    rows.append(el('li', { class: sesColor(id) }, el('span', { class: 'ses-dot', 'aria-hidden': 'true' }),
+      el('span', { class: 'ses-sum-t' }, el('b', { text: 'Estación vista: ' + ESTACIONES[id].name }),
+        el('span', { class: 'small', text: 'Ya respondiste todas sus preguntas.' }))));
+  });
+  rows.append(el('li', null, el('span', { class: 'ses-sum-t' }, el('b', { text: sum.dueTomorrow
+    ? 'Mañana tienes ' + plural(sum.dueTomorrow, 'repaso', 'repasos')
+    : 'Mañana no tienes repasos pendientes' }))));
+
+  var done = el('button', { class: 'ses-next', type: 'button', text: 'Listo' });
+  done.addEventListener('click', function () { sesRun = null; renderHoy(); });
+  var actions = el('div', { class: 'ses-actions' }, done);
+  if (buildSession(state, todayYmd(), LINEAS, ESTACIONES, { ahead: true }).filter(sesPlayable).length) {
+    var more = el('button', { class: 'btn ghost', type: 'button', text: 'Otra sesión' });
+    more.addEventListener('click', function () { startSession({ ahead: true }); });
+    actions.append(more);
+  }
+  var h = el('h2', { tabindex: '-1', text: 'Sesión terminada' });
+  root.append(el('h1', { class: 'sr-only', text: 'Sesión de estudio' }),
+    el('div', { class: 'session-end' }, h,
+      el('p', { class: 'ses-xp' }, el('span', { text: '+' + sum.xp + ' XP' })),
+      el('div', { class: 'card' }, rows), actions));
+  sesFocus(h);
+}
+
+// Teclado: 1 a 4 responden (solo si la tarjeta no tiene respuesta), Enter avanza y Escape sale.
+document.addEventListener('keydown', function (e) {
+  if (currentScreen !== 'sesion' || !sesRun || e.ctrlKey || e.metaKey || e.altKey) return;
+  var r = sesRun, t = e.target, tag = t && t.tagName;
+  if (e.key === 'Escape') { e.preventDefault(); sesExit(); return; }
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  if (e.key === 'Enter') {
+    // En un botón (salvo una opción ya respondida), un enlace o el glosario, Enter hace lo suyo.
+    var answeredOpt = tag === 'BUTTON' && t.classList.contains('opt') && r.answer !== null;
+    if ((tag === 'BUTTON' && !answeredOpt) || tag === 'A' || tag === 'SUMMARY') return;
+    if (e.repeat) { e.preventDefault(); return; }
+    if (r.step === 'idea') { e.preventDefault(); sesAfterIdea(); }
+    else if (r.step === 'question' && r.answer !== null) { e.preventDefault(); sesNext(); }
+    return;
+  }
+  if (r.step === 'question' && r.answer === null && /^[1-4]$/.test(e.key)) {
+    var btns = screens.sesion.querySelectorAll('.opt');
+    var n = +e.key;
+    if (n <= btns.length) { e.preventDefault(); sesAnswer(n - 1); }
+  }
+});
+
+// ---------- Stubs ----------
 // Mapa y Línea: los dibuja la Tarea 11 (js/pantallas-mapa.js reemplaza estos stubs).
 function renderMapa(keep) {
   var root = screens.mapa;

@@ -72,6 +72,34 @@ function progressState(goal) {
 
 const SHOTS = process.env.SHOTS_DIR || null;
 
+// Sesión: pasa la idea (si la hay) con Enter y responde la pregunta con la tecla de la correcta o de otra.
+// Devuelve el ítem, el texto de la retroalimentación y la etiqueta. No avanza: eso lo hace nextCard.
+async function answerCard(page, right) {
+  await page.waitForSelector('#s-sesion .ses-card');
+  if (await page.locator('#s-sesion .ses-card.idea').count()) {
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('#s-sesion .ses-card.question');
+  }
+  const item = await page.getAttribute('#s-sesion .ses-card', 'data-item');
+  const ok = await page.evaluate((id) => getQuestion(ESTACIONES, id).ok, item);
+  await page.keyboard.press(String(right ? ok + 1 : ((ok + 1) % 4) + 1));
+  await page.waitForSelector('#s-sesion .fb:not(:empty)');
+  return { item, ok, fb: await page.textContent('#s-sesion .fb'), tag: await page.textContent('#s-sesion .ses-tag') };
+}
+async function nextCard(page) {
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => !document.querySelector('#s-sesion .fb:not(:empty)'));
+}
+// Termina la sesión respondiendo todo bien.
+async function finishAllRight(page) {
+  const seen = [];
+  while (!(await page.locator('#s-sesion .session-end').count())) {
+    seen.push(await answerCard(page, true));
+    await nextCard(page);
+  }
+  return seen;
+}
+
 // Recorre Hoy → Yo → Elegir meta → Hoy con una línea de 7 estaciones y verifica que no haya scroll horizontal.
 async function visualPass(browser, viewport, colorScheme) {
   const ctx = await browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1 });
@@ -79,7 +107,7 @@ async function visualPass(browser, viewport, colorScheme) {
   const tag = viewport.width + '-' + colorScheme;
   const check = async (name) => {
     assert.ok(await page.evaluate(noHScroll), 'scroll horizontal en ' + name + ' (' + tag + ')');
-    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, tag + '-' + name + '.png'), fullPage: true });
+    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, tag + '-' + name + '.png'), fullPage: true, animations: 'disabled' });
   };
   await page.waitForSelector('#s-hoy:not([hidden])');
   await check('hoy');
@@ -95,6 +123,21 @@ async function visualPass(browser, viewport, colorScheme) {
   await page.click('#tabbar [data-tab=mapa]');
   await page.waitForSelector('#s-mapa:not([hidden])');
   await check('mapa');
+  // Sesión: repaso sin responder, bien, mal, idea de un paso nuevo y cierre.
+  await page.click('#tabbar [data-tab=hoy]');
+  await page.click('#s-hoy .session-cta');
+  await page.waitForSelector('#s-sesion .ses-card.question');
+  await check('sesion-pregunta');
+  await answerCard(page, true);
+  await check('sesion-bien');
+  await nextCard(page);
+  await answerCard(page, false);
+  await check('sesion-mal');
+  await nextCard(page);
+  await page.waitForSelector('#s-sesion .ses-card.idea');
+  await check('sesion-idea');
+  await finishAllRight(page);
+  await check('sesion-cierre');
   assert.deepEqual(errors, [], 'errores de JS (' + tag + ')');
   await ctx.close();
 }
@@ -105,7 +148,7 @@ async function main() {
   let step = '';
   try {
     step = 'primera visita sin cuenta: elegir meta';
-    const { page, errors } = await openHome(context);
+    const { page, errors } = await openHome(context, { clock: '2026-11-10T10:00:00' });
     await page.waitForSelector('#s-pick:not([hidden])');
     assert.equal(await page.locator('#s-pick .line-card').count(), 9);
     assert.match(await page.locator('#s-pick .line-card').first().textContent(), /Para empezar/);
@@ -138,12 +181,13 @@ async function main() {
     await page.waitForSelector('#s-hoy:not([hidden])');
     assert.match(await page.textContent('#s-hoy'), /Desarrollador de Software Jr\./);
 
-    step = 'la sesión y el mapa (stubs) se alcanzan';
+    step = 'la sesión y el mapa (stub) se alcanzan';
     await page.click('#s-hoy .session-cta');
     await page.waitForSelector('#s-sesion:not([hidden])');
     assert.equal(await page.isVisible('#tabbar'), false, 'sin barra inferior en la sesión');
     await page.click('#s-sesion button:has-text("Salir")');
     await page.waitForSelector('#s-hoy:not([hidden])');
+    assert.deepEqual((await localState(page)).items, {}, 'salir sin responder no guarda nada');
     await page.click('#tabbar [data-tab=mapa]');
     await page.waitForSelector('#s-mapa:not([hidden])');
     assert.equal(await page.getAttribute('#tabbar [data-tab=mapa]', 'aria-current'), 'page');
@@ -174,6 +218,137 @@ async function main() {
     await page.click('#s-intro button:has-text("Volver")');
     await page.waitForSelector('#s-yo:not([hidden])');
     assert.deepEqual(errors, [], 'errores de JS en la primera visita');
+
+    step = 'sesión completa con teclado';
+    await page.click('#tabbar [data-tab=hoy]');
+    await page.waitForSelector('#s-hoy:not([hidden])');
+    const oks = await page.evaluate(() => ['git.0', 'git.1', 'git.2', 'git.3'].map((id) => getQuestion(ESTACIONES, id).ok));
+    await page.click('#s-hoy .session-cta');
+    await page.waitForSelector('#s-sesion .ses-card.idea');
+    assert.equal(await page.isVisible('#tabbar'), false);
+    for (let i = 0; i < 4; i++) {
+      await page.waitForSelector('#s-sesion .ses-card.idea');
+      assert.match(await page.textContent('#s-sesion .ses-tag'), /Nuevo · Git/);
+      assert.match(await page.textContent('#s-sesion .ses-count'), new RegExp((i + 1) + ' de 5'));
+      assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('#s-sesion .ses-card h2')), true, 'foco en el título de la tarjeta');
+      await page.keyboard.press('Enter');
+      await page.waitForSelector('#s-sesion .ses-card.question[data-item="git.' + i + '"]');
+      assert.equal(await page.locator('#s-sesion button.opt').count(), 4);
+      assert.equal(await page.getAttribute('#s-sesion .fb', 'aria-live'), 'polite');
+      await page.keyboard.press(String(oks[i] + 1));
+      await page.waitForSelector('#s-sesion .fb:not(:empty)');
+      const fb = await page.textContent('#s-sesion .fb');
+      assert.match(fb, /Correcto/);
+      assert.match(fb, /\+10 XP/);
+      assert.match(fb, /Vuelve a salir mañana/);
+      assert.equal(await page.locator('#s-sesion .opt.right').count(), 1);
+      assert.equal(await page.getAttribute('#s-sesion .opt.right', 'aria-pressed'), 'true');
+      assert.equal((await localState(page)).items['git.' + i].b, 1, 'la respuesta se guarda al momento');
+      if (i === 0) {
+        step = 'las teclas no cambian una respuesta dada';
+        await page.keyboard.press(String(((oks[0] + 1) % 4) + 1));
+        await page.keyboard.press(String(oks[0] + 1));
+        assert.equal(await page.locator('#s-sesion .opt.wrong').count(), 0);
+        assert.equal(await page.locator('#s-sesion .opt[aria-pressed="true"]').count(), 1);
+        assert.match(await page.textContent('#s-sesion .fb'), /Correcto/);
+        assert.equal((await localState(page)).days['2026-11-10'].xp, 10, 'el XP del día no cambia');
+        assert.equal(await page.getAttribute('#s-sesion .opt.right', 'aria-disabled'), 'true');
+        step = 'sesión completa con teclado';
+      }
+      assert.match(await page.textContent('#s-sesion .ses-next'), /Siguiente/);
+      await page.keyboard.press('Enter');
+    }
+    // 5.ª tarjeta (datos.0): mal
+    await page.waitForSelector('#s-sesion .ses-card.idea');
+    assert.match(await page.textContent('#s-sesion .ses-tag'), /Nuevo · Datos/);
+    const bad5 = await answerCard(page, false);
+    assert.equal(bad5.item, 'datos.0');
+    assert.match(bad5.fb, /Casi/);
+    assert.doesNotMatch(bad5.fb, /Incorrecto/);
+    assert.match(bad5.fb, /\+2 XP/);
+    assert.match(bad5.fb, /Vuelve mañana y una vez más al final de esta sesión/);
+    assert.equal(await page.locator('#s-sesion .opt.wrong').count(), 1);
+    assert.equal(await page.locator('#s-sesion .opt.right').count(), 1);
+    assert.match(await page.textContent('#s-sesion .ses-count'), /5 de 6/);
+    await nextCard(page);
+    // Tarjeta 6: la repetición de datos.0, sin idea
+    await page.waitForSelector('#s-sesion .ses-card.question');
+    assert.match(await page.textContent('#s-sesion .ses-count'), /6 de 6/);
+    const rep = await answerCard(page, true);
+    assert.equal(rep.item, 'datos.0');
+    assert.match(rep.fb, /Correcto/);
+    assert.match(rep.fb, /Vuelve mañana/);
+    assert.doesNotMatch(rep.fb, /al final/);
+    assert.equal((await localState(page)).items['datos.0'].b, 1, 'la repetición no mueve la caja');
+    assert.match(await page.textContent('#s-sesion .ses-next'), /Terminar/);
+    await nextCard(page);
+    await page.waitForSelector('.session-end');
+    const end1 = await page.textContent('.session-end');
+    assert.match(end1, /\+72 XP/); // 4×10 + 2 + 10 + 20
+    assert.match(end1, /Racha · 1 día/);
+    assert.match(end1, /% listo \+7/);
+    assert.match(end1, /Mañana tienes 5 repasos/);
+    assert.doesNotMatch(end1, /Estación vista/);
+    assert.equal(await page.locator('.session-end button:has-text("Listo")').count(), 1);
+    const st1 = await localState(page);
+    assert.deepEqual(st1.days['2026-11-10'], { xp: 72, done: true });
+
+    step = 'salir a media sesión conserva lo respondido';
+    await page.click('.session-end button:has-text("Otra sesión")');
+    const one = await answerCard(page, true);
+    assert.equal(one.item, 'datos.1');
+    await page.click('#s-sesion button:has-text("Salir")');
+    await page.waitForSelector('#s-hoy:not([hidden])');
+    await page.reload();
+    await page.waitForSelector('#s-hoy:not([hidden])');
+    const st2 = await localState(page);
+    assert.equal(st2.items['datos.1'].b, 1);
+    assert.equal(st2.days['2026-11-10'].xp, 82);
+
+    step = 'al día siguiente hay repasos y la racha sube';
+    await page.clock.setFixedTime(new Date('2026-11-11T10:00:00'));
+    await page.reload();
+    await page.waitForSelector('#s-hoy:not([hidden])');
+    assert.match(await page.textContent('#s-hoy .session-cta'), /repaso/);
+    await page.click('#s-hoy .session-cta');
+    await page.waitForSelector('#s-sesion .ses-card.question');
+    const day2 = await finishAllRight(page);
+    assert.equal(day2[0].item, 'datos.0');
+    assert.match(day2[0].tag, /Repaso · Datos/);
+    assert.match(day2[0].fb, /Vuelve a salir en 3 días/);
+    await page.waitForSelector('.session-end');
+    assert.match(await page.textContent('.session-end'), /Racha · 2 días/);
+    await page.click('.session-end button:has-text("Listo")');
+    await page.waitForSelector('#s-hoy:not([hidden])');
+    assert.match(await page.textContent('#s-hoy .chip'), /Racha · 2 días/);
+    assert.deepEqual(errors, [], 'errores de JS en las sesiones');
+
+    step = 'medianoche a media sesión';
+    // Todos los pasos de L1 ya vistos: la sesión trae las preguntas extra (Reto) de Git, Datos y SQL.
+    const night = { v: 2, goal: 'edar-dev-jr', goalT: 1, items: {}, days: {} };
+    ['git', 'datos', 'sql', 'apis', 'pruebas-auto'].forEach((s) => { for (let n = 0; n < 4; n++) night.items[s + '.' + n] = { b: 2, due: '2026-11-20', t: 1 }; });
+    const ctxM = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const mn = await openHome(ctxM, { clock: '2026-11-12T23:58:00', local: JSON.stringify(night) });
+    await mn.page.click('#s-hoy .session-cta');
+    const r1 = await answerCard(mn.page, true);
+    assert.equal(r1.item, 'git.4');
+    assert.match(r1.tag, /Reto · Git/);
+    await nextCard(mn.page);
+    await answerCard(mn.page, true);
+    await nextCard(mn.page);
+    await mn.page.clock.setFixedTime(new Date('2026-11-13T00:01:00'));
+    await finishAllRight(mn.page);
+    const endM = await mn.page.textContent('.session-end');
+    assert.match(endM, /Estación vista: Git/);
+    assert.match(endM, /Estación vista: Datos/);
+    assert.match(endM, /Racha · 1 día/);
+    const stM = await localState(mn.page);
+    assert.equal(stM.days['2026-11-12'].xp, 20);
+    assert.equal(!!stM.days['2026-11-12'].done, false);
+    assert.equal(stM.days['2026-11-13'].done, true);
+    assert.equal(stM.days['2026-11-13'].xp, 50);
+    assert.deepEqual(mn.errors, []);
+    await ctxM.close();
 
     step = 'iniciar sesión sincroniza';
     const ctxL = await browser.newContext({ viewport: { width: 390, height: 844 } });
