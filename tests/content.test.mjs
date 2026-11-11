@@ -127,7 +127,8 @@ test('L5 a L7 declaran la experiencia que piden', () => {
 });
 
 test('las 21 preguntas de Getnet se conservan', () => {
-  // cada diag.q y review[*].q de RUTAS['getnet-ai-deploy'] aparece, con sus mismas opts y ok, en alguna pregunta de la estación del mismo id
+  // cada diag.q y review[*].q de RUTAS['getnet-ai-deploy'] aparece, con el mismo texto de la opción correcta, en alguna pregunta de la estación del mismo id.
+  // Los distractores y el why se pueden pulir; la pregunta y su respuesta correcta, no.
   const topics = RUTAS['getnet-ai-deploy'].topics;
   let n = 0;
   for (const t of topics) {
@@ -136,8 +137,7 @@ test('las 21 preguntas de Getnet se conservan', () => {
     for (const orig of [t.diag, ...t.review]) {
       const got = preguntas(st).find(q => q.q === orig.q);
       assert.ok(got, t.id + ': falta «' + orig.q + '»');
-      assert.deepEqual([...got.opts], [...orig.opts], t.id + ': ' + orig.q);
-      assert.equal(got.ok, orig.ok, t.id + ': ' + orig.q);
+      assert.equal(got.opts[got.ok], orig.opts[orig.ok], t.id + ': ' + orig.q);
       n++;
     }
     // la pregunta del diagnóstico va en un paso; los dos repasos, en extra
@@ -221,11 +221,11 @@ test('cada estación tiene en el glosario sus términos', () => {
     'casos-prueba': ['partición de equivalencia', 'valores límite'], defectos: ['severidad', 'log'],
     linux: ['linux', 'terminal', 'grep', 'systemctl', 'df -h', 'free -h', 'comando top'], nube: ['ec2', 'de iam', 'rds', 'aws cli', 'región de aws'],
     monitoreo: ['cloudwatch', 'métrica', 'saturación', 'sre'],
-    redes: ['dirección ip', 'puerto', 'dns', 'firewall', 'tcp'], amenazas: ['vulnerabilidad', 'cve', 'phishing', 'parche'],
+    redes: ['dirección ip', 'puerto', 'dns', 'firewall', 'tcp', 'dominio'], amenazas: ['vulnerabilidad', 'cve', 'phishing', 'parche', 'nvd', 'dominio'],
     incidentes: ['incidente', 'contención', 'falso positivo', 'siem'], python: ['python', 'pandas', 'dataframe'],
     estadistica: ['mediana', 'desviación estándar', 'correlación', 'valor p'],
-    ml: ['aprendizaje supervisado', 'sobreajuste', 'conjunto de prueba', 'feature engineering', 'shap'],
-    llm: ['llm', 'token', 'embedding', 'prompt'], rag: ['chunk', 'bm25', 'embedding'],
+    ml: ['aprendizaje supervisado', 'sobreajuste', 'conjunto de prueba', 'feature engineering', 'shap', 'interpretabilidad'],
+    llm: ['llm', 'token', 'embedding', 'prompt', 'ia generativa', 'agéntica'], rag: ['chunk', 'bm25', 'embedding'],
     evaluacion: ['conjunto de evaluación', 'regresión', 'rúbrica'], agentes: ['agente', 'flujo fijo'],
     multiagente: ['orquestador'], guardrails: ['inyección de instrucciones', 'pydantic'], mcp: ['mcp', 'servidor mcp'],
     observabilidad: ['traza', 'opentelemetry', 'latencia']
