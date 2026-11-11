@@ -414,3 +414,86 @@ td.hi { font-weight: 600; background: var(--tint); }
 .ses-actions { display: flex; flex-direction: column; gap: 12px; }
 .ses-actions .btn { width: 100%; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+
+/* Hoy: las otras líneas son botones que abren su ficha */
+button.lrow { width: 100%; background: none; border: 0; padding: 4px 0; text-align: left; border-radius: 8px; }
+button.lrow:hover .lrow-t b { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Mapa: líneas de color, estaciones y etiquetas con contorno de papel */
+.map-key { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; white-space: pre; }
+.k-dot, .k-pill, .k-cur { display: inline-block; flex: none; vertical-align: middle; }
+.k-dot { width: 12px; height: 12px; border-radius: 50%; border: 3px solid var(--ink); background: var(--paper); }
+.k-dot.done { background: var(--ink); }
+.k-pill { width: 22px; height: 13px; border-radius: 999px; border: 2.5px solid var(--ink); background: var(--panel); }
+.k-cur { width: 14px; height: 14px; border-radius: 50%; background: var(--mark); border: 3px solid var(--ink); }
+.metro-wrap { margin-inline: -4px; }
+.metro { display: block; width: 100%; max-width: 440px; height: auto; margin-inline: auto; overflow: visible; }
+.metro .trk { fill: none; stroke: var(--lc); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; opacity: 0.8; }
+.metro .trk.goal { opacity: 1; }
+.metro .st { cursor: pointer; outline: none; }
+.metro .hit { fill: transparent; }
+.metro .ring { fill: none; stroke: transparent; stroke-width: 3; }
+.metro .st:focus-visible .ring { stroke: var(--ink); }
+.metro .st:hover .ring { stroke: var(--muted); }
+.metro .halo { fill: var(--mark); stroke: var(--ink); stroke-width: 1.5; }
+.metro .dot { fill: var(--paper); stroke: var(--lc); stroke-width: 3.5; }
+.metro .on-goal .dot { stroke-width: 4.5; }
+.metro .done .dot { fill: var(--lc); }
+.metro .pill { fill: var(--panel); stroke: var(--ink); stroke-width: 3; }
+.metro .cur .pill { fill: var(--mark); }
+.metro .pdot { fill: var(--panel); stroke: var(--lc); stroke-width: 2; }
+.metro .done .pdot { fill: var(--lc); }
+.metro .lab { font-family: var(--f-body); font-size: 12px; font-weight: 500; fill: var(--ink);
+  paint-order: stroke; stroke: var(--paper); stroke-width: 4px; stroke-linejoin: round; }
+.metro .cur .lab { font-weight: 700; }
+.lines-sec { display: flex; flex-direction: column; gap: 6px; }
+.lines-sec h2 { font-size: 1.25rem; }
+.line-row { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 56px; text-align: left; background: var(--panel);
+  border: 1.5px solid var(--line); border-left: 6px solid var(--lc); border-radius: 12px; padding: 10px 14px; }
+.line-row:hover { border-color: var(--ink); border-left-color: var(--lc); }
+.lr-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.lr-t b { font-size: 0.98rem; line-height: 1.25; }
+.lr-t .lvl { align-self: flex-start; white-space: nowrap; margin-top: 2px; }
+.line-row .pct { flex: none; text-align: right; }
+
+/* Línea */
+.hub-title .goal-tag { color: var(--muted); }
+.st-rows { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; }
+.st-row { width: 100%; display: grid; grid-template-columns: 22px minmax(0, 1fr) 64px; align-items: center; gap: 12px; min-height: 56px;
+  background: none; border: 0; border-top: 1.5px solid var(--line); padding: 8px 2px; text-align: left; }
+.st-rows li:first-child .st-row { border-top: 0; }
+.st-row:hover .st-t b { text-decoration: underline; text-underline-offset: 3px; }
+.st-dot { width: 18px; height: 18px; border-radius: 50%; border: 4px solid var(--lc, var(--ink)); background: var(--panel); }
+.st-row.done .st-dot { background: var(--lc, var(--ink)); }
+.st-row.cur .st-dot { border-color: var(--ink); background: radial-gradient(circle, var(--ink) 0 3px, var(--panel) 3.5px); box-shadow: 0 0 0 4px var(--mark); }
+.st-t { display: flex; flex-direction: column; min-width: 0; }
+.st-t b { font-size: 1rem; line-height: 1.3; }
+.here { margin-left: 8px; font-family: var(--f-mono); font-size: 0.66rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  background: var(--mark); color: var(--mark-ink); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
+.mbar { height: 8px; border-radius: 999px; background: var(--track); overflow: hidden; }
+.mbar b { display: block; height: 100%; background: var(--lc, var(--ink)); }
+.note { line-height: 1.5; }
+a.vacante { color: var(--ink); font-weight: 600; text-underline-offset: 3px; display: inline-block; padding: 10px 0; }
+
+/* Estación */
+.st-lines { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.lchip { background: none; border: 0; padding: 0; min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; border-radius: 999px; }
+.lchip .lbadge { font-size: 0.82rem; padding: 3px 10px 3px 6px; }
+.lchip:hover .lbadge { background: var(--tint); }
+.st-steps { margin: 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: 10px; }
+.st-steps li.todo { color: var(--muted); font-style: italic; }
+.res { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 6px; }
+.res li { padding: 6px 0; line-height: 1.5; }
+.res a { color: var(--ink); text-underline-offset: 3px; overflow-wrap: anywhere; }
+.card h3 { font-size: 1.1rem; }
+.shortcut { border-color: var(--ink); display: flex; flex-direction: column; gap: 12px; }
+.shortcut .rq + .rq { margin-top: 8px; }
+.shortcut .opt { min-height: 48px; padding: 10px 14px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 10px; text-align: left; font-size: 0.95rem; line-height: 1.4; }
+.shortcut .opt .k { color: var(--muted); }
+.shortcut .opt:hover { border-color: var(--ink); }
+.shortcut .opt[aria-pressed="true"] { border: 2.5px solid var(--ink); background: var(--tint); padding: 9px 13px; font-weight: 600; }
+.shortcut .opt[aria-pressed="true"] .k { color: var(--ink); }
+.shortcut-result { display: flex; flex-direction: column; gap: 10px; border-color: var(--ink); background: var(--tint); }
+.shortcut-result.good { border-color: var(--ok); background: var(--okbg); }
+.shortcut-result h2 { font-size: 1.2rem; }
+.shortcut-result .why { color: var(--ink); }

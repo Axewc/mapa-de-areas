@@ -75,6 +75,8 @@ function refreshScreen() {
   else if (currentScreen === 'yo') renderYo(true);
   else if (currentScreen === 'pick') renderPick(true);
   else if (currentScreen === 'mapa') renderMapa(true);
+  else if (currentScreen === 'linea' && lineaShown) openLinea(lineaShown, true);
+  else if (currentScreen === 'estacion' && estShown) openEstacion(estShown, null, true);
 }
 
 function checkAdmin() {

@@ -9,6 +9,7 @@ const { ESTACIONES } = require('../js/data-estaciones.js');
 const { LINEAS } = require('../js/data-lineas.js');
 const { AREAS, GLOSS, RUTAS } = require('../js/data-areas.js');
 const { glossHits } = require('../js/ui.js');
+const { mapLayout, mapIssues } = require('../js/core.js');
 
 const ids = Object.keys(ESTACIONES);
 const preguntas = (st) => [...st.steps.map(s => s.q), ...st.extra];
@@ -184,7 +185,7 @@ test('cada estación de cada línea existe y tiene coordenadas dentro del lienzo
       const c = l.map[s];
       assert.ok(Array.isArray(c) && (c.length === 2 || c.length === 3), l.id + '.' + s);
       assert.ok(c[0] >= 16 && c[0] <= 344 && c[1] >= 16, l.id + '.' + s + ' fuera del lienzo');
-      if (c.length === 3) assert.ok(c[2] === 'l' || c[2] === 'r', l.id + '.' + s);
+      if (c.length === 3) assert.ok(['l', 'r', 't', 'b'].includes(c[2]), l.id + '.' + s);
     }
   }
 });
@@ -202,14 +203,18 @@ test('una estación compartida tiene las mismas coordenadas en todas sus líneas
   }
 });
 
-test('dos estaciones distintas quedan al menos a 28 px', () => {
+test('dos estaciones distintas quedan al menos a 44 px (un objetivo táctil cada una)', () => {
   const pos = {};
   for (const l of LINEAS) for (const s of l.stations) pos[s] = l.map[s];
   const ks = Object.keys(pos);
   for (let i = 0; i < ks.length; i++) for (let j = i + 1; j < ks.length; j++) {
     const a = pos[ks[i]], b = pos[ks[j]];
-    assert.ok(Math.hypot(a[0] - b[0], a[1] - b[1]) >= 28, ks[i] + ' y ' + ks[j]);
+    assert.ok(Math.hypot(a[0] - b[0], a[1] - b[1]) >= 44, ks[i] + ' y ' + ks[j]);
   }
+});
+
+test('mapa legible: ninguna etiqueta se encima con otra, con una estación o con una línea', () => {
+  assert.deepEqual(mapIssues(mapLayout(LINEAS, ESTACIONES), 44), []);
 });
 
 test('términos técnicos en el glosario', () => {

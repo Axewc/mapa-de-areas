@@ -121,8 +121,25 @@ async function visualPass(browser, viewport, colorScheme) {
   await page.waitForSelector('#s-hoy:not([hidden])');
   await check('hoy-l6');
   await page.click('#tabbar [data-tab=mapa]');
-  await page.waitForSelector('#s-mapa:not([hidden])');
+  await page.waitForSelector('#s-mapa:not([hidden]) svg');
   await check('mapa');
+  assert.deepEqual(await mapLabelProblems(page), [], 'etiquetas del mapa (' + tag + ')');
+  await page.click('#s-mapa .line-list [data-line=edar-dev-jr]');
+  await page.waitForSelector('#s-linea:not([hidden])');
+  await check('linea');
+  await page.click('#s-linea .st-rows [data-station=apis]');
+  await page.waitForSelector('#s-estacion .shortcut');
+  await check('estacion-atajo');
+  await shortcutAnswer(page, 'apis', [true, false]);
+  await check('estacion-atajo-respondido');
+  await page.click('#s-estacion .shortcut button.check');
+  await page.waitForSelector('#s-estacion .shortcut-result');
+  await check('estacion-resultado');
+  await page.click('#s-estacion .topnav button');
+  await page.waitForSelector('#s-linea:not([hidden])');
+  await page.click('#s-linea .st-rows [data-station=git]');
+  await page.waitForSelector('#s-estacion:not([hidden])');
+  await check('estacion-vista');
   // Sesión: repaso sin responder, bien, mal, idea de un paso nuevo y cierre.
   await page.click('#tabbar [data-tab=hoy]');
   await page.click('#s-hoy .session-cta');
@@ -139,6 +156,169 @@ async function visualPass(browser, viewport, colorScheme) {
   await finishAllRight(page);
   await check('sesion-cierre');
   assert.deepEqual(errors, [], 'errores de JS (' + tag + ')');
+  await ctx.close();
+}
+
+// Revisa con las cajas reales (getBBox) que ninguna etiqueta del mapa se encime con otra, con una estación
+// ni con un tramo, y que la estimación de core.js (mapLayout) sea holgada respecto al texto dibujado.
+async function mapLabelProblems(page) {
+  return page.evaluate(() => {
+    const svg = document.querySelector('#s-mapa svg.metro');
+    const lay = mapLayout(LINEAS, ESTACIONES);
+    const out = [];
+    const boxes = [];
+    svg.querySelectorAll('[data-station]').forEach((g) => {
+      const id = g.getAttribute('data-station');
+      const t = g.querySelector('text').getBBox();
+      const b = { x0: t.x, x1: t.x + t.width, y0: t.y, y1: t.y + t.height, id };
+      const est = lay.byId[id].label.box;
+      if (b.x0 < est.x0 - 1 || b.x1 > est.x1 + 1) out.push('estimación corta: ' + id + ' ' + JSON.stringify([b.x0, b.x1, est.x0, est.x1]));
+      if (b.x0 < 0 || b.x1 > 360) out.push('etiqueta fuera del lienzo: ' + id);
+      boxes.push(b);
+    });
+    const hit = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) if (hit(boxes[i], boxes[j])) out.push('etiquetas encimadas: ' + boxes[i].id + ' y ' + boxes[j].id);
+      lay.nodes.forEach((n) => {
+        if (n.id !== boxes[i].id && hit(boxes[i], { x0: n.x - n.w / 2, x1: n.x + n.w / 2, y0: n.y - n.h / 2, y1: n.y + n.h / 2 })) out.push('etiqueta sobre estación: ' + boxes[i].id + ' / ' + n.id);
+      });
+      Object.keys(lay.paths).forEach((lid) => {
+        if (lay.paths[lid].some((sg) => coreSegHitsBox(sg, boxes[i], 3.5))) out.push('etiqueta sobre línea: ' + boxes[i].id + ' / ' + lid);
+      });
+    }
+    return out;
+  });
+}
+
+// Respuestas del atajo: índice correcto u otro, por pregunta extra.
+async function shortcutAnswer(page, id, rights) {
+  const oks = await page.evaluate((s) => ESTACIONES[s].extra.map((q) => q.ok), id);
+  for (let i = 0; i < 2; i++) {
+    const pick = rights[i] ? oks[i] : (oks[i] + 1) % 4;
+    await page.click('#s-estacion .shortcut [data-q="' + i + '"] .opt >> nth=' + pick);
+  }
+}
+
+async function mapaScenarios(browser, setStep) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const { page, errors } = await openHome(ctx, { clock: '2026-11-11T12:00:00', local: JSON.stringify({ v: 2, goal: 'edar-dev-jr', goalT: 1, items: {}, days: {} }) });
+  await page.waitForSelector('#s-hoy:not([hidden])');
+  await page.click('#tabbar [data-tab=mapa]');
+  await page.waitForSelector('#s-mapa:not([hidden]) svg');
+  assert.equal(await page.locator('#s-mapa svg [data-station]').count(), 32);
+  assert.equal(await page.locator('#s-mapa .line-list [data-line]').count(), 9);
+  assert.match(await page.getAttribute('#s-mapa svg', 'viewBox'), /^0 0 360 \d+$/);
+  assert.equal(await page.getAttribute('#s-mapa svg', 'role'), 'group');
+  assert.equal(await page.locator('#s-mapa svg polyline.trk').count(), 9);
+  assert.equal(await page.getAttribute('#s-mapa [data-station=sql]', 'role'), 'link');
+  assert.equal(await page.getAttribute('#s-mapa [data-station=sql]', 'aria-label'), 'SQL, 5 líneas, 0% de avance');
+  assert.match(await page.getAttribute('#s-mapa [data-station=git]', 'aria-label'), /vas aquí/);
+  assert.equal(await page.locator('#s-mapa [data-station].cur').count(), 1, 'una sola estación actual');
+  assert.match(await page.textContent('#s-mapa .line-list [data-line=safe-soc]'), /L5[^]*Analista SOC[^]*SAFE[^]*0% listo/);
+  assert.ok(await page.evaluate(noHScroll), 'sin scroll horizontal en el mapa');
+  assert.deepEqual(await mapLabelProblems(page), [], 'etiquetas del mapa');
+  // Tamaño real de la letra de las etiquetas a 390 px: al menos 11 px.
+  const fs = await page.evaluate(() => {
+    const svg = document.querySelector('#s-mapa svg.metro');
+    return svg.getBoundingClientRect().width / 360 * parseFloat(getComputedStyle(svg.querySelector('[data-station] text')).fontSize);
+  });
+  assert.ok(fs >= 11, 'letra de etiqueta de ' + fs + ' px');
+
+  setStep('estaciones con teclado');
+  // Teclado: las estaciones se alcanzan con Tab y se abren con Enter o Espacio.
+  await page.focus('#s-mapa [data-station=sql]');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#s-estacion:not([hidden])');
+  assert.equal(await page.textContent('#s-estacion h1'), 'SQL');
+  assert.equal(await page.getAttribute('#tabbar [data-tab=mapa]', 'aria-current'), 'page');
+  await page.click('#s-estacion .topnav button');
+  await page.waitForSelector('#s-mapa:not([hidden])');
+  await page.focus('#s-mapa [data-station=git]');
+  await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(() => document.activeElement.getAttribute('data-station')), 'datos', 'Tab sigue el orden de la línea');
+  await page.keyboard.press(' ');
+  await page.waitForSelector('#s-estacion:not([hidden])');
+  assert.equal(await page.textContent('#s-estacion h1'), 'Datos');
+  await page.click('#s-estacion .topnav button');
+  await page.waitForSelector('#s-mapa:not([hidden])');
+
+  setStep('estación compartida cuenta en todas sus líneas');
+  await page.click('#s-mapa [data-station=sql]');
+  await page.waitForSelector('#s-estacion:not([hidden])');
+  assert.match(await page.textContent('#s-estacion .st-lines'), /L1.*L2.*L4.*L6.*L8/s);
+  assert.equal(await page.locator('#s-estacion .shortcut').count(), 1, 'tarjeta «¿Ya sabes esto?»');
+  assert.match(await page.textContent('#s-estacion'), /Por descubrir en tu próxima sesión/);
+  assert.equal(await page.isDisabled('#s-estacion .shortcut button.check'), true, 'Comprobar espera las dos respuestas');
+  const whys = await page.evaluate(() => ESTACIONES.sql.extra.map((q) => q.why));
+  assert.ok(!(await page.textContent('#s-estacion')).includes(whys[0]), 'sin explicación antes de comprobar');
+  await shortcutAnswer(page, 'sql', [true, true]);
+  assert.equal(await page.isDisabled('#s-estacion .shortcut button.check'), false);
+  await page.click('#s-estacion .shortcut button.check');
+  await page.waitForSelector('#s-estacion .shortcut-result');
+  assert.match(await page.textContent('#s-estacion .shortcut-result'), /Listo: la estación queda vista y la repasas en 7 días/);
+  assert.ok((await page.textContent('#s-estacion')).includes(whys[0]), 'explicación después de comprobar');
+  const afterSql = await localState(page);
+  for (let n = 0; n < 6; n++) assert.equal(afterSql.items['sql.' + n].b, 3, 'sql.' + n + ' en caja 3');
+  assert.equal(afterSql.items['sql.0'].due, '2026-11-18');
+  assert.doesNotMatch(await page.textContent('#s-estacion'), /Por descubrir/, 'los pasos ya se ven');
+  await page.click('#tabbar [data-tab=mapa]');
+  await page.waitForSelector('#s-mapa:not([hidden])');
+  for (const lid of ['sears-datos-jr', 'satori-cloud-jr']) {
+    const pct = +(await page.textContent('#s-mapa .line-list [data-line=' + lid + '] .pct')).match(/(\d+)%/)[1];
+    assert.ok(pct > 0, lid + ' sube con SQL');
+  }
+  assert.match(await page.getAttribute('#s-mapa [data-station=sql]', 'aria-label'), /SQL, 5 líneas, 80% de avance/);
+  await page.click('#s-mapa [data-station=sql]');
+  await page.waitForSelector('#s-estacion:not([hidden])');
+  assert.equal(await page.locator('#s-estacion .shortcut').count(), 0, 'el atajo no se repite');
+
+  setStep('atajo con un error');
+  await page.click('#s-estacion .topnav button');
+  await page.waitForSelector('#s-mapa:not([hidden])');
+  await page.click('#s-mapa [data-station=redes]');
+  await page.waitForSelector('#s-estacion .shortcut');
+  await shortcutAnswer(page, 'redes', [true, false]);
+  await page.click('#s-estacion .shortcut button.check');
+  await page.waitForSelector('#s-estacion .shortcut-result');
+  assert.match(await page.textContent('#s-estacion .shortcut-result'), /Vamos paso a paso: esta estación entra en tus sesiones/);
+  const afterRedes = await localState(page);
+  assert.equal(afterRedes.items['redes.4'].b, 1);
+  assert.equal(afterRedes.items['redes.5'].b, 1);
+  assert.equal(afterRedes.items['redes.0'], undefined);
+
+  setStep('Hoy: otras líneas abren su ficha');
+  await page.click('#tabbar [data-tab=hoy]');
+  await page.waitForSelector('#s-hoy:not([hidden])');
+  await page.click('#s-hoy .lrow[data-line=sears-datos-jr]');
+  await page.waitForSelector('#s-linea:not([hidden])');
+  assert.match(await page.textContent('#s-linea h1'), /Analista de Datos Jr\./);
+
+  setStep('línea: elegir como meta');
+  await page.click('#tabbar [data-tab=mapa]');
+  await page.click('#s-mapa .line-list [data-line=safe-soc]');
+  await page.waitForSelector('#s-linea:not([hidden])');
+  const ficha = await page.textContent('#s-linea');
+  assert.match(ficha, /Analista SOC/);
+  assert.match(ficha, /Lo que pide la vacante/);
+  assert.match(ficha, /leída el/);
+  assert.equal(await page.getAttribute('#s-linea a.vacante', 'target'), '_blank');
+  assert.equal(await page.getAttribute('#s-linea a.vacante', 'rel'), 'noopener');
+  assert.equal(await page.locator('#s-linea .st-rows [data-station]').count(), 5);
+  await page.click('#s-linea .st-rows [data-station=redes]');
+  await page.waitForSelector('#s-estacion:not([hidden])');
+  assert.equal(await page.textContent('#s-estacion h1'), 'Redes');
+  await page.click('#s-estacion .topnav button');
+  await page.waitForSelector('#s-linea:not([hidden])');
+  await page.click('#s-linea button:has-text("Elegir como meta")');
+  await page.waitForSelector('#s-hoy:not([hidden])');
+  assert.match(await page.textContent('#s-hoy'), /Analista SOC/);
+  await page.waitForFunction(() => /Meta cambiada a Analista SOC/.test(document.getElementById('notices').textContent));
+  assert.equal((await localState(page)).goal, 'safe-soc');
+  await page.click('#tabbar [data-tab=mapa]');
+  await page.click('#s-mapa .line-list [data-line=safe-soc]');
+  await page.waitForSelector('#s-linea:not([hidden])');
+  assert.equal(await page.isDisabled('#s-linea button:has-text("Es tu meta")'), true);
+  assert.deepEqual(errors, [], 'errores de JS en mapa, línea y estación');
   await ctx.close();
 }
 
@@ -181,7 +361,7 @@ async function main() {
     await page.waitForSelector('#s-hoy:not([hidden])');
     assert.match(await page.textContent('#s-hoy'), /Desarrollador de Software Jr\./);
 
-    step = 'la sesión y el mapa (stub) se alcanzan';
+    step = 'la sesión y el mapa se alcanzan';
     await page.click('#s-hoy .session-cta');
     await page.waitForSelector('#s-sesion:not([hidden])');
     assert.equal(await page.isVisible('#tabbar'), false, 'sin barra inferior en la sesión');
@@ -193,6 +373,9 @@ async function main() {
     assert.equal(await page.getAttribute('#tabbar [data-tab=mapa]', 'aria-current'), 'page');
     assert.equal(await page.evaluate(() => document.activeElement.getAttribute('data-tab')), 'mapa', 'el foco se queda en la pestaña');
     assert.equal(await page.getAttribute('#tabbar [data-tab=hoy]', 'aria-current'), null);
+
+    step = 'mapa: 9 líneas, 32 estaciones';
+    await mapaScenarios(browser, (t) => { step = t; });
 
     step = 'Yo: cuenta opcional, cambiar meta, cuestionario';
     await page.click('#tabbar [data-tab=yo]');

@@ -396,6 +396,147 @@ function segmentOffsets(lines) {
   return out;
 }
 
+// Dibujo del mapa (unidades del viewBox de 360 de ancho; a 390 px de pantalla 1 unidad ≈ 1 px).
+// Etiquetas de 12 con interlineado 14. Una estación normal es un círculo de radio r; una compartida,
+// una píldora con un punto por línea. Lado de la etiqueta: 'l', 'r' (por defecto), 't' (arriba) o 'b' (abajo).
+var MAP_GEO = { width: 360, font: 12, lineH: 14, r: 7, dotGap: 8, pillH: 18, gap: 7, stroke: 7, wrapW: 120 };
+
+// Ancho estimado de un texto a 12 px, holgado: el mayor entre IBM Plex Sans e Inter en negrita (la estación actual va en negrita).
+function mapTextW(t) {
+  var w = 0;
+  for (var i = 0; i < t.length; i++) {
+    var ch = t.charAt(i);
+    if (ch === ' ') w += 2.9;
+    else if ('ijlíI'.indexOf(ch) !== -1) w += ch === 'I' ? 5.2 : 3.7;
+    else if ('frt'.indexOf(ch) !== -1) w += 4.9;
+    else if (ch === 'm' || ch === 'M' || ch === 'w' || ch === 'W') w += 11.2;
+    else if (ch !== ch.toLowerCase()) w += 9.4;
+    else w += 7.6;
+  }
+  return w;
+}
+
+// Nombre en 1 renglón o, si mide más de wrapW, en 2: se corta en el espacio que deja el renglón más largo más corto,
+// sin empezar el segundo renglón con una palabra de 1 o 2 letras («Respuesta a / incidentes», no «Respuesta / a incidentes»).
+function mapLabelLines(name) {
+  if (mapTextW(name) <= MAP_GEO.wrapW) return [name];
+  var best = -1, bestW = Infinity;
+  for (var i = 0; i < name.length; i++) {
+    if (name.charAt(i) !== ' ') continue;
+    var next = name.slice(i + 1).split(' ')[0];
+    if (next.length <= 2) continue;
+    var w = Math.max(mapTextW(name.slice(0, i)), mapTextW(name.slice(i + 1)));
+    if (w < bestW) { bestW = w; best = i; }
+  }
+  return best === -1 ? [name] : [name.slice(0, best), name.slice(best + 1)];
+}
+
+function mapMarkerW(n) { return n > 1 ? (n - 1) * MAP_GEO.dotGap + MAP_GEO.pillH : 2 * MAP_GEO.r; }
+
+// Geometría completa: estaciones (en orden de línea, sin repetir), tramos de cada línea con su desplazamiento
+// paralelo (segmentOffsets, perpendicular al tramo en el sentido de su clave) y caja estimada de cada etiqueta.
+function mapLayout(lines, stations) {
+  var G = MAP_GEO, offs = segmentOffsets(lines), nodes = [], byId = {}, paths = {}, maxY = 0, i, j;
+  for (i = 0; i < lines.length; i++) {
+    var l = lines[i];
+    for (j = 0; j < l.stations.length; j++) {
+      var id = l.stations[j], c = l.map[id];
+      if (!c || !stations[id]) continue;
+      if (!byId[id]) {
+        byId[id] = { id: id, x: c[0], y: c[1], side: c[2] || 'r', lines: [] };
+        nodes.push(byId[id]);
+      }
+      byId[id].lines.push(l.id);
+    }
+  }
+  for (i = 0; i < nodes.length; i++) {
+    var nd = nodes[i], w = mapMarkerW(nd.lines.length), h = nd.lines.length > 1 ? G.pillH : 2 * G.r;
+    nd.w = w; nd.h = h;
+    var txt = mapLabelLines(stations[nd.id].name), tw = 0;
+    for (j = 0; j < txt.length; j++) tw = Math.max(tw, mapTextW(txt[j]));
+    var th = txt.length * G.lineH, side = nd.side, lab;
+    if (side === 't' || side === 'b') {
+      var ty0 = side === 't' ? nd.y - h / 2 - 4 - th : nd.y + h / 2 + 4;
+      lab = { x: nd.x, anchor: 'middle', cy: ty0 + th / 2, box: { x0: nd.x - tw / 2, x1: nd.x + tw / 2, y0: ty0, y1: ty0 + th } };
+    } else {
+      var lx = side === 'l' ? nd.x - w / 2 - G.gap : nd.x + w / 2 + G.gap;
+      lab = { x: lx, anchor: side === 'l' ? 'end' : 'start', cy: nd.y,
+        box: { x0: side === 'l' ? lx - tw : lx, x1: side === 'l' ? lx : lx + tw, y0: nd.y - th / 2, y1: nd.y + th / 2 } };
+    }
+    lab.lines = txt;
+    nd.label = lab;
+    if (nd.y > maxY) maxY = nd.y;
+  }
+  for (i = 0; i < lines.length; i++) {
+    var ln = lines[i], segs = [];
+    for (j = 1; j < ln.stations.length; j++) {
+      var a = byId[ln.stations[j - 1]], b = byId[ln.stations[j]];
+      if (!a || !b) continue;
+      var k = coreSegKey(a.id, b.id), o = offs[ln.id][k] || 0;
+      var p = a.id < b.id ? a : b, q = a.id < b.id ? b : a;
+      var dx = q.x - p.x, dy = q.y - p.y, len = Math.sqrt(dx * dx + dy * dy) || 1;
+      var nx = -dy / len * o, ny = dx / len * o;
+      segs.push([a.x + nx, a.y + ny, b.x + nx, b.y + ny]);
+    }
+    paths[ln.id] = segs;
+  }
+  return { width: G.width, height: maxY + 40, nodes: nodes, byId: byId, paths: paths };
+}
+
+// ¿El tramo (x1,y1)-(x2,y2) toca la caja (agrandada en pad)? Recorte de Liang-Barsky.
+function coreSegHitsBox(s, b, pad) {
+  var x0 = b.x0 - pad, x1 = b.x1 + pad, y0 = b.y0 - pad, y1 = b.y1 + pad;
+  var dx = s[2] - s[0], dy = s[3] - s[1], t0 = 0, t1 = 1;
+  var P = [-dx, dx, -dy, dy], Q = [s[0] - x0, x1 - s[0], s[1] - y0, y1 - s[1]];
+  for (var i = 0; i < 4; i++) {
+    if (P[i] === 0) { if (Q[i] < 0) return false; continue; }
+    var t = Q[i] / P[i];
+    if (P[i] < 0) { if (t > t1) return false; if (t > t0) t0 = t; }
+    else { if (t < t0) return false; if (t < t1) t1 = t; }
+  }
+  return true;
+}
+function coreBoxesHit(a, b, pad) { return a.x0 - pad < b.x1 && b.x0 - pad < a.x1 && a.y0 - pad < b.y1 && b.y0 - pad < a.y1; }
+function coreMarkerBox(n) { return { x0: n.x - n.w / 2, x1: n.x + n.w / 2, y0: n.y - n.h / 2, y1: n.y + n.h / 2 }; }
+
+// Problemas de legibilidad del mapa (lista vacía = limpio): estaciones más cerca de minDist, etiquetas que se enciman
+// entre sí, con una estación o con un tramo, tramos que cruzan una estación ajena y cosas fuera del lienzo.
+function mapIssues(layout, minDist) {
+  var out = [], ns = layout.nodes, half = MAP_GEO.stroke / 2, i, j, k, lid, segs;
+  var md = minDist || 0;
+  for (i = 0; i < ns.length; i++) {
+    var a = ns[i], lb = a.label.box, mb = coreMarkerBox(a);
+    if (lb.x0 < 2 || lb.x1 > layout.width - 2 || lb.y0 < 2) out.push('etiqueta fuera: ' + a.id);
+    if (mb.x0 < 2 || mb.x1 > layout.width - 2 || mb.y0 < 2) out.push('estación fuera: ' + a.id);
+    for (j = 0; j < ns.length; j++) {
+      if (i === j) continue;
+      var b = ns[j];
+      if (j > i && Math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y)) < md) out.push('estaciones juntas: ' + a.id + ' y ' + b.id);
+      if (j > i && coreBoxesHit(lb, b.label.box, 2)) out.push('etiquetas encimadas: ' + a.id + ' y ' + b.id);
+      if (coreBoxesHit(lb, coreMarkerBox(b), 2)) out.push('etiqueta sobre estación: ' + a.id + ' sobre ' + b.id);
+    }
+    for (lid in layout.paths) {
+      segs = layout.paths[lid];
+      for (k = 0; k < segs.length; k++) {
+        if (coreSegHitsBox(segs[k], lb, half + 1)) { out.push('etiqueta sobre línea: ' + a.id + ' y ' + lid); break; }
+      }
+    }
+  }
+  // Un tramo no pasa por encima de una estación que no es la suya.
+  for (lid in layout.paths) {
+    segs = layout.paths[lid];
+    for (k = 0; k < segs.length; k++) {
+      for (i = 0; i < ns.length; i++) {
+        var n = ns[i];
+        if (Math.abs(segs[k][0] - n.x) < 8 && Math.abs(segs[k][1] - n.y) < 8) continue;
+        if (Math.abs(segs[k][2] - n.x) < 8 && Math.abs(segs[k][3] - n.y) < 8) continue;
+        if (coreSegHitsBox(segs[k], coreMarkerBox(n), half)) out.push('línea sobre estación: ' + lid + ' cruza ' + n.id);
+      }
+    }
+  }
+  return out;
+}
+
 // Líneas cuyas áreas coinciden con las del cuestionario, en el orden de LINEAS.
 // `lines` es opcional: sin él usa la global LINEAS (js/data-lineas.js).
 function lineasFor(topKeys, lines) {
@@ -418,5 +559,6 @@ if (typeof module !== 'undefined') module.exports = {
   XP: XP, recordAnswer: recordAnswer, finishSession: finishSession, setGoal: setGoal,
   totalXp: totalXp, level: level, weekKey: weekKey, streak: streak, mergeState: mergeState,
   applyShortcut: applyShortcut, sessionSummary: sessionSummary,
-  segmentOffsets: segmentOffsets, lineasFor: lineasFor
+  segmentOffsets: segmentOffsets, lineasFor: lineasFor,
+  MAP_GEO: MAP_GEO, mapTextW: mapTextW, coreSegHitsBox: coreSegHitsBox, mapLabelLines: mapLabelLines, mapMarkerW: mapMarkerW, mapLayout: mapLayout, mapIssues: mapIssues
 };

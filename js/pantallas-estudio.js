@@ -1,4 +1,4 @@
-// Pantallas de estudio: Elegir meta, Hoy y Sesión. El Mapa (Tarea 11) queda como stub.
+// Pantallas de estudio: Elegir meta, Hoy y Sesión. Mapa, Línea y Estación están en js/pantallas-mapa.js.
 // Script clásico (ES5). Usa las globales de app.js: state, commit, syncNow y syncAndRefresh.
 
 var DIAS_LARGO = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
@@ -189,9 +189,11 @@ function renderHoy(keep) {
   if (others.length) {
     var list = el('ul', { class: 'lrows' });
     others.forEach(function (l) {
-      list.append(el('li', { class: 'lrow ' + l.color }, lineBadge(l),
+      var row = el('button', { class: 'lrow ' + l.color, type: 'button', 'data-line': l.id }, lineBadge(l),
         el('span', { class: 'lrow-t' }, el('b', { text: l.title }), el('span', { class: 'small', text: l.company })),
-        el('span', { class: 'pct', text: pctOf(l) + '%' })));
+        el('span', { class: 'pct', text: pctOf(l) + '%' }));
+      row.addEventListener('click', function () { openLinea(l.id); });
+      list.append(el('li', null, row));
     });
     root.append(el('section', { class: 'card', 'aria-labelledby': 'others-h' },
       el('h2', { class: 'mono card-h', id: 'others-h', text: 'Otras líneas que ya avanzaste' }), list));
@@ -472,13 +474,3 @@ document.addEventListener('keydown', function (e) {
     if (n <= btns.length) { e.preventDefault(); sesAnswer(n - 1); }
   }
 });
-
-// ---------- Stubs ----------
-// Mapa y Línea: los dibuja la Tarea 11 (js/pantallas-mapa.js reemplaza estos stubs).
-function renderMapa(keep) {
-  var root = screens.mapa;
-  root.textContent = '';
-  root.append(hubHead(), el('h1', { text: 'Mapa' }), el('p', { class: 'status', text: 'Cargando el mapa…' }));
-  show('mapa', keep);
-}
-function openLinea(id) { renderMapa(); }

@@ -1,7 +1,8 @@
 // Líneas del hub: cada una es una vacante real, leída completa en la fecha de `seen`. Van en orden L1 a L9.
 // Forma (spec «Modelo de contenido»): { id, n, color, title, company, place, level, url, seen, areas, summary, asks, note?, stations, map }
-// `stations` va en orden de estudio. `map` da { id: [x, y, lado?] } en un viewBox de 360 de ancho; lado 'l' o 'r' (por defecto 'r')
-// es donde va la etiqueta. Una estación compartida lleva las mismas coordenadas en todas sus líneas.
+// `stations` va en orden de estudio. `map` da { id: [x, y, lado?] } en un viewBox de 360 de ancho; el lado ('l', 'r' por defecto,
+// 't' arriba o 'b' abajo) es donde va la etiqueta. Una estación compartida lleva
+// las mismas coordenadas en todas sus líneas. tests/content.test.mjs revisa el mapa con mapIssues (js/core.js).
 // De la vacante solo se guarda lo necesario para estudiar: nada de correos ni datos de contacto.
 // Script clásico (ES5): define la global LINEAS y se exporta para las pruebas con Node.
 
@@ -27,7 +28,7 @@ var LINEAS = [
     ],
     note: "De $12,000 a $15,000 al mes. Para estudiantes del último semestre o recién egresados, con 0 a 2 años de experiencia.",
     stations: ["git", "datos", "sql", "apis", "pruebas-auto"],
-    map: { "git": [245, 360, "r"], "datos": [195, 290, "r"], "sql": [185, 395, "l"], "apis": [160, 440, "l"], "pruebas-auto": [115, 525, "r"] }
+    map: { "git": [215, 120, "l"], "datos": [175, 160, "l"], "sql": [215, 200, "r"], "apis": [160, 270, "r"], "pruebas-auto": [150, 325, "b"] }
   },
   {
     id: "sears-datos-jr",
@@ -50,7 +51,7 @@ var LINEAS = [
     ],
     note: "Temporal por proyecto y 100% presencial. Pide de 1 a 2 años de experiencia en análisis de datos.",
     stations: ["hojas", "datos", "sql", "tableros", "indicadores"],
-    map: { "hojas": [125, 240, "l"], "datos": [195, 290, "r"], "sql": [185, 395, "l"], "tableros": [225, 395, "r"], "indicadores": [245, 430, "r"] }
+    map: { "hojas": [135, 200, "l"], "datos": [175, 160, "l"], "sql": [215, 200, "r"], "tableros": [295, 280, "b"], "indicadores": [344, 220, "l"] }
   },
   {
     id: "mvs-tester-jr",
@@ -72,7 +73,7 @@ var LINEAS = [
     ],
     note: "$13,000 al mes. Temporal y presencial, con turnos rotativos que incluyen fines de semana.",
     stations: ["casos-prueba", "defectos", "hojas", "pruebas-auto"],
-    map: { "casos-prueba": [110, 30, "r"], "defectos": [120, 140, "r"], "hojas": [125, 240, "l"], "pruebas-auto": [115, 525, "r"] }
+    map: { "casos-prueba": [85, 90, "t"], "defectos": [85, 150, "l"], "hojas": [135, 200, "l"], "pruebas-auto": [150, 325, "b"] }
   },
   {
     id: "satori-cloud-jr",
@@ -95,7 +96,7 @@ var LINEAS = [
     ],
     note: "De $20,000 a $25,000 al mes. 100% presencial, de lunes a viernes de 9 a 19 h. Pide título y experiencia previa en soporte o infraestructura.",
     stations: ["linux", "nube", "monitoreo", "sql", "git"],
-    map: { "linux": [344, 450, "l"], "nube": [320, 610, "l"], "monitoreo": [275, 545, "l"], "sql": [185, 395, "l"], "git": [245, 360, "r"] }
+    map: { "linux": [300, 522, "b"], "nube": [262, 485, "l"], "monitoreo": [260, 355, "r"], "sql": [215, 200, "r"], "git": [215, 120, "l"] }
   },
   {
     id: "safe-soc",
@@ -118,7 +119,7 @@ var LINEAS = [
     ],
     note: "De $20,000 a $26,000 al mes, 100% presencial. Pide al menos 2 años de experiencia en un puesto parecido: es una meta, no un primer empleo.",
     stations: ["redes", "linux", "monitoreo", "amenazas", "incidentes"],
-    map: { "redes": [344, 410, "l"], "linux": [344, 450, "l"], "monitoreo": [275, 545, "l"], "amenazas": [270, 585, "l"], "incidentes": [270, 625, "l"] }
+    map: { "redes": [338, 485, "t"], "linux": [300, 522, "b"], "monitoreo": [260, 355, "r"], "amenazas": [235, 395, "l"], "incidentes": [235, 445, "l"] }
   },
   {
     id: "banorte-ds-jr",
@@ -141,7 +142,7 @@ var LINEAS = [
     ],
     note: "Híbrido. Pide de 2 a 4 años de experiencia en ciencia de datos, ML o IA.",
     stations: ["python", "sql", "estadistica", "ml", "llm", "rag", "evaluacion"],
-    map: { "python": [180, 490, "r"], "sql": [185, 395, "l"], "estadistica": [100, 275, "l"], "ml": [95, 455, "l"], "llm": [75, 565, "r"], "rag": [75, 605, "l"], "evaluacion": [115, 605, "r"] }
+    map: { "python": [220, 300, "l"], "sql": [215, 200, "r"], "estadistica": [95, 285, "l"], "ml": [110, 420, "r"], "llm": [110, 510, "r"], "rag": [110, 565, "l"], "evaluacion": [195, 565, "b"] }
   },
   {
     id: "getnet-ai-deploy",
@@ -163,7 +164,7 @@ var LINEAS = [
     ],
     note: "Híbrido. No pide años de experiencia: valora haber construido algo real con IA, en el trabajo, en un proyecto propio o en un emprendimiento.",
     stations: ["agentes", "multiagente", "guardrails", "mcp", "observabilidad", "rag", "evaluacion"],
-    map: { "agentes": [160, 700, "r"], "multiagente": [120, 705, "l"], "guardrails": [120, 665, "r"], "mcp": [85, 685, "l"], "observabilidad": [80, 645, "r"], "rag": [75, 605, "l"], "evaluacion": [115, 605, "r"] }
+    map: { "agentes": [265, 580, "r"], "multiagente": [265, 640, "r"], "guardrails": [200, 705, "b"], "mcp": [110, 705, "l"], "observabilidad": [110, 650, "l"], "rag": [110, 565, "l"], "evaluacion": [195, 565, "b"] }
   },
   {
     id: "liverpool-negocio-jr",
@@ -186,7 +187,7 @@ var LINEAS = [
     ],
     note: "Híbrido: en el corporativo por la mañana y remoto por la tarde, con varios horarios.",
     stations: ["requerimientos", "diagramas", "agil", "sql", "hojas"],
-    map: { "requerimientos": [310, 165, "l"], "diagramas": [305, 205, "l"], "agil": [285, 240, "l"], "sql": [185, 395, "l"], "hojas": [125, 240, "l"] }
+    map: { "requerimientos": [305, 40, "t"], "diagramas": [255, 85, "l"], "agil": [255, 160, "r"], "sql": [215, 200, "r"], "hojas": [135, 200, "l"] }
   },
   {
     id: "mapfre-suscriptor-jr",
@@ -208,7 +209,7 @@ var LINEAS = [
     ],
     note: "Pide una ingeniería afín, como mecánica o industrial, e inglés B2. Si estudias computación, estas estaciones te dan la base de seguros y riesgos que el puesto da por hecha, para esta vacante o para otras parecidas del sector. Ofrece bono anual, vales y prestaciones superiores.",
     stations: ["hojas", "estadistica", "seguros", "riesgo"],
-    map: { "hojas": [125, 240, "l"], "estadistica": [100, 275, "l"], "seguros": [35, 365, "r"], "riesgo": [35, 405, "r"] }
+    map: { "hojas": [135, 200, "l"], "estadistica": [95, 285, "l"], "seguros": [80, 360, "l"], "riesgo": [55, 430, "b"] }
   }
 ];
 

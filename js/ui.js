@@ -1,4 +1,4 @@
-// Utilidades de interfaz: el, screens, show (con la barra inferior), showNotice, glossHits, glossFor, hasOwn, extLink, fmtDate, fmtDay y navBack.
+// Utilidades de interfaz: el, elNS (SVG), screens, show (con la barra inferior), showNotice, glossHits, glossFor, hasOwn, extLink, fmtDate, fmtDay y navBack.
 function el(tag, attrs) {
   var n = document.createElement(tag);
   if (attrs) Object.keys(attrs).forEach(function (k) {
@@ -11,6 +11,18 @@ function el(tag, attrs) {
     if (c == null) continue;
     n.append(c.nodeType ? c : document.createTextNode(c));
   }
+  return n;
+}
+
+// Igual que el(), pero crea elementos SVG (sin innerHTML: el texto va con textContent).
+var SVG_NS = 'http://www.w3.org/2000/svg';
+function elNS(tag, attrs) {
+  var n = document.createElementNS(SVG_NS, tag);
+  if (attrs) Object.keys(attrs).forEach(function (k) {
+    if (k === 'text') n.textContent = attrs[k];
+    else if (attrs[k] != null) n.setAttribute(k, attrs[k]);
+  });
+  for (var i = 2; i < arguments.length; i++) if (arguments[i] != null) n.append(arguments[i]);
   return n;
 }
 

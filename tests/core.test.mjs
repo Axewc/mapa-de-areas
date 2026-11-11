@@ -10,7 +10,8 @@ const {
   currentStation, getQuestion, validState, emptyState,
   buildSession, enqueueRepeat, describeSession, nextDue,
   recordAnswer, finishSession, setGoal, totalXp, level, weekKey, streak, mergeState,
-  applyShortcut, sessionSummary, segmentOffsets, lineasFor
+  applyShortcut, sessionSummary, segmentOffsets, lineasFor,
+  mapLabelLines, mapMarkerW, mapLayout, mapIssues, MAP_GEO, mapTextW
 } = require('../js/core.js');
 
 function q(tag) { return { q: 'P ' + tag, opts: ['a', 'b', 'c', 'd'], ok: 0, why: 'Porque ' + tag }; }
@@ -268,4 +269,73 @@ test('lineasFor', () => {
 test('lineasFor usa la global LINEAS si no recibe líneas', () => {
   globalThis.LINEAS = [{ id: 'u', areas: ['ml'] }, { id: 'w', areas: ['dat', 'ml'] }];
   try { assert.deepEqual([...lineasFor(['ml'])], ['u', 'w']); } finally { delete globalThis.LINEAS; }
+});
+
+const ST = { a: { name: 'Aa' }, b: { name: 'Bb' }, c: { name: 'Cc' }, d: { name: 'Dd' } };
+
+test('mapLabelLines: corta en 2 renglones solo los nombres largos, donde el renglón más largo queda más corto', () => {
+  assert.deepEqual(mapLabelLines('SQL'), ['SQL']);
+  assert.deepEqual(mapLabelLines('LLM y embeddings'), ['LLM y embeddings']);
+  assert.deepEqual(mapLabelLines('Pruebas automáticas'), ['Pruebas', 'automáticas']);
+  assert.deepEqual(mapLabelLines('Amenazas y vulnerabilidades'), ['Amenazas y', 'vulnerabilidades']);
+  assert.deepEqual(mapLabelLines('Respuesta a incidentes'), ['Respuesta a', 'incidentes']);
+});
+
+test('mapTextW: las mayúsculas y la m pesan más que la i', () => {
+  assert.ok(mapTextW('SQL') > mapTextW('sql'));
+  assert.ok(mapTextW('mm') > mapTextW('ii'));
+  assert.equal(mapTextW(''), 0);
+});
+
+test('mapLayout: etiqueta arriba o abajo, centrada en la estación', () => {
+  const L = mapLayout([{ id: 'p', stations: ['a', 'b'], map: { a: [100, 100, 't'], b: [200, 100, 'b'] } }], ST);
+  const a = L.byId.a.label, b = L.byId.b.label;
+  assert.equal(a.anchor, 'middle');
+  assert.ok(a.box.y1 <= 100 - MAP_GEO.r && Math.abs((a.box.x0 + a.box.x1) / 2 - 100) < 0.01);
+  assert.ok(b.box.y0 >= 100 + MAP_GEO.r);
+});
+
+test('mapMarkerW: círculo para una línea, píldora que crece con cada línea', () => {
+  assert.equal(mapMarkerW(1), 2 * MAP_GEO.r);
+  assert.ok(mapMarkerW(2) > mapMarkerW(1));
+  assert.equal(mapMarkerW(5) - mapMarkerW(4), MAP_GEO.dotGap);
+});
+
+test('mapLayout: estaciones sin repetir, alto = y mayor + 40 y tramos compartidos desplazados en paralelo', () => {
+  const lines = [
+    { id: 'p', stations: ['a', 'b'], map: { a: [100, 20], b: [100, 120, 'l'] } },
+    { id: 'q', stations: ['b', 'a', 'c'], map: { b: [100, 120, 'l'], a: [100, 20], c: [200, 20] } }
+  ];
+  const L = mapLayout(lines, ST);
+  assert.deepEqual(L.nodes.map((n) => n.id), ['a', 'b', 'c']);
+  assert.deepEqual(L.byId.a.lines, ['p', 'q']);
+  assert.equal(L.height, 160);
+  // Tramo vertical a-b: p a un lado (x = 103.5) y q al otro (x = 96.5), aunque q lo recorra al revés.
+  assert.deepEqual(L.paths.p[0].map((v) => +v.toFixed(2)), [103.5, 20, 103.5, 120]);
+  assert.deepEqual(L.paths.q[0].map((v) => +v.toFixed(2)), [96.5, 120, 96.5, 20]);
+  assert.deepEqual(L.paths.q[1], [100, 20, 200, 20]);
+  // Etiqueta a la izquierda: termina antes de la píldora.
+  assert.equal(L.byId.b.label.anchor, 'end');
+  assert.ok(L.byId.b.label.box.x1 <= 100 - mapMarkerW(2) / 2);
+  assert.equal(L.byId.c.label.anchor, 'start');
+});
+
+test('mapIssues encuentra etiquetas encimadas, tramos sobre estaciones ajenas y estaciones juntas', () => {
+  const ok = mapLayout([{ id: 'p', stations: ['a', 'b'], map: { a: [40, 40], b: [40, 120] } }], ST);
+  assert.deepEqual(mapIssues(ok, 44), []);
+  const juntas = mapLayout([{ id: 'p', stations: ['a', 'b'], map: { a: [40, 40], b: [40, 70] } }], ST);
+  assert.ok(mapIssues(juntas, 44).some((m) => /estaciones juntas: a y b/.test(m)));
+  const encima = mapLayout([
+    { id: 'p', stations: ['a', 'b'], map: { a: [40, 40], b: [40, 120] } },
+    { id: 'q', stations: ['c', 'd'], map: { c: [90, 46, 'l'], d: [200, 200] } }
+  ], ST);
+  const m = mapIssues(encima, 0);
+  assert.ok(m.some((x) => /etiquetas encimadas: a y c/.test(x)), m.join('; '));
+  const cruza = mapLayout([
+    { id: 'p', stations: ['a', 'b'], map: { a: [40, 40], b: [40, 200] } },
+    { id: 'q', stations: ['c'], map: { c: [40, 120] } }
+  ], ST);
+  assert.ok(mapIssues(cruza, 0).some((x) => /línea sobre estación: p cruza c/.test(x)));
+  const fuera = mapLayout([{ id: 'p', stations: ['a'], map: { a: [350, 40] } }], ST);
+  assert.ok(mapIssues(fuera, 0).some((x) => /etiqueta fuera: a/.test(x)));
 });
