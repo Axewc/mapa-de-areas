@@ -622,7 +622,7 @@ var GLOSS = [
   ["Prima", "prima", "En seguros, el precio del seguro: lo que pagas para estar protegido, por ejemplo cada año."],
   ["Suma asegurada", "suma asegurada", "Lo máximo que la aseguradora pagaría por un siniestro cubierto."],
   ["Deducible", "deducible", "La parte del daño que pagas tú antes de que la aseguradora empiece a pagar."],
-  ["Coaseguro", "coaseguro", "Un porcentaje del daño que también pagas tú, que se calcula después de restar el deducible."],
+  ["Coaseguro", "coaseguro", "Un porcentaje del daño que también pagas tú. Muchas pólizas lo calculan después de restar el deducible, pero el orden lo dice cada póliza. También se llama coaseguro a repartir un mismo riesgo entre varias aseguradoras."],
   ["Siniestro", "siniestro", "El daño que ocurre y se reclama al seguro, como un incendio o un robo."],
   ["Exclusiones", "exclusiones", "Lo que una póliza dice expresamente que no cubre."],
   ["Endoso", "endoso", "Un documento que modifica una póliza ya existente: agrega una cobertura, cambia la suma asegurada o corrige un dato."],
