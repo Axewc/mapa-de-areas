@@ -6,6 +6,7 @@
 //   window.__seed.session → sesión iniciada al cargar (si no, desconectado)
 //   window.__fakeLogin() → inicia sesión y avisa SIGNED_IN a los listeners
 //   window.__failSync   → el select de mapa_progreso devuelve error
+//   window.__slowSync   → ms de espera antes de responder un select o upsert de mapa_progreso
 (function () {
   var seed = window.__seed || {};
   var USER = { id: 'u1', email: 'alumno@test.mx' };
@@ -75,7 +76,12 @@
     if (this.lim) out = out.slice(0, this.lim);
     return { data: out, error: null };
   };
-  Query.prototype.then = function (resolve, reject) { return Promise.resolve(this.run()).then(resolve, reject); };
+  Query.prototype.then = function (resolve, reject) {
+    var self = this;
+    var wait = this.table === 'mapa_progreso' && this.op !== 'delete' ? (window.__slowSync || 0) : 0;
+    if (!wait) return Promise.resolve(this.run()).then(resolve, reject);
+    return new Promise(function (res) { setTimeout(function () { res(self.run()); }, wait); }).then(resolve, reject);
+  };
 
   window.supabase = {
     createClient: function () {

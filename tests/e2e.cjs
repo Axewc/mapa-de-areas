@@ -20,7 +20,8 @@ async function setupRoutes(page) {
 
 const noHScroll = () => document.documentElement.scrollWidth <= window.innerWidth;
 
-// Abre el sitio. Por defecto sin sesión (la primera visita normal). opts: { seed, session, admin, failSync, local }.
+// Abre el sitio. Por defecto sin sesión (la primera visita normal).
+// opts: { seed, session, admin, failSync, slowSync (ms), failDelete, local, clock (fecha fija) }.
 // `local` es el texto que se guarda en localStorage antes de cargar (null: no se toca).
 async function openHome(context, opts) {
   const o = opts || {};
@@ -36,7 +37,11 @@ async function openHome(context, opts) {
       localStorage.setItem(a.key, a.local);
       sessionStorage.setItem('e2e.seeded', '1');
     }
-  }, { seed: o.seed, session: !!o.session, admin: !!o.admin, failSync: !!o.failSync, local: o.local === undefined ? null : o.local, key: KEY });
+    if (a.slowSync) window.__slowSync = a.slowSync;
+    if (a.failDelete) window.__failDelete = true;
+  }, { seed: o.seed, session: !!o.session, admin: !!o.admin, failSync: !!o.failSync, slowSync: o.slowSync || 0, failDelete: !!o.failDelete,
+    local: o.local === undefined ? null : o.local, key: KEY });
+  if (o.clock) await page.clock.setFixedTime(new Date(o.clock));
   await page.goto(INDEX_URL);
   await page.waitForSelector('#s-pick:not([hidden]), #s-hoy:not([hidden])');
   return { page, errors };
@@ -110,6 +115,7 @@ async function main() {
     assert.equal(await page.isVisible('#tabbar'), false, 'sin barra inferior al elegir meta');
     await page.locator('#s-pick .line-card', { hasText: 'Desarrollador de Software Jr.' }).click();
     await page.waitForSelector('#s-hoy:not([hidden])');
+    await page.waitForFunction(() => document.activeElement === document.querySelector('#s-hoy h1'));
     assert.match(await page.textContent('#s-hoy'), /0%/);
     assert.match(await page.textContent('#s-hoy'), /te faltan 5 estaciones/);
     assert.match(await page.textContent('#s-hoy .session-cta'), /5 min · 5 pasos nuevos de Git y más/);
@@ -132,6 +138,7 @@ async function main() {
     await page.click('#tabbar [data-tab=mapa]');
     await page.waitForSelector('#s-mapa:not([hidden])');
     assert.equal(await page.getAttribute('#tabbar [data-tab=mapa]', 'aria-current'), 'page');
+    assert.equal(await page.evaluate(() => document.activeElement.getAttribute('data-tab')), 'mapa', 'el foco se queda en la pestaña');
     assert.equal(await page.getAttribute('#tabbar [data-tab=hoy]', 'aria-current'), null);
 
     step = 'Yo: cuenta opcional, cambiar meta, cuestionario';
@@ -160,7 +167,8 @@ async function main() {
     assert.deepEqual(errors, [], 'errores de JS en la primera visita');
 
     step = 'iniciar sesión sincroniza';
-    const lg = await openHome(context);
+    const ctxL = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const lg = await openHome(ctxL, { local: JSON.stringify({ v: 2, goal: 'edar-dev-jr', goalT: 1, items: {}, days: {} }) });
     await lg.page.waitForSelector('#s-hoy:not([hidden])');
     await lg.page.click('#tabbar [data-tab=yo]');
     await lg.page.click('#s-yo button:has-text("Guarda tu progreso en la nube")');
@@ -184,7 +192,94 @@ async function main() {
     assert.equal(await localState(lg.page), null);
     assert.equal(await lg.page.locator('#s-pick button:has-text("Volver")').count(), 0, 'sin meta no hay a dónde volver');
     assert.deepEqual(lg.errors, [], 'errores de JS al iniciar sesión');
-    await lg.page.close();
+    await ctxL.close();
+
+    step = 'cerrar sesión conserva el progreso local';
+    const ctxO = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const lo = await openHome(ctxO, { local: JSON.stringify(progressState()) });
+    await lo.page.click('#tabbar [data-tab=yo]');
+    await lo.page.evaluate(() => window.__fakeLogin());
+    await lo.page.waitForSelector('#s-yo #logout');
+    await lo.page.click('#s-yo #logout');
+    await lo.page.waitForSelector('#s-yo button:has-text("Guarda tu progreso en la nube")');
+    assert.equal(await lo.page.locator('#s-yo #logout').count(), 0);
+    assert.equal((await localState(lo.page)).goal, 'edar-dev-jr');
+    assert.match(await lo.page.textContent('#s-yo'), /Desarrollador de Software Jr\./);
+    assert.deepEqual(lo.errors, [], 'errores de JS al cerrar sesión');
+    await ctxO.close();
+
+    step = 'borrar mis datos mientras una sincronización sigue en curso';
+    const ctxS = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const sl = await openHome(ctxS, { session: true, slowSync: 800, local: JSON.stringify(progressState()) });
+    await sl.page.waitForSelector('#s-hoy:not([hidden])');
+    await sl.page.click('#tabbar [data-tab=yo]');
+    const delS = sl.page.locator('#s-yo button.danger');
+    await delS.click();
+    await delS.click();
+    await sl.page.waitForSelector('#s-pick:not([hidden])', { timeout: 10000 });
+    await sl.page.waitForTimeout(2000); // más que select + upsert lentos (2 × 800 ms)
+    assert.equal(await localState(sl.page), null, 'la sincronización vieja no devuelve el progreso');
+    assert.equal(await sl.page.isVisible('#s-pick'), true);
+    assert.equal(await sl.page.evaluate(() => window.__db.mapa_progreso.length), 0, 'el upsert viejo no recrea la fila');
+    assert.deepEqual(sl.errors, []);
+    await ctxS.close();
+
+    step = 'borrar mis datos con falla al borrar en la nube';
+    const ctxX = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const fx = await openHome(ctxX, { session: true, failDelete: true, local: JSON.stringify(progressState()) });
+    await fx.page.click('#tabbar [data-tab=yo]');
+    const delX = fx.page.locator('#s-yo button.danger');
+    await delX.click();
+    await delX.click();
+    await fx.page.waitForFunction(() => /No se pudo borrar tu progreso de la nube/.test(document.getElementById('notices').textContent));
+    assert.equal(await fx.page.isVisible('#s-yo'), true);
+    assert.equal((await localState(fx.page)).goal, 'edar-dev-jr', 'no se borró nada');
+    assert.equal(await fx.page.evaluate(() => window.__db.mapa_progreso.length), 1);
+    assert.equal((await delX.textContent()).trim(), 'Borrar mis datos');
+    assert.equal(await delX.isDisabled(), false);
+    assert.deepEqual(fx.errors, []);
+    await ctxX.close();
+
+    step = 'dispositivo nuevo con cuenta: entrar desde Elegir meta';
+    const ctxN = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const remote = { v: 2, goal: 'safe-soc', goalT: 5, items: { 'redes.0': { b: 1, due: addDays(todayYmd(), 1), t: 5 } }, days: {} };
+    const nw = await openHome(ctxN, { seed: { mapa_progreso: [{ user_id: 'u1', email: 'alumno@test.mx', state: remote }] } });
+    await nw.page.waitForSelector('#s-pick:not([hidden])');
+    await nw.page.click('#s-pick button:has-text("¿Ya tienes cuenta? Entra")');
+    await nw.page.waitForSelector('#pick-email');
+    await nw.page.fill('#pick-email', 'alumno@test.mx');
+    await nw.page.click('#pick-send-link');
+    await nw.page.waitForFunction(() => /Revisa tu correo/.test(document.getElementById('pick-auth-msg').textContent));
+    await nw.page.evaluate(() => window.__fakeLogin());
+    await nw.page.waitForSelector('#s-hoy:not([hidden])');
+    assert.match(await nw.page.textContent('#s-hoy'), /Analista SOC/);
+    assert.equal((await localState(nw.page)).goal, 'safe-soc');
+    const row = await nw.page.evaluate(() => window.__db.mapa_progreso[0].state);
+    assert.equal(row.goal, 'safe-soc', 'la meta de la nube no se pisó');
+    assert.equal(row.goalT, 5);
+    assert.ok(row.items['redes.0']);
+    assert.deepEqual(nw.errors, []);
+    await ctxN.close();
+
+    step = 'Hoy con avance y fecha fija';
+    // Miércoles 11 de noviembre de 2026: lunes cumplido, martes de descanso, domingo anterior cumplido.
+    const fixed = { v: 2, goal: 'edar-dev-jr', goalT: 1, items: {}, days: { '2026-11-09': { xp: 50, done: true }, '2026-11-08': { xp: 40, done: true } } };
+    for (let n = 0; n < 6; n++) fixed.items['git.' + n] = { b: 2, due: '2026-11-13', t: 1 };
+    const ctxC = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const ck = await openHome(ctxC, { clock: '2026-11-11T12:00:00', local: JSON.stringify(fixed) });
+    await ck.page.waitForSelector('#s-hoy:not([hidden])');
+    const labels = await ck.page.locator('#s-hoy .week li .sr-only').allTextContents();
+    assert.deepEqual(labels, ['lunes, cumplido', 'martes, día de descanso', 'miércoles, hoy, pendiente', 'jueves, por venir',
+      'viernes, por venir', 'sábado, por venir', 'domingo, por venir']);
+    assert.equal(await ck.page.locator('#s-hoy .week li[aria-label]').count(), 0);
+    assert.match(await ck.page.textContent('#s-hoy .chip'), /Racha · 2 días/);
+    assert.match(await ck.page.textContent('#s-hoy'), /12%/);
+    assert.match(await ck.page.textContent('#s-hoy'), /te faltan 4 estaciones/);
+    const rows = await ck.page.locator('#s-hoy .lrow').allTextContents();
+    assert.equal(rows.length, 1, 'solo L4 comparte Git');
+    assert.match(rows[0], /L4[^]*Ingeniero de Operaciones Cloud Jr\.[^]*12%/);
+    assert.deepEqual(ck.errors, []);
+    await ctxC.close();
 
     step = 'falla de sincronización';
     const ctxF = await browser.newContext({ viewport: { width: 390, height: 844 } });

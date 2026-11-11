@@ -23,7 +23,19 @@ var currentScreen = null;
 // Pestaña que se marca en cada pantalla y pantallas sin barra inferior.
 var TAB_OF = { hoy: 'hoy', mapa: 'mapa', linea: 'mapa', estacion: 'mapa', yo: 'yo', intro: 'yo', result: 'yo', history: 'yo', admin: 'yo', learn: 'yo' };
 var NO_TABBAR = { sesion: true, quiz: true, pick: true };
+var tabNav = false; // true mientras se atiende un clic en la barra inferior (app.js)
+
+// Foco al título principal de la pantalla (h1 o, si no hay, h2), sin mover la página.
+function focusHeading(screen) {
+  var h = screen && screen.querySelector('h1, h2');
+  if (!h) return;
+  h.setAttribute('tabindex', '-1');
+  h.focus({ preventScroll: true });
+}
+
 // keep: no regresa al inicio de la página (para volver a dibujar la misma pantalla).
+// Foco: si el cambio vino de la barra inferior, se queda en su botón; si no, pasa al título de la pantalla.
+// Al redibujar (keep) solo se mueve si el elemento enfocado desapareció.
 function show(name, keep) {
   Object.keys(screens).forEach(function (k) { screens[k].hidden = (k !== name); });
   currentScreen = name;
@@ -37,6 +49,8 @@ function show(name, keep) {
     });
   }
   if (!keep) window.scrollTo(0, 0);
+  var lost = !document.activeElement || document.activeElement === document.body;
+  if (keep ? lost : !tabNav) focusHeading(screens[name]);
 }
 
 // Aviso discreto: uno a la vez, se cierra solo a los 6 s o con su botón. #notices es role="status".

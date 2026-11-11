@@ -25,15 +25,43 @@ function commit(nuevo) {
   return state;
 }
 
+// Época de los datos: «Borrar mis datos» la incrementa y una sincronización que empezó antes
+// descarta su resultado (no guarda ni redibuja), para no devolver el progreso borrado.
+var dataEpoch = 0;
+var pendingSyncs = [];
+
 // Con sesión: combina con la fila remota y guarda en los dos lados. Nunca rechaza.
+// Resuelve con el estado nuevo, o con null si se descartó porque los datos se borraron mientras tanto.
 function syncNow() {
   if (!session) return Promise.resolve(state);
-  return syncRemote(sb, session.user.id, state).then(function (r) {
+  var epoch = dataEpoch;
+  var p = syncRemote(sb, session.user.id, state).then(function (r) {
+    pendingSyncs = pendingSyncs.filter(function (x) { return x !== p; });
+    if (epoch !== dataEpoch) return null;
     if (r.error) {
       showNotice('No se pudo sincronizar. Tu progreso sigue en este dispositivo.');
       return state;
     }
     return commit(r.state);
+  });
+  pendingSyncs.push(p);
+  return p;
+}
+
+// Para borrar: invalida las sincronizaciones en curso y espera a que terminen (sin usar su resultado),
+// así su upsert no vuelve a crear la fila remota después del borrado.
+function invalidateData() {
+  dataEpoch++;
+  return Promise.all(pendingSyncs).then(function () {});
+}
+
+// Sincroniza y redibuja. Si en la primera visita (sin meta) llega una meta de la nube, entra a Hoy.
+function syncAndRefresh() {
+  var hadGoal = !!lineById(state.goal);
+  return syncNow().then(function (r) {
+    if (r === null) return;
+    if (!hadGoal && currentScreen === 'pick' && lineById(state.goal)) renderHoy();
+    else refreshScreen();
   });
 }
 
@@ -55,13 +83,24 @@ function checkAdmin() {
 }
 
 // Barra inferior
+// Al cambiar de pestaña con la barra, el foco se queda en el botón de la pestaña (ver show()).
 Array.prototype.forEach.call(document.querySelectorAll('#tabbar button[data-tab]'), function (b) {
   b.addEventListener('click', function () {
     var t = b.getAttribute('data-tab');
-    if (t === 'hoy') renderHoy();
-    else if (t === 'mapa') renderMapa();
-    else renderYo();
+    tabNav = true;
+    try {
+      if (t === 'hoy') renderHoy();
+      else if (t === 'mapa') renderMapa();
+      else renderYo();
+    } finally { tabNav = false; }
   });
+});
+
+// Al volver a la pestaña del navegador otro día, Hoy y Yo se redibujan con la fecha nueva.
+// Nunca durante una sesión de estudio ni el cuestionario.
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState !== 'visible') return;
+  if ((currentScreen === 'hoy' || currentScreen === 'yo') && renderedDay !== todayYmd()) refreshScreen();
 });
 
 // Pantalla inicial: sin meta válida se pide elegirla.
@@ -72,7 +111,7 @@ if (lineById(state.goal)) renderHoy(); else renderPick();
 sb.auth.getSession().then(function (r) {
   session = r.data.session;
   checkAdmin();
-  if (session) syncNow().then(refreshScreen);
+  if (session) syncAndRefresh();
   else refreshScreen();
 });
 sb.auth.onAuthStateChange(function (ev, s) {
@@ -81,7 +120,7 @@ sb.auth.onAuthStateChange(function (ev, s) {
     if (window.location.hash.indexOf('access_token') !== -1) history.replaceState(null, '', window.location.pathname);
     checkAdmin();
     refreshScreen();
-    syncNow().then(refreshScreen);
+    syncAndRefresh();
   } else if (ev === 'SIGNED_OUT') {
     isAdmin = false;
     refreshScreen();

@@ -115,13 +115,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* Semana */
 .week { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 44px)); gap: 6px; }
-.day { height: 46px; border-radius: 9px; border: 1.5px solid var(--line); background: var(--panel); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+.day { position: relative; height: 46px; border-radius: 9px; border: 1.5px solid var(--line); background: var(--panel); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
   font-family: var(--f-mono); font-size: 0.68rem; color: var(--muted); }
 .day i { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--line); display: block; }
 .day.on i { background: var(--ink); border-color: var(--ink); }
 .day.today { border-color: var(--ink); color: var(--ink); font-weight: 600; }
-.day.rest, .day.rest i { border-style: dashed; }
-.day.rest i { border-color: var(--muted); }
+.day.rest { border-style: dashed; }
+/* Día de descanso: guion dentro del punto, además del borde punteado (no depende del color). */
+.day.rest i { border: 0; width: 14px; height: 10px; display: flex; align-items: center; justify-content: center; font-family: var(--f-mono); font-size: 0.85rem; font-weight: 700; line-height: 1; color: var(--ink); }
 .day.future { background: transparent; }
 
 /* Tarjeta de la meta */
@@ -190,7 +191,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .goal-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 .goal-line b { font-size: 1.05rem; }
 .goal-line .small { flex-basis: 100%; }
-#login label { display: block; }
+#login label, #pick-login label { display: block; }
+.pick-login { padding: 4px 0 2px; }
 
 /* Barra inferior */
 .tabbar { position: fixed; z-index: 10; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 560px;

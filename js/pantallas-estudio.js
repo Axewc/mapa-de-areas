@@ -1,8 +1,9 @@
 // Pantallas de estudio: Elegir meta y Hoy. La Sesión (Tarea 10) y el Mapa (Tarea 11) quedan como stubs.
-// Script clásico (ES5). Usa las globales de app.js: state, commit, syncNow, refreshScreen.
+// Script clásico (ES5). Usa las globales de app.js: state, commit y syncAndRefresh.
 
 var DIAS_LARGO = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
 var DIAS_CORTO = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+var renderedDay = null; // fecha con la que se dibujó Hoy o Yo (ver visibilitychange en app.js)
 
 function lineById(id) {
   for (var i = 0; i < LINEAS.length; i++) if (LINEAS[i].id === id) return LINEAS[i];
@@ -38,6 +39,8 @@ function renderPick(keep) {
     el('p', { class: 'lede', text: 'Elige una vacante real como meta. Vas a estudiar las habilidades que pide, a tu ritmo.' })
   ));
   if (hasGoal) root.append(el('p', { class: 'small', text: 'Lo que ya estudiaste se conserva: las habilidades compartidas cuentan para todas las líneas.' }));
+  // Quien ya tiene cuenta puede entrar antes de elegir, para traer su meta de la nube sin pisarla.
+  if (!hasGoal && !session) root.append(el('div', { class: 'pick-login' }, signInBlock('pick-', '¿Ya tienes cuenta? Entra', true)));
 
   var groups = [
     ['Para empezar', 'Piden poca o ninguna experiencia.', LINEAS.filter(function (l) { return l.level === 'Para empezar'; })],
@@ -68,7 +71,7 @@ function renderPick(keep) {
 function chooseGoal(id) {
   if (id !== state.goal) commit(setGoal(state, id, Date.now()));
   renderHoy();
-  syncNow().then(refreshScreen);
+  syncAndRefresh();
 }
 
 // ---------- Hoy ----------
@@ -84,8 +87,10 @@ function weekStrip(today) {
     var future = d > today;
     var what = done ? 'cumplido' : isRest ? 'día de descanso' : future ? 'por venir' : isToday ? 'pendiente' : 'sin sesión';
     var cls = 'day' + (done ? ' on' : '') + (isRest ? ' rest' : '') + (isToday ? ' today' : '') + (future ? ' future' : '');
-    ol.append(el('li', { class: cls, 'aria-label': DIAS_LARGO[i] + (isToday ? ', hoy' : '') + ', ' + what },
-      el('span', { 'aria-hidden': 'true', text: DIAS_CORTO[i] }), el('i', { 'aria-hidden': 'true' })));
+    ol.append(el('li', { class: cls },
+      el('span', { 'aria-hidden': 'true', text: DIAS_CORTO[i] }),
+      el('i', { 'aria-hidden': 'true', text: isRest ? '–' : null }),
+      el('span', { class: 'sr-only', text: DIAS_LARGO[i] + (isToday ? ', hoy' : '') + ', ' + what })));
   }
   return ol;
 }
@@ -134,6 +139,7 @@ function renderHoy(keep) {
   var line = lineById(state.goal);
   if (!line) { renderPick(keep); return; }
   var today = todayYmd();
+  renderedDay = today;
   var root = screens.hoy;
   root.textContent = '';
   var s = streak(state, today).current;
