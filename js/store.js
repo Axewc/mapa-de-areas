@@ -55,4 +55,43 @@ function clearLocal(storage) {
   try { storage.removeItem(STORE_KEY); } catch (e) { /* sin acción */ }
 }
 
-if (typeof module !== 'undefined') module.exports = { STORE_KEY: STORE_KEY, safeStorage: safeStorage, loadLocal: loadLocal, saveLocal: saveLocal, clearLocal: clearLocal };
+function storeMsg(e) {
+  return (e && e.message) ? String(e.message) : String(e || 'error');
+}
+
+// Sincroniza con Supabase. Nunca lanza: -> Promise<{ state, error: null | string }>
+function syncRemote(sb, userId, state) {
+  var fail = function (e) { return { state: state, error: storeMsg(e) }; };
+  try {
+    return Promise.resolve(sb.from('mapa_progreso').select('state').eq('user_id', userId)).then(function (res) {
+      if (res && res.error) return fail(res.error);
+      var rows = (res && res.data) || [];
+      var merged = state;
+      if (rows.length) {
+        var remote = rows[0].state;
+        if (!storeCore.validState(remote)) return { state: state, error: 'estado-remoto-invalido' };
+        merged = storeCore.mergeState(state, remote);
+      }
+      return Promise.resolve(sb.from('mapa_progreso').upsert({ user_id: userId, state: merged }, { onConflict: 'user_id' })).then(function (up) {
+        if (up && up.error) return fail(up.error);
+        return { state: merged, error: null };
+      });
+    }).then(null, fail);
+  } catch (e) {
+    return Promise.resolve(fail(e));
+  }
+}
+
+// Borra la fila remota. Nunca lanza: -> Promise<{ error: null | string }>
+function deleteRemote(sb, userId) {
+  var fail = function (e) { return { error: storeMsg(e) }; };
+  try {
+    return Promise.resolve(sb.from('mapa_progreso').delete().eq('user_id', userId)).then(function (res) {
+      return (res && res.error) ? fail(res.error) : { error: null };
+    }).then(null, fail);
+  } catch (e) {
+    return Promise.resolve(fail(e));
+  }
+}
+
+if (typeof module !== 'undefined') module.exports = { STORE_KEY: STORE_KEY, safeStorage: safeStorage, loadLocal: loadLocal, saveLocal: saveLocal, clearLocal: clearLocal, syncRemote: syncRemote, deleteRemote: deleteRemote };

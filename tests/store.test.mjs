@@ -85,3 +85,66 @@ test('clearLocal borra la clave y tolera null', () => {
   assert.equal(st.getItem('mapa.v2'), null);
   clearLocal(null);
 });
+
+// --- Sincronización remota ---
+const { syncRemote, deleteRemote } = require('../js/store.js');
+
+function sbFalso(remote, opts) {
+  const calls = { upsert: [], select: 0, del: 0 };
+  const o = opts || {};
+  return {
+    calls,
+    from: () => ({
+      select: () => ({ eq: () => { calls.select++; return o.failSelect ? Promise.reject(new Error('sin red')) : Promise.resolve({ data: remote === undefined ? [] : [{ state: remote }], error: null }); } }),
+      upsert: (obj, opt) => { calls.upsert.push([obj, opt]); return Promise.resolve({ data: null, error: o.upsertError ? { message: 'rls' } : null }); },
+      delete: () => ({ eq: () => { calls.del++; return Promise.resolve({ data: null, error: o.delError ? { message: 'sin permiso' } : null }); } })
+    })
+  };
+}
+const localSt = () => recordAnswer(emptyState(), 'git.0', true, '2026-11-10');
+
+test('sin fila remota: sube el estado local', async () => {
+  const sb = sbFalso(undefined);
+  const local = localSt();
+  const r = await syncRemote(sb, 'u1', local);
+  assert.equal(r.error, null);
+  assert.equal(sb.calls.upsert.length, 1);
+  assert.equal(sb.calls.upsert[0][0].user_id, 'u1');
+  assert.deepEqual(sb.calls.upsert[0][1], { onConflict: 'user_id' });
+  assert.deepEqual(r.state, local);
+});
+test('con fila remota: combina y sube la combinación', async () => {
+  const remote = recordAnswer(emptyState(), 'sql.0', true, '2026-11-09');
+  const sb = sbFalso(remote);
+  const r = await syncRemote(sb, 'u1', localSt());
+  assert.equal(r.error, null);
+  assert.equal(sb.calls.upsert.length, 1);
+  assert.ok(r.state.items['git.0'] && r.state.items['sql.0']);
+  assert.deepEqual(sb.calls.upsert[0][0].state, r.state);
+});
+test('fila remota de otra versión: no escribe y avisa', async () => {
+  const local = localSt();
+  const sb = sbFalso({ v: 3 });
+  const r = await syncRemote(sb, 'u1', local);
+  assert.equal(r.error, 'estado-remoto-invalido');
+  assert.equal(sb.calls.upsert.length, 0);
+  assert.equal(r.state, local);
+});
+test('falla de red: devuelve el estado local y el error, sin lanzar', async () => {
+  const local = localSt();
+  const r = await syncRemote(sbFalso(undefined, { failSelect: true }), 'u1', local);
+  assert.equal(r.error, 'sin red');
+  assert.equal(r.state, local);
+});
+test('falla del upsert: devuelve el error', async () => {
+  const local = localSt();
+  const r = await syncRemote(sbFalso(undefined, { upsertError: true }), 'u1', local);
+  assert.equal(r.error, 'rls');
+  assert.equal(r.state, local);
+});
+test('deleteRemote: ok y con error, sin lanzar', async () => {
+  const a = sbFalso(undefined);
+  assert.deepEqual(await deleteRemote(a, 'u1'), { error: null });
+  assert.equal(a.calls.del, 1);
+  assert.deepEqual(await deleteRemote(sbFalso(undefined, { delError: true }), 'u1'), { error: 'sin permiso' });
+});

@@ -30,6 +30,7 @@ async function openHome(context, init) {
   page.on('pageerror', (e) => errors.push(e.message));
   await setupRoutes(page);
   if (init) await page.addInitScript(init.fn, init.arg);
+  await page.addInitScript(() => { window.__seed = Object.assign({}, window.__seed, { session: true }); });
   await page.goto(INDEX_URL);
   await page.waitForSelector('#home:not([hidden])');
   return { page, errors };
