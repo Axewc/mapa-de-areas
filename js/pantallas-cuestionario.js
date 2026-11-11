@@ -11,13 +11,28 @@ var locked = false;
 var mode = 'mapa';   // 'mapa' (cuestionario de áreas) o 'diag' (diagnóstico de una ruta)
 var diagRuta = null;
 
+// Selector de versión del cuestionario (en #s-intro).
+var modesBox = document.getElementById('modes');
+var chosen = 2;
+function drawModes() {
+  modesBox.textContent = '';
+  [[2, 'Explorar', 'Preguntas sobre lo que te gusta hacer, sin nombres de herramientas. Ideal si apenas estás decidiendo.', 'Recomendada si estás empezando'],
+   [1, 'Con herramientas', 'Incluye cosas como Python, Docker o Power BI, con una explicación junto a cada pregunta. Mejor si ya programaste bastante.', null]].forEach(function (m) {
+    var b = el('button', { class: 'mode', type: 'button', 'aria-pressed': chosen === m[0] ? 'true' : 'false' },
+      m[3] ? el('span', { class: 'tag', text: m[3] }) : null, el('b', { text: m[1] }), el('span', { text: m[2] }));
+    b.addEventListener('click', function () { chosen = m[0]; drawModes(); });
+    modesBox.append(b);
+  });
+}
+drawModes();
+function openIntro() { drawModes(); show('intro'); }
+
 
 function pad(n) { return (n < 10 ? '0' : '') + n; }
 
 function renderQuestion() {
   var q = QUESTIONS[current];
   counter.textContent = 'Pregunta ' + (current + 1) + ' de ' + QUESTIONS.length;
-  backBtn.disabled = current === 0;
   ticks.setAttribute('aria-valuenow', String(current));
   ticks.setAttribute('aria-valuemax', String(QUESTIONS.length));
   ticks.textContent = '';
@@ -635,7 +650,10 @@ function openLearn() {
   show('learn');
 }
 
-document.getElementById('to-learn').addEventListener('click', openLearn);
-
 document.getElementById('start').addEventListener('click', function () { startQuiz(chosen); });
-backBtn.addEventListener('click', function () { if (current > 0 && !locked) { current--; renderQuestion(); } });
+// En la primera pregunta, «Atrás» regresa a la presentación del cuestionario.
+backBtn.addEventListener('click', function () {
+  if (locked) return;
+  if (current > 0) { current--; renderQuestion(); } else show('intro');
+});
+document.getElementById('intro-back').addEventListener('click', function () { renderYo(); });

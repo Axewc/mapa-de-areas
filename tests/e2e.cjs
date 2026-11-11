@@ -1,273 +1,240 @@
-// Prueba de flujo de Rutas por vacante con Playwright y un Supabase falso.
+// Prueba de flujo del hub (Elegir meta, Hoy y Yo) con Playwright y un Supabase falso.
 // Correr con: node tests/e2e.cjs   (capturas: SHOTS_DIR=/ruta node tests/e2e.cjs)
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs');
+const { ESTACIONES } = require('../js/data-estaciones.js');
+const { todayYmd, addDays, weekKey } = require('../js/core.js');
 
 const INDEX_URL = 'file://' + path.resolve(__dirname, '../index.html');
 const FAKE = fs.readFileSync(path.join(__dirname, 'fake-supabase.js'), 'utf8');
 const SB_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js';
-const RUTA = 'getnet-ai-deploy';
+const KEY = 'mapa.v2';
+const SYNC_FAIL = 'No se pudo sincronizar. Tu progreso sigue en este dispositivo.';
 
 async function setupRoutes(page) {
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await page.route(SB_URL, (r) => r.fulfill({ status: 200, contentType: 'application/javascript', body: FAKE }));
 }
 
-// choose() bloquea la entrada 170 ms: espera a que cambie la pregunta o termine el cuestionario.
-async function answer(page, key) {
-  const before = await page.textContent('#counter');
-  await page.keyboard.press(key);
-  await page.waitForFunction((b) => document.getElementById('s-quiz').hidden || document.getElementById('counter').textContent !== b, before);
-}
-
 const noHScroll = () => document.documentElement.scrollWidth <= window.innerWidth;
 
-async function openHome(context, init) {
+// Abre el sitio. Por defecto sin sesión (la primera visita normal). opts: { seed, session, admin, failSync, local }.
+// `local` es el texto que se guarda en localStorage antes de cargar (null: no se toca).
+async function openHome(context, opts) {
+  const o = opts || {};
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await setupRoutes(page);
-  if (init) await page.addInitScript(init.fn, init.arg);
-  await page.addInitScript(() => { window.__seed = Object.assign({}, window.__seed, { session: true }); });
+  await page.addInitScript((a) => {
+    window.__seed = Object.assign({}, a.seed || {}, a.session ? { session: true } : {});
+    if (a.admin) window.__fakeAdmin = true;
+    if (a.failSync) window.__failSync = true;
+    if (a.local !== null && a.local !== undefined && !sessionStorage.getItem('e2e.seeded')) {
+      localStorage.setItem(a.key, a.local);
+      sessionStorage.setItem('e2e.seeded', '1');
+    }
+  }, { seed: o.seed, session: !!o.session, admin: !!o.admin, failSync: !!o.failSync, local: o.local === undefined ? null : o.local, key: KEY });
   await page.goto(INDEX_URL);
-  await page.waitForSelector('#home:not([hidden])');
+  await page.waitForSelector('#s-pick:not([hidden]), #s-hoy:not([hidden])');
   return { page, errors };
+}
+
+const localState = (page) => page.evaluate((k) => JSON.parse(localStorage.getItem(k)), KEY);
+
+// Estado con todos los ítems de todas las estaciones en caja 5 y repaso futuro: no queda nada nuevo ni pendiente.
+function allDoneState() {
+  const due = addDays(todayYmd(), 20);
+  const items = {};
+  Object.keys(ESTACIONES).forEach((id) => { for (let n = 0; n < 6; n++) items[id + '.' + n] = { b: 5, due, t: 1 }; });
+  return { v: 2, goal: 'edar-dev-jr', goalT: 1, items, days: {} };
+}
+
+// Estado con algo de avance para la revisión visual: Git visitada, Datos empezada, días cumplidos en la semana.
+function progressState(goal) {
+  const today = todayYmd();
+  const items = {};
+  for (let n = 0; n < 6; n++) items['git.' + n] = { b: 2, due: addDays(today, 2), t: 1 };
+  for (let n = 0; n < 2; n++) items['datos.' + n] = { b: 1, due: today, t: 1 };
+  items['sql.0'] = { b: 1, due: addDays(today, 1), t: 1 };
+  const days = {};
+  const mon = weekKey(today);
+  for (let d = mon; d < today; d = addDays(d, 1)) days[d] = { xp: 64, done: true };
+  return { v: 2, goal: goal || 'edar-dev-jr', goalT: 1, items, days };
 }
 
 const SHOTS = process.env.SHOTS_DIR || null;
 
-// Recorre inicio → ruta → diagnóstico → resultado → tema y verifica que no haya scroll horizontal.
+// Recorre Hoy → Yo → Elegir meta → Hoy con una línea de 7 estaciones y verifica que no haya scroll horizontal.
 async function visualPass(browser, viewport, colorScheme) {
   const ctx = await browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1 });
-  const { page, errors } = await openHome(ctx);
+  const { page, errors } = await openHome(ctx, { local: JSON.stringify(progressState()) });
   const tag = viewport.width + '-' + colorScheme;
   const check = async (name) => {
     assert.ok(await page.evaluate(noHScroll), 'scroll horizontal en ' + name + ' (' + tag + ')');
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, tag + '-' + name + '.png'), fullPage: true });
   };
-  await check('inicio');
-  await page.click('#to-learn');
-  await page.waitForSelector('#s-learn .topic-row');
-  await check('ruta');
-  await page.click('text=Hacer el diagnóstico');
-  await page.waitForSelector('#s-quiz:not([hidden])');
-  await check('diagnostico');
-  for (let i = 0; i < 7; i++) await answer(page, '5');
-  await page.waitForSelector('#s-learn .diag-result');
-  await page.locator('#s-learn details.attempt').first().evaluate((d) => { d.open = true; });
-  await check('resultado-diagnostico');
-  await page.click('text=Volver a la ruta');
-  await page.waitForSelector('#s-learn .topic-row');
-  await page.locator('#s-learn .topic-row', { hasText: 'MCP' }).click();
-  await page.waitForSelector('#s-learn .lesson');
-  await page.locator('#s-learn .review .rq').nth(0).locator('.opt').nth(0).click();
-  await page.locator('#s-learn .review .rq').nth(1).locator('.opt').nth(0).click();
-  await page.waitForSelector('#s-learn .review .verdict');
-  await check('tema');
+  await page.waitForSelector('#s-hoy:not([hidden])');
+  await check('hoy');
+  await page.click('#tabbar [data-tab=yo]');
+  await page.waitForSelector('#s-yo:not([hidden])');
+  await check('yo');
+  await page.click('#s-yo button:has-text("Cambiar de meta")');
+  await page.waitForSelector('#s-pick:not([hidden])');
+  await check('elegir');
+  await page.locator('#s-pick .line-card', { hasText: 'Científico de Datos Jr.' }).click();
+  await page.waitForSelector('#s-hoy:not([hidden])');
+  await check('hoy-l6');
+  await page.click('#tabbar [data-tab=mapa]');
+  await page.waitForSelector('#s-mapa:not([hidden])');
+  await check('mapa');
   assert.deepEqual(errors, [], 'errores de JS (' + tag + ')');
   await ctx.close();
 }
 
 async function main() {
   const browser = await chromium.launch();
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-  const { page, errors } = await openHome(context);
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   let step = '';
   try {
-    // --- Tarea 4: ruta y entradas ---
-    step = 'abrir la ruta desde el inicio';
-    await page.click('#to-learn');
-    await page.waitForSelector('#s-learn:not([hidden]) .topic-row');
-    assert.match(await page.textContent('#s-learn'), /AI Deployment Engineer/);
-    assert.equal(await page.locator('#s-learn .topic-row').count(), 7);
-    assert.equal(await page.locator('#s-learn .topic-row .state', { hasText: 'Sin evaluar' }).count(), 7);
-    assert.equal(await page.locator('#s-learn a[href*="greenhouse.io/getnet/jobs/5019637101"]').count(), 1);
-    assert.equal(await page.locator('#s-learn a[href*="greenhouse.io"][target="_blank"][rel="noopener"]').count(), 1);
-    assert.match(await page.textContent('#s-learn'), /7 preguntas · 4 minutos · sí hay respuestas correctas/);
+    step = 'primera visita sin cuenta: elegir meta';
+    const { page, errors } = await openHome(context);
+    await page.waitForSelector('#s-pick:not([hidden])');
+    assert.equal(await page.locator('#s-pick .line-card').count(), 9);
+    assert.match(await page.locator('#s-pick .line-card').first().textContent(), /Para empezar/);
+    const levels = await page.locator('#s-pick .line-card').evaluateAll((cs) => cs.map((c) => /Para empezar/.test(c.textContent)));
+    assert.deepEqual(levels, [true, true, true, true, true, true, false, false, false], 'primero las de «Para empezar»');
+    for (let n = 1; n <= 9; n++) assert.equal(await page.locator('#s-pick .line-card .lbadge', { hasText: 'L' + n }).count(), 1, 'insignia L' + n);
+    assert.equal(await page.isVisible('#tabbar'), false, 'sin barra inferior al elegir meta');
+    await page.locator('#s-pick .line-card', { hasText: 'Desarrollador de Software Jr.' }).click();
+    await page.waitForSelector('#s-hoy:not([hidden])');
+    assert.match(await page.textContent('#s-hoy'), /0%/);
+    assert.match(await page.textContent('#s-hoy'), /te faltan 5 estaciones/);
+    assert.match(await page.textContent('#s-hoy .session-cta'), /5 min · 5 pasos nuevos de Git y más/);
+    assert.equal(await page.isVisible('#tabbar'), true);
+    assert.equal(await page.getAttribute('#tabbar [data-tab=hoy]', 'aria-current'), 'page');
+    assert.equal(await page.locator('#s-hoy .week li').count(), 7);
+    assert.equal((await localState(page)).goal, 'edar-dev-jr');
 
-    step = 'panel de vacante en el resultado del mapa';
-    await page.click('text=← Inicio');
-    await page.click('#start');
-    for (let i = 0; i < 10; i++) await answer(page, '1');
-    await page.waitForSelector('#s-result:not([hidden])');
-    assert.equal(await page.locator('#s-result .vacancy').count(), 1);
-    await page.click('#s-result .vacancy button');
-    await page.waitForSelector('#s-learn:not([hidden]) .topic-row');
+    step = 'la meta sobrevive a la recarga';
+    await page.reload();
+    await page.waitForSelector('#s-hoy:not([hidden])');
+    assert.match(await page.textContent('#s-hoy'), /Desarrollador de Software Jr\./);
 
-    // --- Tarea 5: diagnóstico ---
-    step = 'diagnóstico completo con teclado';
-    const diagOks = await page.evaluate((id) => RUTAS[id].topics.map((t) => t.diag.ok), RUTA);
-    await page.click('text=Hacer el diagnóstico');
+    step = 'la sesión y el mapa (stubs) se alcanzan';
+    await page.click('#s-hoy .session-cta');
+    await page.waitForSelector('#s-sesion:not([hidden])');
+    assert.equal(await page.isVisible('#tabbar'), false, 'sin barra inferior en la sesión');
+    await page.click('#s-sesion button:has-text("Salir")');
+    await page.waitForSelector('#s-hoy:not([hidden])');
+    await page.click('#tabbar [data-tab=mapa]');
+    await page.waitForSelector('#s-mapa:not([hidden])');
+    assert.equal(await page.getAttribute('#tabbar [data-tab=mapa]', 'aria-current'), 'page');
+    assert.equal(await page.getAttribute('#tabbar [data-tab=hoy]', 'aria-current'), null);
+
+    step = 'Yo: cuenta opcional, cambiar meta, cuestionario';
+    await page.click('#tabbar [data-tab=yo]');
+    await page.waitForSelector('#s-yo:not([hidden])');
+    assert.match(await page.textContent('#s-yo'), /Nivel 1/);
+    assert.match(await page.textContent('#s-yo'), /Guarda tu progreso en la nube/);
+    assert.match(await page.textContent('#s-yo'), /Sin cuenta, nada sale de tu dispositivo/);
+    assert.equal(await page.locator('#s-yo button:has-text("Mis respuestas")').count(), 0, 'Mis respuestas solo con sesión');
+    assert.equal(await page.locator('#s-yo button:has-text("Vista docente")').count(), 0);
+    await page.click('#s-yo button:has-text("Cambiar de meta")');
+    await page.waitForSelector('#s-pick:not([hidden])');
+    await page.click('#s-pick button:has-text("Volver")');
+    await page.waitForSelector('#s-yo:not([hidden])');
+    await page.click('#s-yo button:has-text("Descubre tu área")');
+    await page.waitForSelector('#s-intro:not([hidden])');
+    assert.equal(await page.locator('#s-intro #login, #s-intro #home').count(), 0);
+    assert.equal(await page.locator('#s-intro .mode').count(), 2);
+    await page.click('#s-intro #start');
     await page.waitForSelector('#s-quiz:not([hidden])');
-    assert.match(await page.textContent('#counter'), /Pregunta 1 de 7/);
-    assert.equal(await page.locator('#quiz-body .opt').count(), 5);
-    assert.match(await page.locator('#quiz-body .opt').nth(4).textContent(), /Aún no lo sé/);
-    await answer(page, '5'); // «Aún no lo sé» en el primer tema
-    for (let i = 1; i < 7; i++) await answer(page, String(diagOks[i] + 1));
-    await page.waitForSelector('#s-learn:not([hidden]) .diag-result');
-    assert.match(await page.textContent('#s-learn'), /Dominas 6 de 7/);
-    await page.waitForFunction(() => window.__db.mapa_aprendizaje.length === 1);
-    const row = await page.evaluate(() => window.__db.mapa_aprendizaje[0]);
-    assert.equal(row.kind, 'diagnostico');
-    assert.equal(row.topic, null);
-    assert.equal(row.ruta, RUTA);
-    assert.deepEqual(row.answers, [4, ...diagOks.slice(1)]);
-    assert.equal(row.scores.agentes, 0);
-    assert.equal(row.scores.multiagente, 1);
-    await page.waitForFunction(() => /Guardado/.test(document.getElementById('s-learn').textContent));
+    assert.equal(await page.isVisible('#tabbar'), false, 'sin barra inferior en el cuestionario');
+    await page.click('#back');
+    await page.waitForSelector('#s-intro:not([hidden])');
+    await page.click('#s-intro button:has-text("Volver")');
+    await page.waitForSelector('#s-yo:not([hidden])');
+    assert.deepEqual(errors, [], 'errores de JS en la primera visita');
 
-    step = 'volver a la ruta tras el diagnóstico';
-    await page.click('text=Volver a la ruta');
-    await page.waitForSelector('#s-learn .topic-row');
-    const first = page.locator('#s-learn .topic-row').first();
-    assert.match(await first.textContent(), /Orquestación de agentes/);
-    assert.match(await first.locator('.state').textContent(), /Por aprender/);
-    assert.equal(await page.locator('#s-learn .state', { hasText: 'Ya lo dominas' }).count(), 6);
-    assert.equal(await page.locator('#s-learn button', { hasText: 'Repetir el diagnóstico' }).count(), 1);
+    step = 'iniciar sesión sincroniza';
+    const lg = await openHome(context);
+    await lg.page.waitForSelector('#s-hoy:not([hidden])');
+    await lg.page.click('#tabbar [data-tab=yo]');
+    await lg.page.click('#s-yo button:has-text("Guarda tu progreso en la nube")');
+    await lg.page.fill('#email', 'alumno@test.mx');
+    await lg.page.click('#send-link');
+    await lg.page.waitForFunction(() => /Revisa tu correo/.test(document.getElementById('auth-msg').textContent));
+    await lg.page.evaluate(() => window.__fakeLogin());
+    await lg.page.waitForFunction(() => window.__db.mapa_progreso.length === 1 && window.__db.mapa_progreso[0].state.goal === 'edar-dev-jr');
+    await lg.page.waitForFunction(() => /alumno@test\.mx/.test(document.getElementById('s-yo').textContent));
+    assert.equal(await lg.page.locator('#s-yo button:has-text("Cerrar sesión")').count(), 1);
+    assert.equal(await lg.page.locator('#s-yo button:has-text("Mis respuestas")').count(), 1);
 
-    step = 'el cuestionario del mapa sigue terminando en áreas';
-    await page.click('text=← Inicio');
-    await page.click('#start');
-    for (let i = 0; i < 10; i++) await answer(page, '1');
-    await page.waitForSelector('#s-result:not([hidden])');
-    assert.match(await page.textContent('#s-result'), /Tres áreas para probar primero/);
+    step = 'borrar mis datos con sesión';
+    const del = lg.page.locator('#s-yo button.danger');
+    await del.click();
+    assert.equal(await lg.page.isVisible('#s-yo'), true, 'el primer clic solo pide confirmar');
+    assert.notEqual(await localState(lg.page), null);
+    await del.click();
+    await lg.page.waitForSelector('#s-pick:not([hidden])');
+    await lg.page.waitForFunction(() => window.__db.mapa_progreso.length === 0);
+    assert.equal(await localState(lg.page), null);
+    assert.equal(await lg.page.locator('#s-pick button:has-text("Volver")').count(), 0, 'sin meta no hay a dónde volver');
+    assert.deepEqual(lg.errors, [], 'errores de JS al iniciar sesión');
+    await lg.page.close();
 
-    step = 'falla al guardar el diagnóstico';
-    await page.click('#s-result .vacancy button');
-    await page.waitForSelector('#s-learn .topic-row');
-    await page.evaluate(() => { window.__failInsert = true; });
-    await page.click('text=Repetir el diagnóstico');
-    for (let i = 0; i < 7; i++) await answer(page, '5');
-    await page.waitForSelector('#s-learn .diag-result');
-    await page.waitForFunction(() => /No se pudo guardar/.test(document.getElementById('s-learn').textContent));
-    assert.match(await page.textContent('#s-learn'), /Dominas 0 de 7/);
-    await page.evaluate(() => { window.__failInsert = false; });
-    assert.equal(await page.evaluate(() => window.__db.mapa_aprendizaje.length), 1);
-    await page.click('text=Volver a la ruta');
-    await page.waitForSelector('#s-learn .topic-row');
+    step = 'falla de sincronización';
+    const ctxF = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const fl = await openHome(ctxF, { session: true, failSync: true });
+    await fl.page.waitForSelector('#s-pick:not([hidden])');
+    await fl.page.waitForSelector('#notices .notice');
+    await fl.page.click('#notices .notice button');
+    await fl.page.waitForSelector('#notices .notice', { state: 'detached' });
+    await fl.page.locator('#s-pick .line-card', { hasText: 'Analista de Datos Jr.' }).click();
+    await fl.page.waitForSelector('#s-hoy:not([hidden])');
+    await fl.page.waitForSelector('#notices .notice');
+    assert.equal((await fl.page.textContent('#notices')).includes(SYNC_FAIL), true);
+    assert.equal(await fl.page.getAttribute('#notices', 'role'), 'status');
+    assert.equal((await localState(fl.page)).goal, 'sears-datos-jr');
+    assert.equal(await fl.page.evaluate(() => window.__db.mapa_progreso.length), 0);
+    assert.deepEqual(fl.errors, [], 'errores de JS con falla de sincronización');
+    await ctxF.close();
 
-    // --- Tarea 6: lección y repaso ---
-    step = 'abrir la lección de un tema';
-    const rowOf = (name) => page.locator('#s-learn .topic-row', { hasText: name });
-    await rowOf('Orquestación de agentes').click();
-    await page.waitForSelector('#s-learn .lesson');
-    const lesson = await page.textContent('#s-learn');
-    assert.match(lesson, /Qué es/);
-    assert.match(lesson, /Por qué le importa a una empresa de pagos/);
-    assert.match(lesson, /Ideas clave/);
-    assert.match(lesson, /Ejercicio para una tarde/);
-    assert.ok(await page.locator('#s-learn .lesson a[target="_blank"][rel="noopener"]').count() >= 2);
-    await page.waitForFunction(() => /Por aprender/.test(document.querySelector('#s-learn .lesson .state').textContent));
+    step = 'estás al día';
+    const ctxD = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const ad = await openHome(ctxD, { local: JSON.stringify(allDoneState()) });
+    await ad.page.waitForSelector('#s-hoy:not([hidden])');
+    const hoy = await ad.page.textContent('#s-hoy');
+    assert.match(hoy, /Estás al día/);
+    assert.match(hoy, /Próximo repaso:/);
+    assert.match(hoy, /100%/);
+    assert.equal(await ad.page.locator('#s-hoy .session-cta').count(), 0);
+    await ad.page.click('#s-hoy button:has-text("Otra sesión")');
+    await ad.page.waitForSelector('#s-sesion:not([hidden])');
+    assert.deepEqual(ad.errors, [], 'errores de JS en «estás al día»');
+    await ctxD.close();
 
-    step = 'las teclas no responden fuera del cuestionario';
-    await page.keyboard.press('1');
-    assert.equal(await page.locator('#s-learn .review .opt[aria-pressed="true"]').count(), 0);
+    step = 'estado guardado ilegible';
+    const ctxB = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const bad = await openHome(ctxB, { local: '{esto no es json' });
+    await bad.page.waitForSelector('#s-pick:not([hidden])');
+    await bad.page.waitForFunction(() => /no se pudo leer/.test(document.getElementById('notices').textContent));
+    assert.deepEqual(bad.errors, []);
+    await ctxB.close();
 
-    step = 'repaso 2 de 2 domina el tema';
-    const revOks = (id) => page.evaluate(([r, tid]) => RUTAS[r].topics.find((t) => t.id === tid).review.map((q) => q.ok), [RUTA, id]);
-    const agOks = await revOks('agentes');
-    for (const [qi, ok] of agOks.entries()) await page.locator('#s-learn .review .rq').nth(qi).locator('.opt').nth(ok).click();
-    await page.waitForSelector('#s-learn .review .verdict');
-    assert.match(await page.textContent('#s-learn .review .verdict'), /2 de 2/);
-    assert.equal(await page.locator('#s-learn .review .opt.right').count(), 2);
-    assert.ok(await page.evaluate(() => document.activeElement && document.activeElement.classList.contains('verdict')), 'el foco va al veredicto');
-    await page.waitForFunction(() => /Ya lo dominas/.test(document.querySelector('#s-learn .lesson .state').textContent));
-    await page.waitForFunction(() => window.__db.mapa_aprendizaje.some((r) => r.kind === 'repaso' && r.topic === 'agentes'));
-    const rrow = await page.evaluate(() => window.__db.mapa_aprendizaje.find((r) => r.kind === 'repaso' && r.topic === 'agentes'));
-    assert.deepEqual(rrow.answers, agOks);
-    assert.equal(rrow.scores.agentes, 2);
-    await page.click('text=Volver a la ruta');
-    await page.waitForSelector('#s-learn .topic-row');
-    assert.match(await rowOf('Orquestación de agentes').locator('.state').textContent(), /Ya lo dominas/);
-    assert.match(await rowOf('Orquestación de agentes').textContent(), /Último repaso: 2 de 2/);
-
-    step = 'repaso 1 de 2 regresa el tema a por aprender';
-    await rowOf('RAG').click();
-    await page.waitForSelector('#s-learn .lesson');
-    const ragOks = await revOks('rag');
-    // Responde primero la segunda pregunta: el orden no debe bloquear la primera.
-    await page.locator('#s-learn .review .rq').nth(1).locator('.opt').nth((ragOks[1] + 1) % 4).click();
-    await page.locator('#s-learn .review .rq').nth(0).locator('.opt').nth(ragOks[0]).click();
-    await page.waitForSelector('#s-learn .review .verdict');
-    assert.match(await page.textContent('#s-learn .review .verdict'), /1 de 2/);
-    assert.equal(await page.locator('#s-learn .review .opt.wrong').count(), 1);
-    await page.click('text=Volver a la ruta');
-    await page.waitForSelector('#s-learn .topic-row');
-    assert.match(await rowOf('RAG').locator('.state').textContent(), /Por aprender/);
-    assert.match(await rowOf('RAG').textContent(), /Último repaso: 1 de 2/);
-
-    // --- Tarea 7: borrar progreso, privacidad y vista docente ---
-    step = 'falla al borrar el progreso';
-    const delBtn = page.locator('#s-learn .bar-tools button');
-    await page.evaluate(() => { window.__failDelete = true; });
-    await delBtn.click();
-    assert.match(await delBtn.textContent(), /Confirmar borrado/);
-    await delBtn.click();
-    await page.waitForFunction(() => /No se pudo borrar/.test(document.querySelector('#s-learn .bar-tools button').textContent));
-    await page.evaluate(() => { window.__failDelete = false; });
-
-    step = 'borrar el progreso de la ruta';
-    await delBtn.click();
-    await delBtn.click();
-    await page.waitForFunction(() => window.__db.mapa_aprendizaje.length === 0);
-    await page.waitForSelector('#s-learn button:has-text("Hacer el diagnóstico")');
-    assert.equal(await page.locator('#s-learn .topic-row .state', { hasText: 'Sin evaluar' }).count(), 7);
-    assert.equal(await page.locator('#s-learn .bar-tools button').count(), 0);
-
-    step = 'aviso de privacidad';
-    const priv = await page.evaluate(() => document.querySelector('#login').textContent);
-    assert.match(priv, /diagnósticos y repasos de las rutas por vacante/);
-    assert.match(priv, /tu progreso de una ruta desde la ruta misma/);
-
-    step = 'vista docente';
-    const seed = { mapa_aprendizaje: [
-      { id: 'x1', user_id: 'u2', email: 'otra@test.mx', created_at: '2026-11-10T10:00:00Z', ruta: RUTA, kind: 'diagnostico', topic: null,
-        answers: [0, 0, 0, 0, 0, 0, 0], scores: { agentes: 1, multiagente: 0, evaluacion: 1, guardrails: 1, rag: 0, mcp: 1, observabilidad: 0 } },
-      { id: 'x2', user_id: 'u2', email: 'otra@test.mx', created_at: '2026-11-10T11:00:00Z', ruta: RUTA, kind: 'repaso', topic: 'rag',
-        answers: [0, 1], scores: { rag: 2 } },
-      // Filas armadas a mano por la API con nombres del prototipo de Object: no deben romper la vista.
-      { id: 'x3', user_id: 'u3', email: 'rara@test.mx', created_at: '2026-11-10T12:00:00Z', ruta: 'constructor', kind: 'diagnostico', topic: null,
-        answers: [0], scores: {} },
-      { id: 'x4', user_id: 'u3', email: 'rara@test.mx', created_at: '2026-11-10T12:30:00Z', ruta: RUTA, kind: 'repaso', topic: 'constructor',
-        answers: [0, 0], scores: {} },
-    ] };
-    const adm = await openHome(context, { fn: (s) => { window.__fakeAdmin = true; window.__seed = s; }, arg: seed });
-    await adm.page.waitForSelector('#to-admin:not([hidden])');
-    await adm.page.click('#to-admin');
-    await adm.page.waitForSelector('#s-admin .ruta-attempts details');
-    const atxt = await adm.page.textContent('#s-admin');
-    assert.match(atxt, /Rutas por vacante/);
-    assert.match(atxt, /otra@test\.mx[^]*Domina 4 de 7/);
-    assert.match(atxt, /RAG \(generación con búsqueda\): 2 de 2/);
-    assert.match(atxt, /constructor: 0 de 2/);
-    assert.doesNotMatch(atxt, /native code/);
-    assert.equal(await adm.page.locator('#s-admin .ruta-attempts details').count(), 4);
-    await adm.page.fill('#admin-filter', 'otra');
-    assert.equal(await adm.page.locator('#s-admin .ruta-attempts details').count(), 2);
-    await adm.page.fill('#admin-filter', 'nadie');
-    assert.equal(await adm.page.locator('#s-admin .ruta-attempts .status', { hasText: 'Sin resultados.' }).count(), 1);
+    step = 'vista docente desde Yo';
+    const ctxA = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const adm = await openHome(ctxA, { session: true, admin: true, local: JSON.stringify(progressState()) });
+    await adm.page.click('#tabbar [data-tab=yo]');
+    await adm.page.waitForSelector('#s-yo button:has-text("Vista docente")');
+    await adm.page.click('#s-yo button:has-text("Vista docente")');
+    await adm.page.waitForSelector('#s-admin:not([hidden]) h1');
     assert.deepEqual(adm.errors, [], 'errores de JS en la vista docente');
-    await adm.page.close();
+    await ctxA.close();
 
-    step = 'con varias rutas, el inicio muestra una lista';
-    const multi = await openHome(context);
-    await multi.page.evaluate(() => {
-      RUTAS['otra-vacante'] = Object.assign({}, RUTAS['getnet-ai-deploy'], { title: 'Otra vacante de prueba', company: 'Acme' });
-    });
-    await multi.page.click('#to-learn');
-    await multi.page.waitForSelector('#s-learn .ruta-list');
-    assert.equal(await multi.page.locator('#s-learn .ruta-list .topic-row').count(), 2);
-    await multi.page.locator('#s-learn .ruta-list .topic-row', { hasText: 'Otra vacante de prueba' }).click();
-    await multi.page.waitForSelector('#s-learn .topic-row');
-    assert.match(await multi.page.textContent('#s-learn h1'), /Otra vacante de prueba/);
-    assert.deepEqual(multi.errors, [], 'errores de JS con varias rutas');
-    await multi.page.close();
-
-    assert.deepEqual(errors, [], 'errores de JS en la página');
-
-    // --- Tarea 8: anchos y temas ---
     for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       for (const cs of ['light', 'dark']) {
         step = 'revisión visual ' + vp.width + ' px, tema ' + cs;

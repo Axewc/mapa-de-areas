@@ -1,4 +1,4 @@
-// Arranque: cliente de Supabase, sesión, autenticación y pantalla de inicio.
+// Arranque: cliente de Supabase, sesión, estado global, sincronización y pantalla inicial.
 var SUPABASE_URL = 'https://vhdrnrzerjysjzpyzgif.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_D6zlOACzmjEzb2_CdqupZQ_Vyj1ZbQz';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -7,66 +7,83 @@ var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
 var session = null;
 var isAdmin = false;
 
-var loginForm = document.getElementById('login');
-var homeBox = document.getElementById('home');
-var authMsg = document.getElementById('auth-msg');
-var who = document.getElementById('who');
-var toAdmin = document.getElementById('to-admin');
+// Estado de estudio: se lee una vez del dispositivo y se guarda con commit().
+var storage = safeStorage();
+var bootLoad = loadLocal(storage);
+var state = bootLoad.state;
+var saveWarned = false;
 
-var modesBox = document.getElementById('modes');
-var chosen = 2;
-function drawModes() {
-  modesBox.textContent = '';
-  [[2, 'Explorar', 'Preguntas sobre lo que te gusta hacer, sin nombres de herramientas. Ideal si apenas estás decidiendo.', 'Recomendada si estás empezando'],
-   [1, 'Con herramientas', 'Incluye cosas como Python, Docker o Power BI, con una explicación junto a cada pregunta. Mejor si ya programaste bastante.', null]].forEach(function (m) {
-    var b = el('button', { class: 'mode', type: 'button', 'aria-pressed': chosen === m[0] ? 'true' : 'false' },
-      m[3] ? el('span', { class: 'tag', text: m[3] }) : null, el('b', { text: m[1] }), el('span', { text: m[2] }));
-    b.addEventListener('click', function () { chosen = m[0]; drawModes(); });
-    modesBox.append(b);
+// Guarda en el dispositivo (combinando con lo guardado) y adopta el resultado.
+function commit(nuevo) {
+  var r = saveLocal(storage, nuevo);
+  state = r.state;
+  // Sin almacenamiento ya se avisó al arrancar; aquí solo se avisa una vez si falla la escritura.
+  if (!r.ok && storage && !saveWarned) {
+    saveWarned = true;
+    showNotice('No se pudo guardar en este dispositivo.');
+  }
+  return state;
+}
+
+// Con sesión: combina con la fila remota y guarda en los dos lados. Nunca rechaza.
+function syncNow() {
+  if (!session) return Promise.resolve(state);
+  return syncRemote(sb, session.user.id, state).then(function (r) {
+    if (r.error) {
+      showNotice('No se pudo sincronizar. Tu progreso sigue en este dispositivo.');
+      return state;
+    }
+    return commit(r.state);
   });
 }
-drawModes();
 
-function updateHome() {
-  var logged = !!session;
-  loginForm.hidden = logged;
-  homeBox.hidden = !logged;
-  if (logged) {
-    who.textContent = 'Sesión: ' + session.user.email;
-    sb.from('mapa_admins').select('email').limit(1).then(function (r) {
-      isAdmin = !r.error && r.data && r.data.length > 0;
-      toAdmin.hidden = !isAdmin;
-    });
-  } else {
-    isAdmin = false;
-    toAdmin.hidden = true;
-  }
+// Vuelve a dibujar la pantalla actual sin moverla (tras sincronizar o cambiar la sesión).
+function refreshScreen() {
+  if (currentScreen === 'hoy') renderHoy(true);
+  else if (currentScreen === 'yo') renderYo(true);
+  else if (currentScreen === 'pick') renderPick(true);
+  else if (currentScreen === 'mapa') renderMapa(true);
 }
 
-sb.auth.getSession().then(function (r) { session = r.data.session; updateHome(); });
+function checkAdmin() {
+  if (!session) { isAdmin = false; return; }
+  sb.from('mapa_admins').select('email').limit(1).then(function (r) {
+    var was = isAdmin;
+    isAdmin = !r.error && !!r.data && r.data.length > 0;
+    if (was !== isAdmin) refreshScreen();
+  });
+}
+
+// Barra inferior
+Array.prototype.forEach.call(document.querySelectorAll('#tabbar button[data-tab]'), function (b) {
+  b.addEventListener('click', function () {
+    var t = b.getAttribute('data-tab');
+    if (t === 'hoy') renderHoy();
+    else if (t === 'mapa') renderMapa();
+    else renderYo();
+  });
+});
+
+// Pantalla inicial: sin meta válida se pide elegirla.
+if (bootLoad.warning === 'sin-almacenamiento') showNotice('Este navegador no deja guardar progreso. Funciona, pero no se conservará al cerrar.');
+else if (bootLoad.warning === 'estado-invalido') showNotice('Tu progreso guardado no se pudo leer, así que empezamos de cero.');
+if (lineById(state.goal)) renderHoy(); else renderPick();
+
+sb.auth.getSession().then(function (r) {
+  session = r.data.session;
+  checkAdmin();
+  if (session) syncNow().then(refreshScreen);
+  else refreshScreen();
+});
 sb.auth.onAuthStateChange(function (ev, s) {
   session = s;
-  updateHome();
-  if (ev === 'SIGNED_IN' && window.location.hash.indexOf('access_token') !== -1) {
-    history.replaceState(null, '', window.location.pathname);
+  if (ev === 'SIGNED_IN') {
+    if (window.location.hash.indexOf('access_token') !== -1) history.replaceState(null, '', window.location.pathname);
+    checkAdmin();
+    refreshScreen();
+    syncNow().then(refreshScreen);
+  } else if (ev === 'SIGNED_OUT') {
+    isAdmin = false;
+    refreshScreen();
   }
 });
-
-loginForm.addEventListener('submit', function (e) {
-  e.preventDefault();
-  var email = document.getElementById('email').value.trim().toLowerCase();
-  if (!/^\S+@\S+\.\S+$/.test(email)) { authMsg.textContent = 'Escribe un correo válido.'; return; }
-  var btn = document.getElementById('send-link');
-  btn.disabled = true;
-  authMsg.textContent = 'Enviando…';
-  sb.auth.signInWithOtp({ email: email, options: { emailRedirectTo: window.location.origin + window.location.pathname } }).then(function (r) {
-    btn.disabled = false;
-    authMsg.textContent = r.error
-      ? 'No se pudo enviar el enlace: ' + r.error.message
-      : 'Listo. Revisa tu correo, incluida la carpeta de spam, y abre el enlace. Funciona desde cualquier dispositivo.';
-  });
-});
-
-document.getElementById('logout').addEventListener('click', function () { sb.auth.signOut().then(function () { answers = []; show('intro'); }); });
-document.getElementById('to-history').addEventListener('click', renderHistory);
-toAdmin.addEventListener('click', renderAdmin);

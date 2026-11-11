@@ -1,4 +1,4 @@
-// Utilidades de interfaz: el, screens, show, glossHits, glossFor, hasOwn, extLink, fmtDate, fmtDay y navBack.
+// Utilidades de interfaz: el, screens, show (con la barra inferior), showNotice, glossHits, glossFor, hasOwn, extLink, fmtDate, fmtDay y navBack.
 function el(tag, attrs) {
   var n = document.createElement(tag);
   if (attrs) Object.keys(attrs).forEach(function (k) {
@@ -14,11 +14,45 @@ function el(tag, attrs) {
   return n;
 }
 
-var screens = typeof document === 'undefined' ? {} : { intro: document.getElementById('s-intro'), quiz: document.getElementById('s-quiz'), result: document.getElementById('s-result'), history: document.getElementById('s-history'), admin: document.getElementById('s-admin'), learn: document.getElementById('s-learn') };
-function show(name) {
-  Object.keys(screens).forEach(function (k) { screens[k].hidden = (k !== name); });
-  window.scrollTo(0, 0);
+// Pantallas: cada <section id="s-…"> de <main>, con la clave sin el prefijo («s-hoy» → «hoy»).
+var screens = {};
+if (typeof document !== 'undefined') {
+  Array.prototype.forEach.call(document.querySelectorAll('main > section[id^="s-"]'), function (s) { screens[s.id.slice(2)] = s; });
 }
+var currentScreen = null;
+// Pestaña que se marca en cada pantalla y pantallas sin barra inferior.
+var TAB_OF = { hoy: 'hoy', mapa: 'mapa', linea: 'mapa', estacion: 'mapa', yo: 'yo', intro: 'yo', result: 'yo', history: 'yo', admin: 'yo', learn: 'yo' };
+var NO_TABBAR = { sesion: true, quiz: true, pick: true };
+// keep: no regresa al inicio de la página (para volver a dibujar la misma pantalla).
+function show(name, keep) {
+  Object.keys(screens).forEach(function (k) { screens[k].hidden = (k !== name); });
+  currentScreen = name;
+  var bar = document.getElementById('tabbar');
+  if (bar) {
+    bar.hidden = !!NO_TABBAR[name];
+    document.body.classList.toggle('has-tabbar', !bar.hidden);
+    Array.prototype.forEach.call(bar.querySelectorAll('button[data-tab]'), function (b) {
+      if (b.getAttribute('data-tab') === TAB_OF[name]) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    });
+  }
+  if (!keep) window.scrollTo(0, 0);
+}
+
+// Aviso discreto: uno a la vez, se cierra solo a los 6 s o con su botón. #notices es role="status".
+var noticeTimer = null;
+function showNotice(text) {
+  var box = document.getElementById('notices');
+  if (!box) return;
+  clearTimeout(noticeTimer);
+  box.textContent = '';
+  var close = el('button', { type: 'button', 'aria-label': 'Cerrar aviso', text: '\u2715' });
+  var n = el('div', { class: 'notice' }, el('p', { text: text }), close);
+  close.addEventListener('click', function () { clearTimeout(noticeTimer); n.remove(); });
+  box.append(n);
+  noticeTimer = setTimeout(function () { n.remove(); }, 6000);
+}
+
 // Entradas del glosario que aparecen en los textos. La clave cuenta solo como palabra completa:
 // empieza donde empieza una palabra y termina donde termina, con plural opcional en s o es.
 // Así «git» no aparece en «digital» ni «log» en «catálogo» o «lograr».
@@ -42,8 +76,8 @@ function glossFor(texts, title, limit) {
 
 function fmtDate(iso) { return new Date(iso).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }); }
 function navBack() {
-  var b = el('button', { class: 'linkbtn', type: 'button', text: '← Inicio' });
-  b.addEventListener('click', function () { show('intro'); });
+  var b = el('button', { class: 'linkbtn', type: 'button', text: '← Volver' });
+  b.addEventListener('click', function () { renderYo(); });
   return el('div', { class: 'topnav' }, b);
 }
 function fmtDay(ymd) { return new Date(ymd + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }); }
