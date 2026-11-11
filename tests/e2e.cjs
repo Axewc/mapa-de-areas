@@ -256,6 +256,24 @@ async function main() {
         step = 'sesión completa con teclado';
       }
       assert.match(await page.textContent('#s-sesion .ses-next'), /Siguiente/);
+      if (i === 1) {
+        step = 'un doble clic no se salta tarjetas';
+        await page.dblclick('#s-sesion .ses-next');
+        await page.waitForSelector('#s-sesion .ses-card.idea[data-item="git.2"]');
+        const dbl = () => page.evaluate(() => document.querySelector('#s-sesion .ses-next').dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 2 })));
+        await dbl(); // segundo clic de un doble clic sobre «Entendido»: no pasa a la pregunta
+        assert.equal(await page.locator('#s-sesion .ses-card.idea[data-item="git.2"]').count(), 1);
+        await page.keyboard.press('Enter');
+        await page.waitForSelector('#s-sesion .ses-card.question[data-item="git.2"]');
+        await page.keyboard.press(String(oks[2] + 1));
+        await page.waitForSelector('#s-sesion .fb:not(:empty)');
+        await dbl(); // ni sobre «Siguiente»
+        assert.equal(await page.locator('#s-sesion .ses-card.question[data-item="git.2"]').count(), 1);
+        await page.keyboard.press('Enter');
+        i++;
+        step = 'sesión completa con teclado';
+        continue;
+      }
       await page.keyboard.press('Enter');
     }
     // 5.ª tarjeta (datos.0): mal
@@ -322,6 +340,31 @@ async function main() {
     await page.waitForSelector('#s-hoy:not([hidden])');
     assert.match(await page.textContent('#s-hoy .chip'), /Racha · 2 días/);
     assert.deepEqual(errors, [], 'errores de JS en las sesiones');
+
+    step = 'no se empieza una sesión durante el borrado';
+    const blocked = await page.evaluate(() => { deleting = true; try { startSession(); return currentScreen; } finally { deleting = false; } });
+    assert.equal(blocked, 'hoy');
+    await page.waitForFunction(() => /Espera a que termine el borrado/.test(document.getElementById('notices').textContent));
+
+    step = 'el cierre cuenta solo lo ganado en la sesión aunque llegue progreso de la nube';
+    // La nube trae un día viejo con 500 XP y APIs ya estudiada; la sincronización lenta llega a media sesión.
+    const cloud = { v: 2, goal: 'edar-dev-jr', goalT: 1, items: {}, days: { '2026-11-01': { xp: 500, done: true } } };
+    for (let n = 0; n < 6; n++) cloud.items['apis.' + n] = { b: 5, due: '2026-12-30', t: 5 };
+    const ctxK = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const kc = await openHome(ctxK, { clock: '2026-11-10T10:00:00', session: true, slowSync: 600,
+      seed: { mapa_progreso: [{ user_id: 'u1', email: 'alumno@test.mx', state: cloud }] },
+      local: JSON.stringify({ v: 2, goal: 'edar-dev-jr', goalT: 1, items: {}, days: {} }) });
+    await kc.page.click('#s-hoy .session-cta');
+    await answerCard(kc.page, true);
+    await kc.page.waitForFunction((k) => /apis\.0/.test(localStorage.getItem(k) || ''), KEY, { timeout: 10000 });
+    await nextCard(kc.page);
+    await finishAllRight(kc.page);
+    const endK = await kc.page.textContent('.session-end');
+    assert.match(endK, /\+70 XP/); // 5 × 10 + 20
+    assert.match(endK, /% listo \+7/);
+    assert.doesNotMatch(endK, /Estación vista/);
+    assert.deepEqual(kc.errors, []);
+    await ctxK.close();
 
     step = 'medianoche a media sesión';
     // Todos los pasos de L1 ya vistos: la sesión trae las preguntas extra (Reto) de Git, Datos y SQL.

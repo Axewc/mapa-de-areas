@@ -371,10 +371,11 @@ td.hi { font-weight: 600; background: var(--tint); }
 .ses-ideabox { background: var(--panel); border: 1.5px solid var(--line); border-left: 6px solid var(--lc, var(--ink)); border-radius: 12px; padding: 18px; }
 .ses-idea { margin-top: 8px; font-family: var(--f-body); font-size: 1.15rem; font-weight: 500; line-height: 1.5; letter-spacing: 0; text-wrap: pretty; }
 .ses-opts { display: flex; flex-direction: column; gap: 10px; }
-#s-sesion .opt { min-height: 52px; padding: 14px 16px; font-size: 1rem; line-height: 1.4; transition: border-color 0.15s, background-color 0.15s, opacity 0.2s; }
+#s-sesion .opt { min-height: 52px; padding: 14px 16px; font-size: 1rem; line-height: 1.4; transition: border-color 0.15s, background-color 0.15s, color 0.15s; }
 #s-sesion .opt .k { color: var(--muted); padding-top: 0.08rem; }
 #s-sesion .opt[aria-disabled="true"] { cursor: default; }
-#s-sesion .opt.dim, #s-sesion .opt.dim:hover { opacity: 0.55; border-color: var(--line); }
+/* Las otras opciones se apagan sin opacidad: texto atenuado sobre el papel (≥ 5:1 en los dos temas). */
+#s-sesion .opt.dim, #s-sesion .opt.dim:hover { color: var(--muted); background: var(--paper); border-color: var(--line); }
 /* La correcta: borde más grueso (sin mover el texto) y fondo verde; la tuya, si fue otra, con borde punteado. */
 #s-sesion .opt.right, #s-sesion .opt.right:hover { border: 2.5px solid var(--ok); background: var(--okbg); padding: 13px 15px; }
 #s-sesion .opt.wrong, #s-sesion .opt.wrong:hover { border: 2px dashed var(--bad); background: var(--panel); padding: 13.5px 15.5px; }

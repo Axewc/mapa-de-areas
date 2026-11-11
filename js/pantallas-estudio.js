@@ -201,8 +201,8 @@ function renderHoy(keep) {
 
 // ---------- Sesión ----------
 // Una sesión a la vez. Cada respuesta se guarda al momento (commit), así que salir a media sesión conserva lo respondido.
-// sesRun: { queue, idx, done (respondidas), before (estado al empezar), step: 'idea' | 'question' | 'end',
-//           ideaDone, answer (índice elegido o null), finishedDay, after (estado al cerrar) }
+// sesRun: { queue, idx, done (respondidas), step: 'idea' | 'question' | 'end', ideaDone, answer (índice elegido o null),
+//           finishedDay, after (estado al cerrar), goal (línea meta al empezar), xp, delta y visited (acumulados por respuesta) }
 var sesRun = null;
 var SES_KIND = { review: 'Repaso', 'new': 'Nuevo', extra: 'Reto' };
 var SES_GLOSS_TITLE = '¿Hay términos que no conoces? Aquí se explican';
@@ -229,6 +229,7 @@ function sesIdeaOf(card) {
 
 function startSession(opts) {
   if (currentScreen === 'sesion' && sesRun && sesRun.step !== 'end') return; // ya hay una sesión abierta
+  if (deleting) { showNotice('Espera a que termine el borrado para empezar una sesión.'); return; }
   var cards = buildSession(state, todayYmd(), LINEAS, ESTACIONES, opts).filter(sesPlayable);
   if (!cards.length) {
     sesRun = null;
@@ -236,7 +237,10 @@ function startSession(opts) {
     showNotice('Por ahora no hay nada que repasar ni pasos nuevos. Vuelve cuando toque tu próximo repaso.');
     return;
   }
-  sesRun = { queue: cards, idx: 0, done: 0, before: state, step: null, ideaDone: false, answer: null, finishedDay: null, after: null };
+  // xp, delta y visited se acumulan respuesta por respuesta: una sincronización que trae progreso
+  // de la nube a media sesión no se cuenta como ganado en esta sesión.
+  sesRun = { queue: cards, idx: 0, done: 0, step: null, ideaDone: false, answer: null, finishedDay: null, after: null,
+    goal: lineById(state.goal), xp: 0, delta: 0, visited: [] };
   sesCard(true);
 }
 
@@ -290,7 +294,7 @@ function sesCard(first) {
   if (idea) {
     h = el('h2', { class: 'ses-idea', tabindex: '-1', text: idea });
     var ok = el('button', { class: 'ses-next', type: 'button', text: 'Entendido' });
-    ok.addEventListener('click', sesAfterIdea);
+    ok.addEventListener('click', function (e) { if (e.detail > 1) return; sesAfterIdea(); });
     box = el('div', { class: 'ses-card idea ' + color, 'data-item': card.item }, sesTag(card),
       el('div', { class: 'ses-ideabox' }, el('p', { class: 'mono', text: 'La idea' }), h),
       glossFor([idea], SES_GLOSS_TITLE), ok);
@@ -322,6 +326,25 @@ function sesAfterIdea() {
   sesCard(false);
 }
 
+// Suma lo que cambió con una respuesta: XP, avance de la meta y estaciones que quedaron visitadas.
+function sesTally(prev, next, xp, stationId) {
+  var r = sesRun;
+  r.xp += xp;
+  if (r.goal) r.delta += lineProgress(next, r.goal, ESTACIONES) - lineProgress(prev, r.goal, ESTACIONES);
+  var st = ESTACIONES[stationId];
+  if (r.visited.indexOf(stationId) === -1 && isVisited(next, st) && !isVisited(prev, st)) r.visited.push(stationId);
+}
+
+// Cierra la sesión con la fecha de este momento: el día cuenta como cumplido aunque no se pulse «Terminar».
+function sesFinish() {
+  var r = sesRun;
+  r.finishedDay = todayYmd();
+  commit(finishSession(state, r.finishedDay));
+  r.xp += XP.done;
+  r.after = state;
+  syncNow();
+}
+
 function sesAnswer(i) {
   var r = sesRun;
   if (!r || r.step !== 'question' || r.answer !== null) return;
@@ -330,16 +353,14 @@ function sesAnswer(i) {
   var right = i === q.ok;
   r.answer = i;
   // La fecha se toma al responder: una sesión que cruza la medianoche cuenta cada respuesta en su día.
+  var prev = state;
   commit(recordAnswer(state, card.item, right, todayYmd(), Date.now(), { repeat: !!card.repeat }));
+  sesTally(prev, state, right ? XP.right : XP.wrong, card.station);
   r.queue = enqueueRepeat(r.queue, card, right);
   r.done++;
   var last = r.idx >= r.queue.length - 1;
   if (last) {
-    var day = todayYmd();
-    commit(finishSession(state, day));
-    r.finishedDay = day;
-    r.after = state;
-    syncNow();
+    sesFinish();
   }
 
   var root = screens.sesion;
@@ -368,7 +389,7 @@ function sesAnswer(i) {
     el('p', { class: 'why', text: q.why }),
     el('p', { class: 'small', text: when }));
   var next = el('button', { class: 'ses-next', type: 'button', text: last ? 'Terminar' : 'Siguiente' });
-  next.addEventListener('click', sesNext);
+  next.addEventListener('click', function (e) { if (e.detail > 1) return; sesNext(); });
   fb.after(next);
   root.querySelector('.ses-keys').hidden = true;
   sesPaintHead();
@@ -386,16 +407,13 @@ function sesNext() {
 
 function sesEnd() {
   var r = sesRun;
-  if (!r.finishedDay) { // no debería pasar: la sesión se cierra al responder la última tarjeta
-    r.finishedDay = todayYmd();
-    commit(finishSession(state, r.finishedDay));
-    r.after = state;
-    syncNow();
-  }
+  if (!r.finishedDay) sesFinish(); // no debería pasar: la sesión se cierra al responder la última tarjeta
   r.step = 'end';
   var day = r.finishedDay;
-  var line = lineById(state.goal);
-  var sum = sessionSummary(r.before, r.after, line || { stations: [] }, ESTACIONES, day);
+  var line = r.goal;
+  // De sessionSummary solo se usan la racha y los repasos de mañana, que dependen del estado final.
+  var sum = sessionSummary(r.after, r.after, line || { stations: [] }, ESTACIONES, day);
+  var deltaPct = Math.round(100 * r.delta);
   var root = screens.sesion;
   root.textContent = '';
 
@@ -403,12 +421,12 @@ function sesEnd() {
   var rest = streak(r.after, day).rest.indexOf(addDays(day, -1)) !== -1;
   rows.append(el('li', null, el('span', { class: 'chip', text: 'Racha · ' + plural(sum.streak, 'día', 'días') }),
     rest ? el('span', { class: 'small', text: 'Ayer contó como tu día de descanso de la semana.' }) : null));
-  if (line && sum.deltaPct > 0) {
+  if (line && deltaPct > 0) {
     rows.append(el('li', { class: line.color }, lineBadge(line),
-      el('span', { class: 'ses-sum-t' }, el('b', { text: '% listo +' + sum.deltaPct }),
+      el('span', { class: 'ses-sum-t' }, el('b', { text: '% listo +' + deltaPct }),
         el('span', { class: 'small', text: 'Tu meta va en ' + pctOf(line) + '%' }))));
   }
-  sum.visited.forEach(function (id) {
+  r.visited.forEach(function (id) {
     rows.append(el('li', { class: sesColor(id) }, el('span', { class: 'ses-dot', 'aria-hidden': 'true' }),
       el('span', { class: 'ses-sum-t' }, el('b', { text: 'Estación vista: ' + ESTACIONES[id].name }),
         el('span', { class: 'small', text: 'Ya respondiste todas sus preguntas.' }))));
@@ -428,7 +446,7 @@ function sesEnd() {
   var h = el('h2', { tabindex: '-1', text: 'Sesión terminada' });
   root.append(el('h1', { class: 'sr-only', text: 'Sesión de estudio' }),
     el('div', { class: 'session-end' }, h,
-      el('p', { class: 'ses-xp' }, el('span', { text: '+' + sum.xp + ' XP' })),
+      el('p', { class: 'ses-xp' }, el('span', { text: '+' + r.xp + ' XP' })),
       el('div', { class: 'card' }, rows), actions));
   sesFocus(h);
 }
