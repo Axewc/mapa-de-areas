@@ -1,4 +1,4 @@
-// Utilidades de interfaz: el, screens, show, glossFor, hasOwn, extLink, fmtDate, fmtDay y navBack.
+// Utilidades de interfaz: el, screens, show, glossHits, glossFor, hasOwn, extLink, fmtDate, fmtDay y navBack.
 function el(tag, attrs) {
   var n = document.createElement(tag);
   if (attrs) Object.keys(attrs).forEach(function (k) {
@@ -14,14 +14,25 @@ function el(tag, attrs) {
   return n;
 }
 
-var screens = { intro: document.getElementById('s-intro'), quiz: document.getElementById('s-quiz'), result: document.getElementById('s-result'), history: document.getElementById('s-history'), admin: document.getElementById('s-admin'), learn: document.getElementById('s-learn') };
+var screens = typeof document === 'undefined' ? {} : { intro: document.getElementById('s-intro'), quiz: document.getElementById('s-quiz'), result: document.getElementById('s-result'), history: document.getElementById('s-history'), admin: document.getElementById('s-admin'), learn: document.getElementById('s-learn') };
 function show(name) {
   Object.keys(screens).forEach(function (k) { screens[k].hidden = (k !== name); });
   window.scrollTo(0, 0);
 }
-function glossFor(texts, title, limit) {
+// Entradas del glosario que aparecen en los textos. La clave cuenta solo como palabra completa:
+// empieza donde empieza una palabra y termina donde termina, con plural opcional en s o es.
+// Así «git» no aparece en «digital» ni «log» en «catálogo» o «lograr».
+var GLOSS_WORD_CHARS = 'a-z0-9áéíóúüñ';
+function glossHits(texts, gloss) {
   var blob = texts.join(' ').toLowerCase();
-  var hits = GLOSS.filter(function (g) { return blob.indexOf(g[1]) !== -1; });
+  return gloss.filter(function (g) {
+    var key = g[1].replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
+    var re = new RegExp('(^|[^' + GLOSS_WORD_CHARS + '])' + key + '(?:s|es)?(?![' + GLOSS_WORD_CHARS + '])');
+    return re.test(blob);
+  });
+}
+function glossFor(texts, title, limit) {
+  var hits = glossHits(texts, GLOSS);
   if (limit) hits = hits.slice(0, limit);
   if (!hits.length) return null;
   var dl = el('dl');
@@ -38,3 +49,5 @@ function navBack() {
 function fmtDay(ymd) { return new Date(ymd + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }); }
 function hasOwn(obj, key) { return obj != null && Object.prototype.hasOwnProperty.call(obj, key); }
 function extLink(href, text) { return el('a', { href: href, target: '_blank', rel: 'noopener', text: text }); }
+
+if (typeof module !== 'undefined') module.exports = { glossHits: glossHits };

@@ -8,6 +8,7 @@ const require = createRequire(import.meta.url);
 const { ESTACIONES } = require('../js/data-estaciones.js');
 const { LINEAS } = require('../js/data-lineas.js');
 const { AREAS, GLOSS } = require('../js/data-areas.js');
+const { glossHits } = require('../js/ui.js');
 
 const ids = Object.keys(ESTACIONES);
 const preguntas = (st) => [...st.steps.map(s => s.q), ...st.extra];
@@ -51,6 +52,9 @@ test('la longitud de las opciones no delata la respuesta correcta', () => {
   const L = todas.filter(isLongest).length, S = todas.filter(isShortest).length;
   assert.ok(L <= 0.4 * todas.length, 'la correcta es la más larga en ' + L + ' de ' + todas.length);
   assert.ok(S <= 0.4 * todas.length, 'la correcta es la más corta en ' + S + ' de ' + todas.length);
+  // y tampoco va casi siempre en medio: si nunca es la más larga ni la más corta, descartar esas dos ayuda a adivinar
+  assert.ok(L >= 0.1 * todas.length, 'la correcta es la más larga solo en ' + L + ' de ' + todas.length);
+  assert.ok(S >= 0.1 * todas.length, 'la correcta es la más corta solo en ' + S + ' de ' + todas.length);
 });
 
 test('la correcta no siempre va en la misma posición dentro de cada estación', () => {
@@ -138,4 +142,37 @@ test('el glosario no repite claves', () => {
   const keys = GLOSS.map(g => g[1]);
   assert.equal(new Set(keys).size, keys.length);
   GLOSS.forEach(g => assert.equal(g[1], g[1].toLowerCase(), g[0]));
+});
+
+test('glossHits: la clave cuenta solo como palabra completa', () => {
+  const hit = (t, k) => glossHits([t], GLOSS).some(g => g[1] === k);
+  assert.ok(!hit('un candado digital', 'git'));
+  assert.ok(hit('git push', 'git'));
+  assert.ok(!hit('el catálogo de comercios', 'log'));
+  assert.ok(!hit('logran entrar al sistema', 'log'));
+  assert.ok(hit('revisa los logs del servidor', 'log'));
+  assert.ok(hit('las APIs del banco', 'api'));
+  assert.ok(!hit('una hoja excelente', 'excel'));
+  assert.ok(hit('COUNT(*) cuenta filas', 'count('));
+  assert.ok(hit('BUSCARX devuelve #N/D', '#n/d'));
+  assert.ok(hit('usa CONTAR.SI.CONJUNTO', 'contar.si'));
+  const g = [['Uno', 'a.b', 'x'], ['Dos', 'c+d', 'y']];
+  assert.deepEqual(glossHits(['axb y c+d'], g).map(x => x[0]), ['Dos']);
+});
+
+test('cada estación tiene en el glosario sus términos de la Tarea 5', () => {
+  const need = {
+    git: ['git', 'commit', 'branch', 'pull request'], datos: ['llave primaria', 'llave foránea', 'null'],
+    sql: ['select', 'join', 'group by', 'having', 'distinct'], apis: ['endpoint', 'métodos http', 'código de estado', 'json'],
+    'pruebas-auto': ['prueba unitaria', 'pytest', 'mock', 'regresión'], hojas: ['buscarx', 'contar.si', 'sumar.si', 'tabla dinámica', 'función espacios'],
+    tableros: ['power query', 'segmentación', 'visual de tarjeta'], indicadores: ['rotación', 'ausentismo', 'plantilla'],
+    'casos-prueba': ['partición de equivalencia', 'valores límite'], defectos: ['severidad', 'log'],
+    linux: ['linux', 'terminal', 'grep', 'systemctl', 'df -h', 'free -h', 'comando top'], nube: ['ec2', 'de iam', 'rds', 'aws cli', 'región de aws'],
+    monitoreo: ['cloudwatch', 'métrica', 'saturación', 'sre']
+  };
+  for (const id of Object.keys(need)) {
+    if (!ESTACIONES[id]) continue;
+    const keys = glossHits([JSON.stringify(ESTACIONES[id])], GLOSS).map(g => g[1]);
+    need[id].forEach(k => assert.ok(keys.includes(k), id + ': ' + k));
+  }
 });
