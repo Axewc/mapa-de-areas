@@ -101,7 +101,7 @@ function paintScreen(name, keep, first, fromTab) {
   if (!keep) window.scrollTo(0, 0);
   // Al arrancar (sin interacción todavía) no se toma el foco.
   var lost = !document.activeElement || document.activeElement === document.body;
-  if (keep ? (lost && lastFocusScreen === name) : (!first && !fromTab)) focusHeading(screens[name]);
+  if (keep ? (lost && lastFocusScreen === name) : (!first && (!fromTab || NO_TABBAR[name]))) focusHeading(screens[name]);
 }
 
 // Aviso discreto: uno a la vez, se cierra solo a los 6 s o con su botón. #notices es role="status".

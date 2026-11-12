@@ -415,6 +415,7 @@ table.prog th.num { text-align: right; }
    Durante una transición el fundido se apaga (duración 0) para no sumarse al deslizamiento; con duración 0 y no con
    animation: none, al terminar la transición no vuelve a empezar. La barra inferior tiene su propio nombre: no se desliza. */
 .tabbar { view-transition-name: tabbar; }
+::view-transition-group(tabbar) { animation: none; } /* la barra no cambia entre pantallas: sin fundido de 250 ms por defecto */
 @media (prefers-reduced-motion: no-preference) {
   .wrap > section:not([hidden]) { animation: screen-in 0.16s ease-out both; }
   html:active-view-transition .wrap > section:not([hidden]) { animation-duration: 0s; }

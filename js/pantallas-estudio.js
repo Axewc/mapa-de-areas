@@ -27,10 +27,14 @@ function renderPick(keep) {
   var root = screens.pick;
   root.textContent = '';
   var hasGoal = !!lineById(state.goal);
-  // Con meta se llega desde Yo; sin meta, desde la entrada.
+  // Con meta se llega desde Yo; sin meta y con un resultado guardado, desde Descubre; si no, desde la entrada.
   var back = el('button', { class: 'linkbtn', type: 'button', text: '← Volver' });
   back.addEventListener('click', function () {
-    withDir('backward', function () { if (lineById(state.goal)) renderYo(); else renderEntrada(); });
+    withDir('backward', function () {
+      if (lineById(state.goal)) renderYo();
+      else if (loadQuiz(storage, SETS[3])) renderDescubre();
+      else renderEntrada();
+    });
   });
   root.append(el('div', { class: 'topnav' }, back));
   root.append(el('div', { class: 'hub-title' },

@@ -1043,6 +1043,21 @@ async function entradaScenarios(browser, setStep) {
   assert.deepEqual(v.errors, []);
   await ctxV.close();
 
+  setStep('Descubre: la pestaña Hoy sin meta enfoca Elegir meta; «← Volver» regresa a Descubre');
+  const ctxH = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const h = await openHome(ctxH, { quiz: QUIZ_OK });
+  await h.page.waitForSelector('#s-descubre:not([hidden])');
+  await h.page.focus('#tabbar button[data-tab="hoy"]');
+  await h.page.keyboard.press('Enter');
+  await h.page.waitForSelector('#s-pick:not([hidden])');
+  await h.page.waitForFunction(() => document.activeElement === document.querySelector('#s-pick h1'), null, { timeout: 5000 });
+  assert.equal(await h.page.isVisible('#tabbar'), false, 'sin barra inferior al elegir meta');
+  await h.page.click('#s-pick .topnav button:has-text("← Volver")');
+  await h.page.waitForSelector('#s-descubre:not([hidden])');
+  assert.equal(await h.page.isVisible('#s-entrada'), false, 'con resultado guardado, «← Volver» no lleva a la entrada');
+  assert.deepEqual(h.errors, [], 'errores de JS en Descubre');
+  await ctxH.close();
+
   setStep('transiciones: dirección, foco y sin fundido repetido');
   const ctxT = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await ctxT.addInitScript(() => {
@@ -1082,7 +1097,28 @@ async function entradaScenarios(browser, setStep) {
   assert.deepEqual(await t.page.evaluate(() => window.__vt),
     ['forward', 'backward', 'forward', 'forward', 'forward', 'backward', 'backward'], 'puertas, «← Volver», Línea y Estación; las pestañas y elegir meta, sin transición');
   assert.deepEqual(t.errors, []);
+
+  setStep('transiciones: una navegación pisada no deja otra pantalla visible');
+  await t.page.evaluate(() => { openLinea('edar-dev-jr', false, 'mapa'); renderHoy(); });
+  await t.page.waitForSelector('#s-hoy:not([hidden])');
+  await t.page.waitForTimeout(600);
+  assert.deepEqual(await t.page.evaluate(() => Array.from(document.querySelectorAll('.wrap > section')).filter((s) => !s.hidden).map((s) => s.id)), ['s-hoy'], 'solo Hoy visible');
+  assert.equal(await t.page.getAttribute('#tabbar button[aria-current="page"]', 'data-tab'), 'hoy');
+  assert.equal(await t.page.title(), 'Hoy · Mapa de áreas');
+  assert.deepEqual(t.errors, []);
   await ctxT.close();
+
+  setStep('movimiento reducido: la navegación con dirección no anima nada');
+  const ctxM = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const m = await openHome(ctxM);
+  await m.page.click('#door-goal');
+  await m.page.waitForSelector('#s-pick:not([hidden])');
+  assert.equal(await m.page.evaluate(() => document.getAnimations().length), 0, 'sin animaciones al avanzar');
+  await m.page.click('#s-pick .topnav button:has-text("← Volver")');
+  await m.page.waitForSelector('#s-entrada:not([hidden])');
+  assert.equal(await m.page.evaluate(() => document.getAnimations().length), 0, 'sin animaciones al volver');
+  assert.deepEqual(m.errors, []);
+  await ctxM.close();
 
   setStep('transiciones: sin la forma con objeto se cambia al instante');
   const ctxF = await browser.newContext({ viewport: { width: 390, height: 844 } });
