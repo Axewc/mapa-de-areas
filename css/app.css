@@ -152,8 +152,8 @@ h1[tabindex="-1"]:focus, h2[tabindex="-1"]:focus { outline: none; }
 .mini .node.done i { background: var(--lc); }
 .mini .node.started i { border-color: var(--ink); }
 .mini .node.now i { border-color: var(--ink); background: radial-gradient(circle, var(--ink) 0 3px, var(--panel) 3.5px); box-shadow: 0 0 0 4px var(--mark); }
-.mini-labels { margin-top: 6px; font-size: 0.75rem; color: var(--muted); line-height: 1.25; }
-.mini-labels .lab { grid-row: 1; text-align: center; padding: 0 2px; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.mini-labels { margin-top: 6px; font-size: 0.7rem; color: var(--muted); line-height: 1.25; }
+.mini-labels .lab { grid-row: 1; text-align: center; padding: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .mini-labels .lab.start { text-align: left; }
 .mini-labels .lab.end { text-align: right; }
 .mini-labels .lab.cur { color: var(--ink); font-weight: 700; }
@@ -279,10 +279,6 @@ body:not(.has-tabbar) #notices { bottom: 16px; }
 .footer-actions { display: flex; flex-wrap: wrap; gap: 12px; }
 .share { width: 100%; min-height: 6.5rem; font: inherit; font-size: 0.9rem; background: var(--panel); color: var(--ink); border: 1.5px solid var(--line); border-radius: 10px; padding: 0.7rem; }
 
-.authbox { display: flex; flex-direction: column; gap: 0.75rem; max-width: 30rem; }
-.authbox label { display: block; }
-.authbox .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.authbox .fine { color: var(--muted); font-size: 0.85rem; max-width: none; }
 input.field { font: inherit; min-height: 48px; background: var(--paper); color: var(--ink); border: 1.5px solid var(--line); border-radius: 10px; padding: 0.75rem 0.85rem; width: 100%; }
 .tablewrap { overflow-x: auto; border: 1.5px solid var(--line); border-radius: 10px; background: var(--panel); }
 table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
@@ -338,7 +334,6 @@ table.prog th.num { text-align: right; }
 .projects li { border-left: 3px solid var(--accent); padding-left: 0.85rem; }
 .projects b { font-weight: 600; }
 .projects .meta { display: block; margin-top: 0.15rem; }
-.vtag { font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 /* Lo que pide la vacante y preguntas con retroalimentación */
 .asks { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.4rem; }
 .rq { display: flex; flex-direction: column; gap: 10px; }
@@ -351,7 +346,7 @@ table.prog th.num { text-align: right; }
 .opt.wrong, .opt.wrong:hover { border-color: var(--bad); border-style: dashed; }
 .opt .tag-r { grid-column: 2; font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 /* Resultado del cuestionario: líneas que encajan */
-.area .vac-list, .vac-list { list-style: none; margin: 0; padding-left: 0; display: flex; flex-direction: column; gap: 12px; }
+.vac-list { list-style: none; margin: 0; padding-left: 0; display: flex; flex-direction: column; gap: 12px; }
 .vac-row { background: var(--paper); border: 1.5px solid var(--line); border-left: 6px solid var(--lc); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
 .vac-row .actions { margin-top: 6px; }
 .vac-row .actions .btn { flex: 1 1 10rem; }

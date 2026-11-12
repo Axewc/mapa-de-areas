@@ -1,4 +1,4 @@
-// Prueba de flujo del hub (Elegir meta, Hoy y Yo) con Playwright y un Supabase falso.
+// Prueba de flujo del hub con Playwright y un Supabase falso (primera visita, sesión, mapa, cuenta, cuestionario, vista docente y revisión visual).
 // Correr con: node tests/e2e.cjs   (capturas: SHOTS_DIR=/ruta node tests/e2e.cjs)
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
@@ -102,17 +102,36 @@ async function finishAllRight(page) {
   return seen;
 }
 
-// Recorre Hoy → Yo → Elegir meta → Hoy con una línea de 7 estaciones y verifica que no haya scroll horizontal.
+// Revisión visual de todas las pantallas a un tamaño y un tema: Elegir meta (primera visita), Hoy (con avance), Yo (sin
+// cuenta y con cuenta), Elegir meta (cambiar de meta), Mapa, Línea, Estación (con el atajo y después de él), Sesión (idea,
+// pregunta, acierto, error), Cierre, Cuestionario (intro, pregunta, resultado) y Vista docente. En cada una verifica que no haya scroll
+// horizontal y, con SHOTS_DIR, guarda {ancho}-{tema}-{pantalla}.png. Los errores de JS de cada página fallan la prueba.
 async function visualPass(browser, viewport, colorScheme) {
-  const ctx = await browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1 });
-  const { page, errors } = await openHome(ctx, { local: JSON.stringify(progressState()) });
   const tag = viewport.width + '-' + colorScheme;
-  const check = async (name) => {
+  const shoot = async (page, name) => {
     assert.ok(await page.evaluate(noHScroll), 'scroll horizontal en ' + name + ' (' + tag + ')');
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, tag + '-' + name + '.png'), fullPage: true, animations: 'disabled' });
   };
+  // Primera visita: Elegir meta sin meta y sin barra inferior.
+  const ctx0 = await browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1 });
+  const first = await openHome(ctx0, { clock: '2026-11-10T10:00:00' });
+  await first.page.waitForSelector('#s-pick .line-card');
+  await shoot(first.page, 'elegir-primera-visita');
+  assert.deepEqual(first.errors, [], 'errores de JS en la primera visita (' + tag + ')');
+  await ctx0.close();
+
+  const ctx = await browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1 });
+  const { page, errors } = await openHome(ctx, { local: JSON.stringify(progressState()) });
+  const check = (name) => shoot(page, name);
+  // Las etiquetas de la línea en miniatura de Hoy no se cortan con «…» a 390 px (L1 trae «Pruebas automáticas», L6 son 7 estaciones).
+  const miniLabelsFit = async (name) => {
+    const cut = await page.evaluate(() => Array.from(document.querySelectorAll('#s-hoy .mini-labels .lab'))
+      .filter((l) => l.scrollWidth > l.clientWidth + 1 || l.scrollHeight > l.clientHeight + 1).map((l) => l.textContent));
+    if (viewport.width < 720) assert.deepEqual(cut, [], 'etiquetas cortadas en la miniatura de ' + name + ' (' + tag + ')');
+  };
   await page.waitForSelector('#s-hoy:not([hidden])');
   await check('hoy');
+  await miniLabelsFit('hoy');
   await page.click('#tabbar [data-tab=yo]');
   await page.waitForSelector('#s-yo:not([hidden])');
   await check('yo');
@@ -122,6 +141,7 @@ async function visualPass(browser, viewport, colorScheme) {
   await page.locator('#s-pick .line-card', { hasText: 'Científico de Datos Jr.' }).click();
   await page.waitForSelector('#s-hoy:not([hidden])');
   await check('hoy-l6');
+  await miniLabelsFit('hoy-l6');
   await page.click('#tabbar [data-tab=mapa]');
   await page.waitForSelector('#s-mapa:not([hidden]) svg');
   await check('mapa');
@@ -171,8 +191,42 @@ async function visualPass(browser, viewport, colorScheme) {
   await check('sesion-idea');
   await finishAllRight(page);
   await check('sesion-cierre');
+  // Cuestionario: introducción, una pregunta y el resultado sin cuenta.
+  await page.click('.session-end button:has-text("Listo")');
+  await page.waitForSelector('#s-hoy:not([hidden])');
+  await page.click('#tabbar [data-tab=yo]');
+  await page.click('#s-yo button:has-text("Descubre tu área")');
+  await page.waitForSelector('#s-intro:not([hidden])');
+  await check('cuestionario-intro');
+  await page.click('#s-intro #start');
+  await page.waitForSelector('#s-quiz:not([hidden]) .opt');
+  await check('cuestionario-pregunta');
+  for (let i = 0; i < 10; i++) {
+    await page.waitForFunction((n) => document.getElementById('counter').textContent === 'Pregunta ' + n + ' de 10', i + 1);
+    await page.keyboard.press('1');
+  }
+  await page.waitForSelector('#s-result:not([hidden]) .vacancy [data-line]');
+  await check('cuestionario-resultado');
+  // Yo con cuenta: el correo, «Cerrar sesión» y Mis respuestas.
+  await page.click('#s-result button:has-text("Crear cuenta")');
+  await page.waitForSelector('#s-yo:not([hidden])');
+  await page.evaluate(() => window.__fakeLogin());
+  await page.waitForSelector('#s-yo #logout');
+  await check('yo-con-cuenta');
   assert.deepEqual(errors, [], 'errores de JS (' + tag + ')');
   await ctx.close();
+
+  // Vista docente con filas sembradas (incluida una con correo largo y otra de otra versión).
+  const ctxT = await browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1 });
+  const t = await openHome(ctxT, { session: true, admin: true, seedJson: teacherSeedJson(), clock: TEACHER_DAY + 'T12:00:00', local: JSON.stringify(goalOnly()) });
+  await t.page.click('#tabbar [data-tab=yo]');
+  await t.page.click('#s-yo button:has-text("Vista docente")');
+  await t.page.waitForSelector('#s-admin table.prog tbody tr');
+  await t.page.waitForSelector('#s-admin .attempts details.attempt');
+  assert.equal(await t.page.locator('#s-admin .scrollhint').isVisible(), viewport.width < 720, 'aviso de deslizar según el desborde real (' + tag + ')');
+  await shoot(t.page, 'docente');
+  assert.deepEqual(t.errors, [], 'errores de JS en la vista docente (' + tag + ')');
+  await ctxT.close();
 }
 
 // Revisa con las cajas reales (getBBox) que ninguna etiqueta ni insignia «L#» del mapa se encime con otra, con una
@@ -606,24 +660,6 @@ async function teacherScenarios(browser, setStep) {
   await page.click('#s-admin .topnav button');
   await page.waitForSelector('#s-yo:not([hidden])');
   await ctx.close();
-
-  // Revisión visual: sin scroll horizontal de la página en claro y oscuro, a 390 y 1280 px.
-  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
-    for (const cs of ['light', 'dark']) {
-      setStep('vista docente: revisión visual ' + vp.width + ' px, tema ' + cs);
-      const c = await browser.newContext({ viewport: vp, colorScheme: cs, deviceScaleFactor: 1 });
-      const v = await openHome(c, { session: true, admin: true, seedJson: teacherSeedJson(), clock: TEACHER_DAY + 'T12:00:00', local: JSON.stringify(goalOnly()) });
-      await v.page.click('#tabbar [data-tab=yo]');
-      await v.page.click('#s-yo button:has-text("Vista docente")');
-      await v.page.waitForSelector('#s-admin table.prog tbody tr');
-      await v.page.waitForSelector('#s-admin .attempts details.attempt');
-      assert.ok(await v.page.evaluate(noHScroll), 'scroll horizontal en la vista docente (' + vp.width + ', ' + cs + ')');
-      assert.equal(await v.page.locator('#s-admin .scrollhint').isVisible(), vp.width < 720, 'aviso de deslizar según el desborde real (' + vp.width + ')');
-      if (SHOTS) await v.page.screenshot({ path: path.join(SHOTS, vp.width + '-' + cs + '-docente.png'), fullPage: true, animations: 'disabled' });
-      assert.deepEqual(v.errors, []);
-      await c.close();
-    }
-  }
 
   // Una consulta que falla no tumba la otra sección.
   setStep('vista docente: el progreso falla, el cuestionario sigue');

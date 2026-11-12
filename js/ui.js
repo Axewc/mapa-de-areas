@@ -1,4 +1,4 @@
-// Utilidades de interfaz: el, elNS (SVG), screens, show (con la barra inferior), showNotice, glossHits, glossFor, hasOwn, extLink, fmtDate, fmtDay y navBack.
+// Utilidades de interfaz: el, elNS (SVG), screens, show (con la barra inferior), showNotice, glossHits, glossFor, extLink, fmtDate, fmtDay y navBack.
 function el(tag, attrs) {
   var n = document.createElement(tag);
   if (attrs) Object.keys(attrs).forEach(function (k) {
@@ -115,7 +115,6 @@ function navBack() {
   return el('div', { class: 'topnav' }, b);
 }
 function fmtDay(ymd) { return new Date(ymd + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }); }
-function hasOwn(obj, key) { return obj != null && Object.prototype.hasOwnProperty.call(obj, key); }
 function extLink(href, text) { return el('a', { href: href, target: '_blank', rel: 'noopener', text: text }); }
 
 if (typeof module !== 'undefined') module.exports = { glossHits: glossHits };

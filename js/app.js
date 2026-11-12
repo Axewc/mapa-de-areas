@@ -30,11 +30,11 @@ function commit(nuevo) {
 var dataEpoch = 0;
 var pendingSyncs = [];
 
-// Con sesión: combina con la fila remota y guarda en los dos lados. Nunca rechaza.
-// Resuelve con el estado nuevo, o con null si se descartó o no empezó porque los datos se están borrando.
 // true mientras corre «Borrar mis datos»: no empieza ninguna sincronización nueva.
 var deleting = false;
 
+// Con sesión: combina con la fila remota y guarda en los dos lados. Nunca rechaza.
+// Resuelve con el estado nuevo, o con null si se descartó o no empezó porque los datos se están borrando.
 function syncNow() {
   if (deleting) return Promise.resolve(null);
   if (!session) return Promise.resolve(state);

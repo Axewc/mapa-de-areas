@@ -1,12 +1,125 @@
 # Mapa de áreas
 
-Página estática (`index.html` más `css/` y `js/`, sin build) que usa Supabase para el acceso por correo y para guardar los intentos.
+Hub de estudio para estudiantes de computación en México. Cada vacante real es una **línea** de color y cada habilidad que pide es una **estación**; lo que aprendes en una estación cuenta para todas las líneas que pasan por ella. Se estudia en sesiones de 5 tarjetas con repasos espaciados, y el avance hacia la vacante elegida se ve en un porcentaje.
 
-## Qué ya está hecho en Supabase (proyecto fbd-lab-tracker)
+Es una página estática (`index.html`, `css/` y `js/`, sin build ni dependencias que instalar) que usa Supabase solo para el acceso por correo y para guardar datos si la persona crea una cuenta. Está pensada para quien mantiene el sitio: agregar vacantes, revisar el progreso del grupo y desplegar.
 
-- `public.mapa_respuestas`: un renglón por intento (usuario, correo, fecha, respuestas, puntajes). RLS activado.
-- `public.mapa_admins`: correos con vista docente. Hoy solo `axewcasas@gmail.com`.
-- Políticas: cada alumno ve, crea y borra solo sus intentos. El correo docente ve todos. El rol anónimo no ve nada. No se puede insertar un intento a nombre de otra persona.
+El hábito se construye con sesiones cortas que terminan, progreso visible y repasos. No hay notificaciones, mensajes de culpa ni castigo por faltar.
+
+## Cómo se usa
+
+1. **Primera visita, sin cuenta.** Aparece «Elige tu meta» con las nueve vacantes (primero las de «Para empezar»). No se pide correo.
+2. **Hoy.** Racha y semana, tarjeta de la meta con su «% listo», línea en miniatura y el botón «Sesión de hoy», que dice qué trae («5 min · 3 repasos · 1 paso nuevo de SQL»). Si no hay nada pendiente dice «Estás al día» y cuándo toca el próximo repaso; «Otra sesión» adelanta los repasos más próximos.
+3. **Sesión.** Pantalla completa de 5 tarjetas (teclas 1 a 4 para responder y Enter para avanzar). Un paso nuevo muestra una idea y luego su pregunta; un repaso, solo la pregunta. Al responder se marca la correcta y se explica por qué. Al final, el cierre muestra XP, racha, cuánto subió el «% listo» y cuántos repasos tocan mañana. Salir a media sesión conserva lo ya respondido.
+4. **Mapa.** Las nueve líneas dibujadas como mapa de transporte. Tocar una estación abre su página; debajo hay la misma información en lista.
+5. **Línea.** Ficha de la vacante (lo que piden, nivel, enlace, «leída el…»), sus estaciones en orden con su avance y «Elegir como meta».
+6. **Estación.** Qué es, para qué sirve, pasos ya vistos, ejercicio, recursos y glosario. Si no se ha empezado, ofrece el atajo «¿Ya sabes esto?».
+7. **Yo.** Nivel, XP, mejor racha, cambiar de meta, cuenta opcional («Guarda tu progreso en la nube» con correo y enlace mágico), el cuestionario de áreas, «Borrar mis datos» (con confirmación en dos pasos) y, solo para el correo docente, la vista docente.
+8. **Cuestionario de áreas** («Descubre tu área»). Diez preguntas que sugieren tres áreas. Se puede hacer sin cuenta; el resultado se guarda solo con sesión y enlaza con las líneas que encajan («Elegir como meta»). Hay dos versiones: «Explorar» (actividades cotidianas, sin nombres de herramientas) y «Con herramientas» (menciona Python, Docker, Power BI…). Las áreas están en `AREAS` de `js/data-areas.js`.
+9. **Vista docente.** Tabla de progreso por alumno (correo, meta, «% listo», racha, XP, último día) e intentos del cuestionario, con un filtro por correo.
+
+## Reglas de aprendizaje
+
+Son funciones puras en `js/core.js`, con pruebas en `tests/core.test.mjs`.
+
+- **Preguntas («ítems»).** Cada estación tiene 6: las 4 de sus pasos y 2 de aplicación. Su id es `estación.n` (`sql.2`), con n de 0 a 3 para los pasos y 4 y 5 para las extra. Cada pregunta tiene exactamente 4 opciones.
+- **Cajas.** Cada ítem está en una caja de 0 («sin ver») a 5. Un acierto sube una caja (tope 5) y programa el repaso a **1, 3, 7, 16 y 35 días** para las cajas 1 a 5. Un error baja a la caja 1, vuelve mañana y además se repite una vez al final de la misma sesión; esa repetición no mueve la caja. Un ítem atrasado no pierde caja.
+- **Sesión.** 5 tarjetas como máximo: hasta 3 repasos (los más atrasados primero) y el resto, pasos nuevos de la estación actual de la meta. Si no hay pasos nuevos se completa con repasos; cuando la meta ya no tiene pasos nuevos siguen las preguntas de aplicación y luego los pasos de otras líneas.
+- **XP y nivel.** 10 por acierto, 2 por error y 20 por terminar la sesión. Nivel = 1 + piso(XP / 200).
+- **Racha.** Días cumplidos consecutivos hasta hoy o ayer; un día cumplido es aquel en que terminas al menos una sesión. Se tolera un día faltante por semana (de lunes a domingo), que se muestra como «día de descanso». Las fechas son las locales del dispositivo, en `AAAA-MM-DD`; la fecha se calcula en cada respuesta y al cerrar la sesión, no al empezarla.
+- **Avance.** Peso por caja: 0, 0.4, 0.6, 0.8, 0.9 y 1. El avance de una estación es el promedio del peso de sus 6 ítems, y el **«% listo»** de una línea es el promedio del avance de sus estaciones. Como las cajas altas tardan días, el porcentaje sigue subiendo durante semanas. Una estación está «visitada» cuando sus 6 ítems están en caja 1 o más.
+- **Atajo «¿Ya sabes esto?».** En una estación sin empezar, 2 preguntas de aplicación. Si aciertas las dos, los 6 ítems pasan a la caja 3 y vuelven en 7 días. Si fallas alguna, la estación se estudia normal y esas respuestas cuentan como cualquier otra.
+
+## Contenido
+
+### Líneas
+
+Nueve vacantes reales de la Ciudad de México, leídas completas el 10 de noviembre de 2026 (`seen`). Están en `js/data-lineas.js`, en orden L1 a L9.
+
+| Línea | Puesto | Empresa | Nivel |
+| --- | --- | --- | --- |
+| L1 | Desarrollador de Software Jr. | EDAR Tech | Para empezar |
+| L2 | Analista de Datos Jr. (People Analytics) | Sears | Para empezar |
+| L3 | Tester Funcional Jr. (Salesforce) | Grupo MVS | Para empezar |
+| L4 | Ingeniero de Operaciones Cloud Jr. (AWS) | SatoriTech | Para empezar |
+| L5 | Analista SOC Tier 2 | SAFE | Meta a 2 años |
+| L6 | Científico de Datos Jr. | Grupo Financiero Banorte | Meta a 2 o 3 años |
+| L7 | AI Deployment Engineer | Getnet (Grupo Santander) | Meta a 2 o 3 años |
+| L8 | Analista de Negocios Jr. (Business Analysis) | El Puerto de Liverpool (Corporativo) | Para empezar |
+| L9 | Suscriptor Jr. (Daños) | MAPFRE | Para empezar |
+
+L5, L6 y L7 piden experiencia: se presentan como mapa de lo que hay que aprender, no como vacante para aplicar hoy. De cada vacante solo se guarda lo necesario para estudiar (puesto, empresa, lugar, lo que piden y el enlace); no se copian correos ni datos de contacto.
+
+**Las vacantes caducan.** Cada línea muestra «leída el…», y el enlace puede dejar de funcionar sin que la línea se rompa. Conviene revisarlas de vez en cuando.
+
+### Estaciones
+
+Hay 32, en `js/data-estaciones.js` (objeto `{ id: Estacion }`). Las compartidas más importantes: SQL (L1, L2, L4, L6 y L8), Hojas de cálculo (L2, L3, L8 y L9), Estadística (L6 y L9), Datos, Git, Pruebas automáticas, Linux y terminal, Monitoreo y registros, RAG y Evaluación (en dos líneas cada una). Las siete de Getnet (agentes, multiagente, evaluación, guardrails, RAG, MCP y observabilidad) se adaptaron de la ruta anterior, que conservó sus 21 preguntas.
+
+### Forma de los objetos
+
+```js
+// Estación
+{
+  id: "sql", name: "SQL",
+  plain: "…",                 // qué es, en una frase sin jerga
+  why: "…",                   // para qué sirve en un trabajo real
+  steps: [                    // 4 pasos: una idea (hasta 280 caracteres) y la pregunta que la comprueba
+    { idea: "…", q: { q: "…", opts: ["…", "…", "…", "…"], ok: 1, why: "…" } }
+  ],
+  extra: [ { q, opts, ok, why }, { q, opts, ok, why } ],   // 2 preguntas de aplicación
+  task: { n: "…", d: "…", t: "1 tarde" },                  // ejercicio para hacer fuera del sitio
+  res: [ { n: "…", u: "https://…" } ]                      // de 1 a 3 recursos
+}
+
+// Línea
+{
+  id: "edar-dev-jr", n: 1, color: "l1",
+  title: "…", company: "…", place: "…", level: "Para empezar",   // o «Meta a 2 o 3 años»
+  url: "https://…", seen: "2026-11-10",
+  areas: ["bak", "web"],      // claves de AREAS, para enlazar desde el cuestionario
+  summary: "…", asks: ["…"],  // de 3 a 5 requisitos
+  note: "…",                  // opcional: sueldo, modalidad, experiencia
+  stations: ["git", "datos", "sql", "apis", "pruebas-auto"],       // en orden de estudio
+  map: { git: [215, 120, "t"], datos: [175, 160, "l"] },           // [x, y, lado de la etiqueta]
+  badge: [183, 120]           // opcional: centro de la insignia «L1»
+}
+
+// Glosario (en js/data-areas.js): [nombre, clave en minúsculas, explicación]
+["Llave primaria", "llave primaria", "…"]
+```
+
+### Cómo agregar una línea o una estación
+
+1. **Estaciones nuevas** (si la vacante pide algo que aún no existe): agrega el objeto a `ESTACIONES` en `js/data-estaciones.js`.
+   - El `id` va en minúsculas y con guiones, y no cambia una vez publicado; tampoco el orden de las 6 preguntas, porque el progreso guardado se apoya en `id.n`.
+   - Cada estación lleva 4 pasos, 2 preguntas extra, `task.t` igual a `"1 tarde"` y de 1 a 3 recursos con URL `https`.
+   - Cada término técnico que aparezca debe tener su entrada en `GLOSS` (`js/data-areas.js`); la clave solo cuenta como palabra completa.
+2. **La línea:** agrega un objeto al final de `LINEAS` en `js/data-lineas.js`.
+   - `n` es el siguiente número (consecutivo desde 1) y `color` es `"l" + n`. Los colores `l1` a `l9` están en `css/app.css` (claro y oscuro); para una décima línea hay que agregar `--l10` y `.l10`.
+   - `areas` usa claves de `AREAS`; `seen` es la fecha de lectura (`AAAA-MM-DD`); `url` es `https`.
+   - `stations` va en orden de estudio; `map` debe tener exactamente las mismas estaciones.
+3. **Coordenadas del mapa** (`map`): el lienzo mide 360 de ancho y crece hacia abajo; `x` va de 16 a 344 y `y` es 16 o más. El tercer valor (`"l"`, `"r"`, `"t"` o `"b"`) es el lado de la etiqueta (por defecto `"r"`). `badge` coloca la insignia «L#» a 20 o menos de la primera estación.
+4. **Reglas que hacen cumplir las pruebas** (`tests/content.test.mjs`):
+   - cada pregunta tiene exactamente 4 opciones distintas, `ok` de 0 a 3 y una explicación (`why`) de más de 20 caracteres;
+   - la correcta no delata: es la más larga y la más corta en no más del 40 % de las preguntas (y en no menos del 10 %), y en cada estación ocupa al menos 3 posiciones distintas;
+   - una estación compartida lleva coordenadas idénticas en todas sus líneas;
+   - dos estaciones distintas quedan al menos a 44 px una de otra;
+   - ninguna etiqueta se encima con otra, con una estación ni con una línea.
+5. Corre `node --test tests/*.test.mjs` y `node tests/e2e.cjs`; con `SHOTS_DIR=… node tests/e2e.cjs` revisa en las capturas que el mapa se vea bien. Si cambian los conteos (por ejemplo 9 líneas y 32 estaciones), actualiza las pruebas que los fijan.
+
+## Datos y privacidad
+
+Sin cuenta, nada sale del dispositivo: el progreso vive en una sola clave de `localStorage`, `mapa.v2` (`{ v: 2, goal, goalT, items, days }`). El XP, el nivel y la racha se calculan a partir de `days`. Si `localStorage` no está disponible, el sitio funciona en memoria y avisa que el progreso no se guardará.
+
+Con cuenta se guardan el correo, las respuestas del cuestionario y el progreso de estudio; el profesor puede verlos, y todo se puede borrar desde Yo. Proyecto de Supabase: `fbd-lab-tracker`.
+
+| Tabla | Para qué sirve | Políticas (RLS activado) |
+| --- | --- | --- |
+| `public.mapa_progreso` | Una fila por usuario: `user_id` (llave primaria), `email`, `state jsonb` (versión 2, menos de 200 KB) y `updated_at`. SQL en `sql/mapa_progreso.sql`. | Cada quien ve, crea, actualiza y borra su fila. El correo docente ve todas. El rol anónimo, nada. Nadie puede escribir ni borrar la fila de otra persona. |
+| `public.mapa_respuestas` | Un renglón por intento del cuestionario (usuario, correo, fecha, respuestas, puntajes, `quiz_version`). | Cada alumno ve, crea y borra solo sus intentos. El correo docente ve todos. No se puede insertar un intento a nombre de otra persona. |
+| `public.mapa_admins` | Correos con vista docente. Hoy solo `axewcasas@gmail.com`. | Se administra desde el panel de Supabase (con el SQL de abajo); la app solo la consulta para saber si el correo de la sesión es docente. |
+| `public.mapa_aprendizaje` | **En desuso.** Era de las rutas por vacante (`sql/mapa_aprendizaje.sql`); la app ya no la usa. Tiene una fila, de una prueba. | Se conserva sin tocar; puede borrarse. |
 
 Para agregar otro docente:
 
@@ -14,57 +127,68 @@ Para agregar otro docente:
 insert into public.mapa_admins (email) values ('correo@ejemplo.com');
 ```
 
-## Dos versiones del cuestionario
+**Sincronización.** Con sesión, al iniciar y al terminar cada sesión de estudio, la app lee la fila, la combina con el estado local y guarda el resultado en los dos lados. La combinación es optimista y por ítem: gana el de cambio más reciente (`t`); por día, el XP mayor y `done` si lo está en cualquiera; de la meta, la del estado con el cambio más reciente. Si la fila remota es de otra versión o tiene forma rara, no se sobrescribe y el estudio sigue en el dispositivo. Si la sincronización falla, aparece un aviso y se reintenta en la siguiente sesión.
 
-- Versión 2, «Explorar»: preguntas sobre actividades cotidianas, sin nombres de herramientas. Es la recomendada para quien apenas decide.
-- Versión 1, «Con herramientas»: menciona Python, Docker, Power BI, etc., y explica cada término junto a la pregunta.
+**Dato no confiable.** El progreso lo escribe el navegador, así que un alumno podría inflar el suyo desde la API. Es autoevaluación y solo afecta sus propios datos. La vista docente lo trata como no confiable: normaliza valores, topa el XP de cada día y descarta lo que no tiene forma válida. Se retomará al diseñar el ranking.
 
-Ambas tienen 10 preguntas de 5 opciones y puntúan las mismas nueve áreas, así que los intentos son comparables. La versión se guarda en `quiz_version` (1 o 2) y aparece en Mis respuestas y en la vista docente. Las áreas y sus proyectos están en el bloque `AREAS` de `js/data-areas.js`.
+## Estructura de archivos
 
-## Rutas por vacante
+| Archivo | Responsabilidad |
+| --- | --- |
+| `index.html` | Estructura de las pantallas, barra inferior y carga de scripts |
+| `css/app.css` | Tokens (claro y oscuro, nueve colores de línea) y estilos |
+| `js/data-areas.js` | `AREAS`, `SETS` (cuestionario), `GLOSS`, `MAXP` y `scoreAnswers` |
+| `js/data-estaciones.js` · `js/data-lineas.js` | `ESTACIONES` y `LINEAS` |
+| `js/core.js` | Reglas puras: cajas, avance, sesión, XP, racha, combinación de estados, atajo y geometría del mapa |
+| `js/store.js` | `localStorage` y sincronización con Supabase |
+| `js/ui.js` · `js/app.js` | Utilidades de interfaz; cliente de Supabase, `state` global y arranque |
+| `js/pantallas-estudio.js` | Elegir meta, Hoy y Sesión |
+| `js/pantallas-mapa.js` | Mapa, Línea y Estación |
+| `js/pantallas-cuenta.js` | Yo y vista docente |
+| `js/pantallas-cuestionario.js` | Cuestionario, resultado y Mis respuestas |
+| `sql/` | Copia de las migraciones aplicadas (`mapa_progreso`, `mapa_aprendizaje`) |
+| `tests/` | Pruebas (ver abajo) |
+| `docs/superpowers/specs` · `docs/superpowers/plans` | Historia del diseño: spec y plan de cada entrega |
 
-Una ruta toma una vacante real y enseña los temas que pide. La primera es **AI Deployment Engineer de Getnet**, con siete temas: agentes, multiagente, evaluación, guardrails, RAG, MCP y observabilidad.
-
-- **Entradas:** el botón «Aprender para una vacante» en el inicio. También aparece un panel en el resultado del cuestionario cuando alguna de las tres primeras áreas está en `areas` de la ruta.
-- **Diagnóstico:** una pregunta por tema, con respuesta correcta y la opción «Aún no lo sé».
-- **Lección:** cada tema trae qué es, por qué le importa a una empresa de pagos, ideas clave, un ejercicio de una tarde, recursos y un repaso de 2 preguntas.
-- **Estado de cada tema:** decide la evidencia más reciente. Un diagnóstico acertado o un repaso con 2 de 2 lo dejan como *Ya lo dominas*.
-- **Datos:** se guardan en `public.mapa_aprendizaje`, una fila por diagnóstico o repaso. Las políticas son las mismas que las de `mapa_respuestas`: cada quien crea, ve y borra lo suyo, y el docente ve todo. No hay `update`. El SQL aplicado está en `sql/mapa_aprendizaje.sql`.
-- **Vista docente:** la sección «Rutas por vacante» lista diagnósticos y repasos y usa el mismo filtro por correo.
-
-Para agregar una vacante, agrega un objeto a `RUTAS` en `js/data-areas.js`:
-
-- Copia la forma de `getnet-ai-deploy`: `title`, `company`, `place`, `url`, `seen`, `areas`, `summary`, `asks` y `topics`.
-- Cada tema lleva `id`, `name`, `plain`, `why`, `ideas`, `task`, `res`, `diag` y `review`.
-- `areas` usa las claves de `AREAS`.
-- Cada pregunta (`diag` y las dos de `review`) lleva exactamente 4 opciones. La tabla acepta respuestas del 0 al 4, y el 4 es «Aún no lo sé».
-- Varía la posición y la longitud de la respuesta correcta. Hay una prueba que falla si la correcta suele ser la opción más larga o la más corta.
-- No cambies los `id` de temas que ya tengan progreso guardado.
-
-Con una sola ruta, el botón del inicio la abre directamente. Con dos o más, muestra la lista.
-
-El diseño y el plan están en `docs/superpowers/`.
+Son scripts clásicos, no módulos, para que el sitio también abra desde `file://`. Los archivos de datos y `core.js` exportan con `module.exports` cuando corren en Node.
 
 ## Pruebas
 
 ```sh
-node --test tests/logic.test.mjs   # puntaje, estado de cada tema e integridad del contenido
-node tests/e2e.cjs                 # flujo completo en Chromium con un Supabase falso (tests/fake-supabase.js)
-SHOTS_DIR=/tmp/capturas node tests/e2e.cjs   # además guarda capturas a 390 y 1280 px, claro y oscuro
+node --test tests/*.test.mjs                  # 98 pruebas de lógica y contenido
+node tests/e2e.cjs                            # flujo completo en Chromium con un Supabase falso
+SHOTS_DIR=/tmp/capturas node tests/e2e.cjs    # además guarda capturas en esa carpeta
 ```
+
+- `tests/core.test.mjs`: cajas, avance, `buildSession`, XP, racha, `mergeState`, atajo, geometría del mapa y la fila de la vista docente.
+- `tests/content.test.mjs`: integridad de las 32 estaciones y 9 líneas, reglas de preguntas, glosario y legibilidad del mapa.
+- `tests/store.test.mjs`: `localStorage` (estado inválido, dos pestañas, cuota llena) y sincronización con Supabase (fila de otra versión, fallas de red).
+- `tests/quiz.test.mjs`: puntaje del cuestionario y su enlace con las líneas.
+- `tests/e2e.cjs`: recorridos de primera visita, sesión con teclado, repasos con el reloj adelantado, mapa, atajo, cuenta, borrado, cuestionario sin cuenta y vista docente. Termina con una revisión visual de todas las pantallas a 390 × 844 y 1280 × 900, en tema claro y oscuro, que verifica que no haya scroll horizontal ni errores de JavaScript y, con `SHOTS_DIR`, guarda `{ancho}-{tema}-{pantalla}.png`.
+- `tests/fake-supabase.js` y `tests/fixtures/`: Supabase falso y las preguntas originales de Getnet.
+
+Playwright ya está instalado en el entorno; no hace falta `playwright install`.
 
 ## Desplegar
 
-Con cualquiera de estas opciones, el sitio queda en una URL pública:
+Vercel despliega solo cuando se hace merge a `main`; no hay build.
 
-1. Crea un proyecto nuevo en Vercel llamado `mapa-de-areas` y sube la carpeta completa (`index.html`, `css/` y `js/`) (arrastrando la carpeta al panel o con `vercel deploy --prod` dentro de esta carpeta). No necesita framework ni comando de build.
-2. No lo subas al proyecto `pilates-project`, porque reemplazaría BersamaFlow.
+1. El proyecto de Vercel se llama `mapa-de-areas` y sirve la carpeta tal cual (`index.html`, `css/` y `js/`); no necesita framework ni comando de build.
+2. **No lo subas al proyecto `pilates-project`**: reemplazaría BersamaFlow.
 
-Para usarlo en un subdominio de bersama.dev, agrega el dominio al proyecto nuevo en Vercel y crea el registro DNS que Vercel te indique en el proveedor donde administras bersama.dev.
+Para usarlo en un subdominio de bersama.dev, agrega el dominio al proyecto en Vercel y crea el registro DNS que Vercel indique en el proveedor donde administras bersama.dev.
 
-## Antes de que lo usen los alumnos
+### Antes de que lo usen los alumnos
 
 1. En Supabase, Authentication, URL Configuration, agrega la URL final del sitio en Redirect URLs. No cambies el Site URL, porque lo usa el laboratorio.
 2. Configura un SMTP propio (por ejemplo Resend) en Authentication. El envío de correos que trae Supabase por defecto está muy limitado por hora y un grupo completo lo agotaría.
-3. Revisa el texto de privacidad de la pantalla de acceso y ajústalo a lo que quieras prometer.
-4. En el plan gratuito, Supabase pausa el proyecto después de unos días sin uso. Mientras está pausado, nadie puede entrar ni guardar. Si el sitio deja de enviar enlaces o de guardar, revisa en el panel de Supabase que `fbd-lab-tracker` esté activo.
+3. Revisa el texto de privacidad de Yo y ajústalo a lo que quieras prometer.
+4. En el plan gratuito, Supabase pausa el proyecto después de unos días sin uso. Mientras está pausado, nadie puede entrar ni guardar (el estudio sin cuenta sigue funcionando). Si el sitio deja de enviar enlaces o de guardar, revisa en el panel de Supabase que `fbd-lab-tracker` esté activo.
+
+## Decisiones y límites conocidos
+
+- Esta es la entrega 1 de 3. El **ranking con alias** va en la entrega 1b, porque necesita cuentas y progreso sincronizado; el **cuestionario nuevo**, en la entrega 2; y **más vacantes**, en la 3 (el área Investigación, `inv`, no tiene línea todavía).
+- Mientras llega la entrega 2, el cuestionario actual se conserva tal cual y su resultado es largo en teléfono.
+- La sincronización es optimista y combina por ítem; no hay validación en servidor. Un reloj mal puesto o un viaje entre zonas horarias puede hacer que un día cuente doble o no cuente.
+- Un estado local ilegible o de otra versión se ignora, se empieza de cero y se avisa; no se borra hasta que haya un estado nuevo que guardar.
+- El contenido es orientativo: resume lo que pedían las vacantes en la fecha de lectura y no es asesoría laboral.

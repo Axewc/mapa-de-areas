@@ -1,4 +1,5 @@
-// Cuestionario de áreas, resultado (con las líneas que encajan), y Mis respuestas (la vista docente vive en pantallas-cuenta.js).
+// Cuestionario de áreas: selector de versión, preguntas, resultado (con las líneas que encajan) y Mis respuestas.
+// Elegir meta, Hoy, Sesión, Mapa, Línea, Estación, Yo y la vista docente viven en los demás pantallas-*.js.
 var body = document.getElementById('quiz-body');
 var ticks = document.getElementById('ticks');
 var counter = document.getElementById('counter');
@@ -24,9 +25,6 @@ function drawModes() {
 }
 drawModes();
 function openIntro() { drawModes(); show('intro'); }
-
-
-function pad(n) { return (n < 10 ? '0' : '') + n; }
 
 function renderQuestion() {
   var q = QUESTIONS[current];
