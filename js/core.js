@@ -576,7 +576,79 @@ function lineasFor(topKeys, lines) {
   return out;
 }
 
+// Vista docente. El estado de cada alumno lo escribe su navegador: nada de él es confiable.
+// Todo número se coerciona (no finito: 0), el XP de cada día se limita a 0…1000 y solo cuentan
+// días con llave 'AAAA-MM-DD' real entre 2020-01-01 y mañana; la racha mira solo los últimos 400 días.
+var ADMIN_XP_DAY = 1000;
+var ADMIN_STREAK_DAYS = 400;
+
+function adminNum(x) {
+  var n = Number(x);
+  return isFinite(n) ? n : 0;
+}
+
+// today: 'AAAA-MM-DD'. lines y stations: LINEAS y ESTACIONES (se reciben para poder probar sin globales).
+// Devuelve { valid, goalId, pct, streak, xp, lastDay }; con estado inválido, valid false y lo demás null.
+function adminRow(state, today, lines, stations) {
+  var out = { valid: false, goalId: null, pct: null, streak: null, xp: null, lastDay: null };
+  if (!validState(state)) return out;
+  out.valid = true;
+  var hasOwn = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
+
+  var line = null, i, j, k;
+  if (typeof state.goal === 'string') {
+    for (i = 0; i < lines.length; i++) if (lines[i].id === state.goal) { line = lines[i]; break; }
+  }
+  if (line) {
+    out.goalId = line.id;
+    var items = {};
+    for (i = 0; i < line.stations.length; i++) {
+      var st = stations[line.stations[i]];
+      if (!st || !hasOwn(stations, line.stations[i])) continue;
+      var ids = itemIds(st);
+      for (j = 0; j < ids.length; j++) {
+        if (!hasOwn(state.items, ids[j]) || !isPlainObj(state.items[ids[j]])) continue;
+        var b = Math.floor(adminNum(state.items[ids[j]].b));
+        items[ids[j]] = { b: b < 0 ? 0 : b > 5 ? 5 : b };
+      }
+    }
+    var p = Math.round(100 * lineProgress({ v: 2, items: items, days: {} }, line, stations));
+    out.pct = p < 0 ? 0 : p > 100 ? 100 : p;
+  }
+
+  var minDay = '2020-01-01', maxDay = addDays(today, 1), streakFrom = addDays(today, -ADMIN_STREAK_DAYS);
+  var recent = {}, xp = 0, last = null;
+  var keys = Object.keys(state.days);
+  for (k = 0; k < keys.length; k++) {
+    var key = keys[k], d = state.days[key];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || key < minDay || key > maxDay || addDays(key, 0) !== key || !isPlainObj(d)) continue;
+    var dxp = adminNum(d.xp);
+    dxp = dxp < 0 ? 0 : dxp > ADMIN_XP_DAY ? ADMIN_XP_DAY : dxp;
+    var done = d.done === true;
+    xp += dxp;
+    if ((done || dxp > 0) && (last === null || key > last)) last = key;
+    if (key >= streakFrom) recent[key] = { xp: dxp, done: done };
+  }
+  out.xp = Math.round(xp);
+  out.lastDay = last;
+  out.streak = streak({ v: 2, items: {}, days: recent }, today).current;
+  return out;
+}
+
+// Orden de la tabla docente: último día de estudio más reciente primero, sin día al final y, a igualdad, por correo.
+// a y b: { email, row: { lastDay } }.
+function adminCompare(a, b) {
+  var da = a.row.lastDay, db = b.row.lastDay;
+  if (da !== db) {
+    if (da === null) return 1;
+    if (db === null) return -1;
+    return da < db ? 1 : -1;
+  }
+  return a.email < b.email ? -1 : a.email > b.email ? 1 : 0;
+}
+
 if (typeof module !== 'undefined') module.exports = {
+  adminRow: adminRow, adminCompare: adminCompare,
   BOX_DAYS: BOX_DAYS, BOX_WEIGHT: BOX_WEIGHT, todayYmd: todayYmd, addDays: addDays,
   emptyState: emptyState, validState: validState, itemIds: itemIds, getQuestion: getQuestion,
   reviewItem: reviewItem, stationProgress: stationProgress, isVisited: isVisited,

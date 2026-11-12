@@ -1,4 +1,4 @@
-// Pantalla Yo: avance, meta, cuenta opcional, cuestionario, borrar datos y acceso a la vista docente.
+// Pantalla Yo (avance, meta, cuenta opcional, cuestionario, borrar datos y acceso a la vista docente) y la vista docente (renderAdmin).
 // Script clásico (ES5). Usa las globales de app.js: sb, session, isAdmin, state y storage.
 
 var PRIVACIDAD = 'Sin cuenta, nada sale de tu dispositivo. Con cuenta se guardan tu correo, tus respuestas del cuestionario y tu progreso de estudio; el profesor puede verlos; puedes borrar tu progreso aquí y tus respuestas desde Mis respuestas.';
@@ -153,4 +153,114 @@ function renderYo(keep) {
 
   root.append(deleteCard());
   show('yo', keep);
+}
+
+// Vista docente: dos secciones independientes (progreso de estudio e intentos del cuestionario), cada una con su
+// propia consulta, y un filtro por correo que actúa sobre las dos en el cliente. Nada de lo que llega de la base
+// (correos, metas, días) se inserta como HTML ni se usa como llave de un objeto.
+function adminSection(id, title) {
+  var body = el('div', { class: 'stack' }, el('p', { class: 'status', text: 'Cargando…' }));
+  return { body: body, node: el('section', { class: 'admin-sec stack', 'aria-labelledby': id }, el('h2', { id: id, text: title }), body) };
+}
+
+function adminEmail(x) { return typeof x === 'string' ? x : x == null ? '' : String(x); }
+
+function adminMeta(line) {
+  return el('td', { class: 'meta' }, lineBadge(line), ' ' + line.title);
+}
+
+function adminProgressRow(item) {
+  var r = item.row, line = null, i;
+  if (r.valid && r.goalId) for (i = 0; i < LINEAS.length; i++) if (LINEAS[i].id === r.goalId) { line = LINEAS[i]; break; }
+  var dash = function (cls) { return el('td', { class: cls || '', text: '–' }); };
+  var tr = el('tr', null, el('th', { scope: 'row', class: 'who', text: item.email }));
+  if (!r.valid) {
+    tr.append(el('td', { class: 'bad', text: 'estado no válido' }), dash('num'), dash('num'), dash('num'), dash());
+    return tr;
+  }
+  tr.append(line ? adminMeta(line) : el('td', { class: 'dim', text: 'Sin meta' }),
+    r.pct === null ? dash('num') : el('td', { class: 'num', text: r.pct + '%' }),
+    el('td', { class: 'num', text: plural(r.streak, 'día', 'días') }),
+    el('td', { class: 'num', text: String(r.xp) }),
+    r.lastDay ? el('td', { text: fmtDay(r.lastDay) }) : dash());
+  return tr;
+}
+
+function renderAdmin() {
+  var root = screens.admin;
+  root.textContent = '';
+  var prog = adminSection('admin-prog-h', 'Progreso de estudio');
+  var quiz = adminSection('admin-quiz-h', 'Intentos del cuestionario');
+  var filter = el('input', { class: 'field', id: 'admin-filter', type: 'search', placeholder: 'Filtrar por correo', autocomplete: 'off', 'aria-label': 'Filtrar por correo' });
+  root.append(navBack(), el('div', null,
+    el('p', { class: 'mono', text: 'Docente' }),
+    el('h1', { text: 'Vista docente' }),
+    el('p', { class: 'sub', text: 'Cómo estudia el grupo y qué respondió en el cuestionario. Esta vista solo aparece con tu cuenta.' })),
+    filter, prog.node, quiz.node);
+  show('admin');
+
+  var today = todayYmd();
+  var progRows = null, quizRows = null;
+  var match = function (email, q) { return !q || adminEmail(email).toLowerCase().indexOf(q) !== -1; };
+
+  function drawProgress() {
+    if (!progRows) return;
+    var q = filter.value.trim().toLowerCase();
+    var shown = progRows.filter(function (x) { return match(x.email, q); });
+    var valid = progRows.filter(function (x) { return x.row.valid; }).length;
+    prog.body.textContent = '';
+    if (!progRows.length) { prog.body.append(el('p', { class: 'status', text: 'Todavía nadie guarda progreso de estudio.' })); return; }
+    prog.body.append(el('p', { class: 'small', text: plural(progRows.length, 'estudiante', 'estudiantes') + ' con progreso (' + valid + ' con estado válido).' }));
+    if (!shown.length) { prog.body.append(el('p', { class: 'status', text: 'Sin resultados.' })); return; }
+    var head = el('tr', null);
+    ['Correo', 'Meta', '% listo', 'Racha', 'XP', 'Último día'].forEach(function (h, i) {
+      head.append(el('th', { scope: 'col', class: i >= 2 && i <= 4 ? 'num' : '', text: h }));
+    });
+    var tbody = el('tbody');
+    shown.forEach(function (x) { tbody.append(adminProgressRow(x)); });
+    prog.body.append(el('p', { class: 'fine scrollhint', text: 'Desliza la tabla a un lado para ver todas las columnas.' }));
+    prog.body.append(el('div', { class: 'tablewrap' }, el('table', { class: 'prog' },
+      el('caption', { class: 'sr-only', text: 'Progreso de estudio por estudiante, del último día de estudio más reciente al más antiguo' }),
+      el('thead', null, head), tbody)));
+  }
+
+  function drawQuiz() {
+    if (!quizRows) return;
+    var q = filter.value.trim().toLowerCase();
+    var shown = quizRows.filter(function (x) { return match(x.email, q); });
+    var people = {};
+    quizRows.forEach(function (x) { people[adminEmail(x.email)] = true; });
+    quiz.body.textContent = '';
+    if (!quizRows.length) { quiz.body.append(el('p', { class: 'status', text: 'Todavía no hay intentos del cuestionario.' })); return; }
+    quiz.body.append(el('p', { class: 'small', text: plural(quizRows.length, 'intento', 'intentos') + ' de ' + plural(Object.keys(people).length, 'persona', 'personas') + '.' }));
+    if (!shown.length) { quiz.body.append(el('p', { class: 'status', text: 'Sin resultados.' })); return; }
+    var list = el('div', { class: 'attempts' });
+    shown.forEach(function (x) {
+      list.append(el('details', { class: 'attempt' },
+        el('summary', null, el('span', { class: 'mono when', text: adminEmail(x.email) + ' · ' + fmtDate(x.created_at) + ' · ' + (SETS[x.quiz_version] || SETS[1]).name }), topLine(x.scores)),
+        qaList(x.answers, x.quiz_version)
+      ));
+    });
+    quiz.body.append(list);
+  }
+
+  var fail = function (box, what, e) {
+    box.textContent = '';
+    box.append(el('div', { class: 'note', text: 'No se pudo cargar ' + what + ' (' + ((e && e.message) || 'error de red') + ').' }));
+  };
+
+  sb.from('mapa_progreso').select('email,state,updated_at').order('updated_at', { ascending: false }).limit(1000).then(function (r) {
+    if (r.error) { fail(prog.body, 'el progreso', r.error); return; }
+    progRows = (r.data || []).map(function (x) { return { email: adminEmail(x.email), row: adminRow(x.state, today, LINEAS, ESTACIONES) }; });
+    progRows.sort(adminCompare);
+    drawProgress();
+  }, function (e) { fail(prog.body, 'el progreso', e); });
+
+  sb.from('mapa_respuestas').select('id,email,created_at,answers,scores,quiz_version').order('created_at', { ascending: false }).limit(1000).then(function (r) {
+    if (r.error) { fail(quiz.body, 'las respuestas', r.error); return; }
+    quizRows = r.data || [];
+    drawQuiz();
+  }, function (e) { fail(quiz.body, 'las respuestas', e); });
+
+  filter.addEventListener('input', function () { drawProgress(); drawQuiz(); });
 }

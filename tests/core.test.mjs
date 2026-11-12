@@ -11,8 +11,10 @@ const {
   buildSession, enqueueRepeat, describeSession, nextDue,
   recordAnswer, finishSession, setGoal, totalXp, level, weekKey, streak, mergeState,
   applyShortcut, sessionSummary, segmentOffsets, lineasFor,
-  mapLabelLines, mapMarkerW, mapLayout, mapIssues, MAP_GEO, mapTextW
+  mapLabelLines, mapMarkerW, mapLayout, mapIssues, MAP_GEO, mapTextW, adminRow, adminCompare
 } = require('../js/core.js');
+const { LINEAS } = require('../js/data-lineas.js');
+const { ESTACIONES } = require('../js/data-estaciones.js');
 
 function q(tag) { return { q: 'P ' + tag, opts: ['a', 'b', 'c', 'd'], ok: 0, why: 'Porque ' + tag }; }
 function station(id) {
@@ -358,4 +360,115 @@ test('mapLayout: insignia «L#» de cada línea junto a su primera estación (li
   assert.ok(mapIssues(mapLayout(lines, ST), 44).some((m) => /insignia L1 sobre insignia L2/.test(m)));
   lines[1].badge = [350, 20];
   assert.ok(mapIssues(mapLayout(lines, ST), 44).some((m) => /insignia L2 fuera/.test(m)));
+});
+
+// Vista docente: el estado lo escribe el navegador del alumno, así que adminRow trata todo como no confiable.
+const TODAY = '2026-11-12';
+const mk = (o) => ({ v: 2, goal: null, goalT: 0, items: {}, days: {}, ...o });
+const row = (st) => adminRow(st, TODAY, LINEAS, ESTACIONES);
+const INVALID = { valid: false, goalId: null, pct: null, streak: null, xp: null, lastDay: null };
+
+test('adminRow: estado válido con meta, avance, racha, XP y último día', () => {
+  const items = {};
+  for (let n = 0; n < 6; n++) items['git.' + n] = { b: 5, due: '2026-12-01', t: 1 };
+  const r = row(mk({
+    goal: 'safe-soc', items,
+    days: { '2026-11-10': { xp: 40, done: true }, '2026-11-11': { xp: 30, done: true }, '2026-11-12': { xp: 20, done: true } }
+  }));
+  const line = LINEAS.find((l) => l.id === 'safe-soc');
+  assert.equal(r.valid, true);
+  assert.equal(r.goalId, 'safe-soc');
+  assert.equal(r.pct, Math.round(100 * lineProgress(mk({ items }), line, ESTACIONES)));
+  assert.equal(r.streak, 3);
+  assert.equal(r.xp, 90);
+  assert.equal(r.lastDay, '2026-11-12');
+});
+
+test('adminRow: estados de otra versión o con forma rara no son válidos', () => {
+  for (const bad of [{ v: 9 }, { v: 1, items: {}, days: {} }, [], null, 'x', 7, mk({ items: [] }), mk({ days: null }), { v: 2 }]) {
+    assert.deepEqual(row(bad), INVALID);
+  }
+});
+
+test('adminRow: sin meta, o con meta desconocida o con nombre de prototipo, da goalId y pct nulos', () => {
+  for (const goal of [null, undefined, '', 'no-existe', 'constructor', '__proto__', 'toString', 5, {}, ['safe-soc']]) {
+    const r = row(mk({ goal, days: { '2026-11-12': { xp: 10, done: false } } }));
+    assert.equal(r.valid, true);
+    assert.equal(r.goalId, null);
+    assert.equal(r.pct, null);
+    assert.equal(r.xp, 10);
+  }
+});
+
+test('adminRow: números basura se vuelven 0 y el avance se mantiene entre 0 y 100', () => {
+  const items = {};
+  for (const id of itemIds(ESTACIONES.git)) items[id] = { b: 'mucho' };
+  items['sql.0'] = { b: 1e12 };
+  items['sql.1'] = { b: -3 };
+  items['sql.2'] = { b: NaN };
+  items['sql.3'] = { b: 2.5 };
+  items['datos.0'] = null;
+  items['datos.1'] = 'x';
+  const r = row(mk({
+    goal: 'edar-dev-jr', items,
+    days: {
+      '2026-11-10': { xp: 'abc', done: true }, '2026-11-11': { xp: null, done: 'sí' }, '2026-11-12': { xp: -50, done: 1 },
+      '2026-11-09': null, '2026-11-08': 'x', '2026-11-07': [3], '2026-11-06': { xp: Infinity, done: false }
+    }
+  }));
+  assert.equal(r.valid, true);
+  assert.ok(Number.isFinite(r.pct) && r.pct >= 0 && r.pct <= 100);
+  assert.equal(r.xp, 0); // 'abc', null, -50 e Infinity valen 0: nunca NaN
+  assert.equal(r.streak, 1); // solo '2026-11-10' tiene done === true
+  assert.equal(r.lastDay, '2026-11-10');
+});
+
+test('adminRow: el XP de cada día se limita a 0…1000 y el total nunca es NaN', () => {
+  const r = row(mk({ days: { '2026-11-12': { xp: 1e12, done: true }, '2026-11-11': { xp: 400, done: false }, '2026-11-10': { xp: '2e9' } } }));
+  assert.equal(r.xp, 1000 + 400 + 1000);
+  assert.equal(row(mk({ days: { '2026-11-12': { xp: 1e308 * 10 } } })).xp, 0);
+});
+
+test('adminRow: ignora días con llave que no es fecha real ni razonable', () => {
+  const big = '{ "xp": 500, "done": true }';
+  // JSON.parse crea '__proto__' como llave propia, igual que en una fila remota.
+  const days = JSON.parse('{"__proto__": ' + big + ', "constructor": ' + big + ', "x": ' + big + ', "2026-13-45": ' + big +
+    ', "2026-02-30": ' + big + ', "26-11-10": ' + big + ', "2026-11-10x": ' + big + ', "0001-01-01": ' + big +
+    ', "2999-01-01": ' + big + ', "2026-11-10": { "xp": 10, "done": true }}');
+  assert.ok(Object.prototype.hasOwnProperty.call(days, '__proto__'));
+  const r = row(mk({ days }));
+  assert.equal(r.xp, 10);
+  assert.equal(r.lastDay, '2026-11-10');
+  assert.equal(r.streak, 1);
+});
+
+test('adminRow: el último día es el más reciente con done === true o XP mayor a 0', () => {
+  const r = row(mk({ days: {
+    '2026-11-12': { xp: 0, done: false }, '2026-11-11': { xp: 0, done: 'true' }, '2026-11-09': { xp: 5, done: false },
+    '2026-11-03': { xp: 0, done: true }
+  } }));
+  assert.equal(r.lastDay, '2026-11-09');
+  assert.equal(row(mk({ days: { '2026-11-12': { xp: 0, done: false } } })).lastDay, null);
+  assert.equal(row(mk()).lastDay, null);
+  assert.deepEqual([row(mk()).xp, row(mk()).streak], [0, 0]);
+});
+
+test('adminRow: la racha cuenta hasta hoy y no se rompe por días lejanos o miles de llaves', () => {
+  const days = {};
+  for (let i = 0; i < 3000; i++) days[new Date(Date.UTC(2020, 0, 1 + i)).toISOString().slice(0, 10)] = { xp: 5, done: true };
+  const t0 = Date.now();
+  const r = row(mk({ days }));
+  assert.ok(Date.now() - t0 < 2000, 'tarda demasiado');
+  assert.ok(r.streak >= 1 && Number.isFinite(r.streak));
+  assert.equal(row(mk({ days: { '2026-11-01': { xp: 5, done: true } } })).streak, 0);
+});
+
+test('adminCompare: último día más reciente primero, sin día al final y empates por correo', () => {
+  const rows = [
+    { email: 'z@t.mx', row: { lastDay: null } }, { email: 'b@t.mx', row: { lastDay: '2026-11-10' } },
+    { email: 'a@t.mx', row: { lastDay: '2026-11-10' } }, { email: 'c@t.mx', row: { lastDay: '2026-11-12' } },
+    { email: 'a@t.mx', row: { lastDay: null } }
+  ];
+  assert.deepEqual(rows.sort(adminCompare).map((r) => r.email + ':' + r.row.lastDay),
+    ['c@t.mx:2026-11-12', 'a@t.mx:2026-11-10', 'b@t.mx:2026-11-10', 'a@t.mx:null', 'z@t.mx:null']);
 });

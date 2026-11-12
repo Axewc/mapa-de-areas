@@ -1,4 +1,4 @@
-// Cuestionario de áreas, resultado (con las líneas que encajan), Mis respuestas y vista docente.
+// Cuestionario de áreas, resultado (con las líneas que encajan), y Mis respuestas (la vista docente vive en pantallas-cuenta.js).
 var body = document.getElementById('quiz-body');
 var ticks = document.getElementById('ticks');
 var counter = document.getElementById('counter');
@@ -325,43 +325,6 @@ function renderHistory() {
     var again = el('button', { class: 'btn', type: 'button', text: 'Hacer el cuestionario otra vez' });
     again.addEventListener('click', function () { startQuiz(chosen); });
     root.append(el('div', null, again));
-  });
-}
-
-function renderAdmin() {
-  var root = screens.admin;
-  root.textContent = '';
-  root.append(navBack(), el('p', { class: 'status', text: 'Cargando respuestas…' }));
-  show('admin');
-  sb.from('mapa_respuestas').select('id,email,created_at,answers,scores,quiz_version').order('created_at', { ascending: false }).limit(1000).then(function (r) {
-    root.textContent = '';
-    root.append(navBack());
-    if (r.error) { root.append(el('div', { class: 'note', text: 'No se pudieron cargar las respuestas: ' + r.error.message })); return; }
-    var rows = r.data || [];
-    var people = {};
-    rows.forEach(function (x) { people[x.email] = (people[x.email] || 0) + 1; });
-    root.append(el('div', null,
-      el('p', { class: 'mono', text: 'Vista docente' }),
-      el('h1', { text: 'Respuestas del grupo' }),
-      el('p', { class: 'sub', text: rows.length + ' intentos de ' + Object.keys(people).length + ' personas. Esta vista solo aparece con tu cuenta.' })
-    ));
-    var filter = el('input', { class: 'field', id: 'admin-filter', type: 'search', placeholder: 'Filtrar por correo', autocomplete: 'off' });
-    var list = el('div', { class: 'attempts' });
-    function draw() {
-      var q = filter.value.trim().toLowerCase();
-      list.textContent = '';
-      var shown = rows.filter(function (x) { return !q || x.email.indexOf(q) !== -1; });
-      if (!shown.length) list.append(el('p', { class: 'status', text: 'Sin resultados.' }));
-      shown.forEach(function (x) {
-        list.append(el('details', { class: 'attempt' },
-          el('summary', null, el('span', { class: 'mono when', text: x.email + ' · ' + fmtDate(x.created_at) + ' · ' + (SETS[x.quiz_version] || SETS[1]).name }), topLine(x.scores)),
-          qaList(x.answers, x.quiz_version)
-        ));
-      });
-    }
-    filter.addEventListener('input', draw);
-    draw();
-    root.append(filter, list);
   });
 }
 

@@ -291,6 +291,19 @@ th { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.06em; tex
 td:first-child { white-space: normal; min-width: 12rem; }
 td.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; }
 td.hi { font-weight: 600; background: var(--tint); }
+.wrap:has(#s-admin:not([hidden])) { max-width: 960px; } /* la vista docente es una tabla: en pantalla grande usa más ancho */
+.admin-sec { margin-top: 1.5rem; }
+.admin-sec > h2 { margin-bottom: 0; }
+table.prog tbody th { font-family: var(--f-body); font-size: 0.9rem; letter-spacing: 0; text-transform: none; color: var(--ink); font-weight: 500; white-space: normal; overflow-wrap: anywhere; min-width: 9.5rem; max-width: 14rem; text-align: left; }
+table.prog td.meta { white-space: normal; min-width: 8rem; }
+.scrollhint { display: none; }
+@media (max-width: 719px) { .scrollhint { display: block; } }
+table.prog tbody th { position: sticky; left: 0; background: var(--panel); z-index: 1; box-shadow: 1px 0 0 var(--line); }
+table.prog tbody tr:last-child th, table.prog tbody tr:last-child td { border-bottom: 0; }
+table.prog td.bad { color: var(--muted); font-style: italic; }
+table.prog td.dim { color: var(--muted); }
+table.prog td.num { text-align: right; }
+table.prog th.num { text-align: right; }
 .attempts { display: flex; flex-direction: column; gap: 10px; }
 .attempt { background: var(--panel); border: 1.5px solid var(--line); border-radius: 10px; padding: 0.8rem 1rem; }
 .attempt summary { cursor: pointer; font-weight: 500; line-height: 1.4; }

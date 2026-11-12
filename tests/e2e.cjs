@@ -6,6 +6,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { ESTACIONES } = require('../js/data-estaciones.js');
 const { todayYmd, addDays, weekKey } = require('../js/core.js');
+const { scoreAnswers } = require('../js/data-areas.js');
 
 const INDEX_URL = 'file://' + path.resolve(__dirname, '../index.html');
 const FAKE = fs.readFileSync(path.join(__dirname, 'fake-supabase.js'), 'utf8');
@@ -21,7 +22,7 @@ async function setupRoutes(page) {
 const noHScroll = () => document.documentElement.scrollWidth <= window.innerWidth;
 
 // Abre el sitio. Por defecto sin sesión (la primera visita normal).
-// opts: { seed, session, admin, failSync, slowSync (ms), failDelete, local, clock (fecha fija) }.
+// opts: { seed, seedJson (texto JSON del seed, para llaves como «__proto__»), session, admin, failSync, slowSync (ms), failDelete, local, clock (fecha fija) }.
 // `local` es el texto que se guarda en localStorage antes de cargar (null: no se toca).
 async function openHome(context, opts) {
   const o = opts || {};
@@ -30,7 +31,7 @@ async function openHome(context, opts) {
   page.on('pageerror', (e) => errors.push(e.message));
   await setupRoutes(page);
   await page.addInitScript((a) => {
-    window.__seed = Object.assign({}, a.seed || {}, a.session ? { session: true } : {});
+    window.__seed = Object.assign({}, a.seedJson ? JSON.parse(a.seedJson) : (a.seed || {}), a.session ? { session: true } : {});
     if (a.admin) window.__fakeAdmin = true;
     if (a.failSync) window.__failSync = true;
     if (a.local !== null && a.local !== undefined && !sessionStorage.getItem('e2e.seeded')) {
@@ -39,7 +40,7 @@ async function openHome(context, opts) {
     }
     if (a.slowSync) window.__slowSync = a.slowSync;
     if (a.failDelete) window.__failDelete = true;
-  }, { seed: o.seed, session: !!o.session, admin: !!o.admin, failSync: !!o.failSync, slowSync: o.slowSync || 0, failDelete: !!o.failDelete,
+  }, { seed: o.seed, seedJson: o.seedJson || null, session: !!o.session, admin: !!o.admin, failSync: !!o.failSync, slowSync: o.slowSync || 0, failDelete: !!o.failDelete,
     local: o.local === undefined ? null : o.local, key: KEY });
   if (o.clock) await page.clock.setFixedTime(new Date(o.clock));
   await page.goto(INDEX_URL);
@@ -492,6 +493,133 @@ async function cuestionarioScenarios(browser, setStep) {
   await ctx2.close();
 }
 
+// Filas de mapa_progreso para la vista docente. Se arman como texto JSON para que «__proto__» sea una llave propia,
+// como llega de la base de datos.
+const TEACHER_DAY = '2026-11-10';
+const goalOnly = () => ({ v: 2, goal: 'edar-dev-jr', goalT: 1, items: {}, days: {} });
+function teacherSeedJson() {
+  const items = {};
+  // Primera estación de safe-soc entera en caja 5 y la segunda empezada: el avance sale de estaciones de su meta.
+  const soc = require('../js/data-lineas.js').LINEAS.find((l) => l.id === 'safe-soc').stations;
+  for (let n = 0; n < 6; n++) items[soc[0] + '.' + n] = { b: 5, due: '2026-12-20', t: 1 };
+  for (let n = 0; n < 2; n++) items[soc[1] + '.' + n] = { b: 2, due: '2026-12-20', t: 1 };
+  const otra = { v: 2, goal: 'safe-soc', goalT: 1, items, days: {
+    '2026-11-08': { xp: 50, done: true }, '2026-11-09': { xp: 60, done: true }, [TEACHER_DAY]: { xp: 70, done: true } } };
+  const weird = '{"v":2,"goal":"constructor","goalT":1,"items":{"__proto__":{"b":5},"git.0":{"b":"mucho"}},"days":{"__proto__":{"xp":999,"done":true},"x":{"xp":50,"done":true},"2026-11-10":{"xp":1e12,"done":true}}}';
+  const quiz = (email, n) => ({ id: 'q' + n, user_id: 'u' + n, email, created_at: '2026-11-0' + n + 'T12:00:00Z', answers: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    scores: Object.fromEntries(scoreAnswers([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 2).map((r) => [r.key, r.pct])), quiz_version: 2 });
+  return '{"mapa_progreso":[' + [
+    JSON.stringify({ user_id: 'u5', email: 'otra@test.mx', state: otra, updated_at: '2026-11-10T10:00:00Z' }),
+    JSON.stringify({ user_id: 'u2', email: 'rara@test.mx', state: { v: 9 }, updated_at: '2026-11-10T09:00:00Z' }),
+    '{"user_id":"u3","email":"weird@test.mx","state":' + weird + ',"updated_at":"2026-11-10T08:00:00Z"}',
+    JSON.stringify({ user_id: 'u4', email: 'nuevo@test.mx', state: { v: 2, goal: null, goalT: 0, items: {}, days: {} }, updated_at: '2026-11-10T07:00:00Z' })
+  ].join(',') + '],"mapa_respuestas":' + JSON.stringify([quiz('otra@test.mx', 1), quiz('nuevo@test.mx', 2), quiz('rara@test.mx', 3)]) + '}';
+}
+
+async function teacherScenarios(browser, setStep) {
+  setStep('vista docente');
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const o = await openHome(ctx, { session: true, admin: true, seedJson: teacherSeedJson(), clock: TEACHER_DAY + 'T12:00:00',
+    local: JSON.stringify(goalOnly()) });
+  const { page } = o;
+  await page.click('#tabbar [data-tab=yo]');
+  await page.waitForSelector('#s-yo button:has-text("Vista docente")');
+  await page.click('#s-yo button:has-text("Vista docente")');
+  await page.waitForSelector('#s-admin:not([hidden]) h1');
+  assert.equal(await page.textContent('#s-admin h1'), 'Vista docente');
+  await page.waitForSelector('#s-admin table.prog tbody tr');
+  const heads = await page.locator('#s-admin table.prog thead th').allTextContents();
+  assert.deepEqual(heads, ['Correo', 'Meta', '% listo', 'Racha', 'XP', 'Último día']);
+  assert.match(await page.textContent('#s-admin table.prog caption'), /progreso de estudio/i);
+  assert.equal(await page.locator('#s-admin .tablewrap table.prog').count(), 1);
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#s-admin .tablewrap')).overflowX), 'auto');
+  const rowsOf = () => page.locator('#s-admin table.prog tbody tr').evaluateAll((trs) =>
+    trs.map((tr) => Array.from(tr.children, (c) => c.tagName + ':' + c.textContent.trim())));
+  const rows = await rowsOf();
+  // Orden: último día desc, empate por correo, sin día al final.
+  assert.deepEqual(rows.map((r) => r[0]), ['TH:otra@test.mx', 'TH:weird@test.mx', 'TH:alumno@test.mx', 'TH:nuevo@test.mx', 'TH:rara@test.mx']);
+  const fmt = await page.evaluate(() => fmtDay('2026-11-10'));
+  assert.match(rows[0][1], /^TD:L5\s*Analista SOC Tier 2$/);
+  assert.match(rows[0][2], /^TD:[1-9]\d?%$/, 'avance mayor a 0');
+  assert.equal(rows[0][3], 'TD:3 días');
+  assert.equal(rows[0][4], 'TD:180');
+  assert.equal(rows[0][5], 'TD:' + fmt);
+  // Goal 'constructor' y días con llaves peligrosas: Sin meta, XP topado (1000 + 50 del día «x» se ignora), sin romper nada.
+  assert.deepEqual(rows[1].slice(1), ['TD:Sin meta', 'TD:–', 'TD:1 día', 'TD:1000', 'TD:' + fmt]);
+  // alumno@test.mx es la cuenta docente: su propio progreso (sin estudio todavía) también se guardó al iniciar sesión.
+  assert.deepEqual(rows[2].slice(1), ['TD:L1 Desarrollador de Software Jr.', 'TD:0%', 'TD:0 días', 'TD:0', 'TD:–']);
+  assert.deepEqual(rows[3].slice(1), ['TD:Sin meta', 'TD:–', 'TD:0 días', 'TD:0', 'TD:–']);
+  assert.deepEqual(rows[4].slice(1), ['TD:estado no válido', 'TD:–', 'TD:–', 'TD:–', 'TD:–']);
+  assert.match(await page.textContent('#s-admin'), /5 estudiantes con progreso/);
+  assert.match(await page.textContent('#s-admin'), /4 con estado válido/);
+  assert.equal(await page.locator('#s-admin table.prog tbody th[scope=row]').count(), 5);
+  assert.equal(await page.locator('#s-admin thead th[scope=col]').count(), 6);
+  // El quiz sigue: 3 intentos.
+  assert.match(await page.textContent('#s-admin'), /Intentos del cuestionario/);
+  assert.equal(await page.locator('#s-admin .attempts details.attempt').count(), 3);
+  assert.equal(await page.locator('#s-admin h2').count(), 2);
+  assert.ok(await page.evaluate(noHScroll), 'scroll horizontal de la página a 390 px');
+  // El filtro actúa en las dos secciones y no vuelve a consultar.
+  const selects = await page.evaluate(() => window.__selectCount);
+  await page.fill('#admin-filter', 'OTRA');
+  assert.equal((await rowsOf()).length, 1);
+  assert.equal(await page.locator('#s-admin .attempts details.attempt').count(), 1);
+  await page.fill('#admin-filter', 'zzz');
+  assert.equal(await page.locator('#s-admin table.prog').count(), 0);
+  assert.equal(await page.locator('#s-admin .admin-sec', { hasText: 'Sin resultados.' }).count(), 2);
+  await page.fill('#admin-filter', '');
+  assert.equal((await rowsOf()).length, 5);
+  assert.deepEqual(o.errors, [], 'errores de JS en la vista docente');
+  assert.equal(await page.evaluate(() => window.__selectCount), selects, 'el filtro no vuelve a consultar');
+  // «← Volver» regresa a Yo.
+  await page.click('#s-admin .topnav button');
+  await page.waitForSelector('#s-yo:not([hidden])');
+  await ctx.close();
+
+  // Revisión visual: sin scroll horizontal de la página en claro y oscuro, a 390 y 1280 px.
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    for (const cs of ['light', 'dark']) {
+      setStep('vista docente: revisión visual ' + vp.width + ' px, tema ' + cs);
+      const c = await browser.newContext({ viewport: vp, colorScheme: cs, deviceScaleFactor: 1 });
+      const v = await openHome(c, { session: true, admin: true, seedJson: teacherSeedJson(), clock: TEACHER_DAY + 'T12:00:00', local: JSON.stringify(goalOnly()) });
+      await v.page.click('#tabbar [data-tab=yo]');
+      await v.page.click('#s-yo button:has-text("Vista docente")');
+      await v.page.waitForSelector('#s-admin table.prog tbody tr');
+      await v.page.waitForSelector('#s-admin .attempts details.attempt');
+      assert.ok(await v.page.evaluate(noHScroll), 'scroll horizontal en la vista docente (' + vp.width + ', ' + cs + ')');
+      if (SHOTS) await v.page.screenshot({ path: path.join(SHOTS, vp.width + '-' + cs + '-docente.png'), fullPage: true, animations: 'disabled' });
+      assert.deepEqual(v.errors, []);
+      await c.close();
+    }
+  }
+
+  // Una consulta que falla no tumba la otra sección.
+  setStep('vista docente: el progreso falla, el cuestionario sigue');
+  const ctxF = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const f = await openHome(ctxF, { session: true, admin: true, failSync: true, seedJson: teacherSeedJson(), clock: TEACHER_DAY + 'T12:00:00', local: JSON.stringify(goalOnly()) });
+  await f.page.click('#tabbar [data-tab=yo]');
+  await f.page.click('#s-yo button:has-text("Vista docente")');
+  await f.page.waitForSelector('#s-admin .attempts details.attempt');
+  assert.match(await f.page.textContent('#s-admin'), /No se pudo cargar el progreso \(sin red\)/);
+  assert.equal(await f.page.locator('#s-admin table.prog').count(), 0);
+  assert.equal(await f.page.locator('#s-admin .attempts details.attempt').count(), 3);
+  assert.deepEqual(f.errors, []);
+  await ctxF.close();
+
+  // Sin filas de progreso: estado vacío.
+  setStep('vista docente: vacía');
+  const ctxE = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const e = await openHome(ctxE, { session: true, admin: true, clock: TEACHER_DAY + 'T12:00:00', local: JSON.stringify(goalOnly()) });
+  await e.page.evaluate(() => { window.__db.mapa_progreso = []; window.__db.mapa_respuestas = []; }); // el inicio de sesión guardó la fila de la cuenta docente
+  await e.page.click('#tabbar [data-tab=yo]');
+  await e.page.click('#s-yo button:has-text("Vista docente")');
+  await e.page.waitForSelector('#s-admin:not([hidden]) h1');
+  await e.page.waitForFunction(() => /Todavía nadie guarda progreso de estudio\./.test(document.getElementById('s-admin').textContent));
+  assert.match(await e.page.textContent('#s-admin'), /Todavía no hay intentos del cuestionario\./);
+  assert.deepEqual(e.errors, []);
+  await ctxE.close();
+}
+
 async function main() {
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -921,15 +1049,7 @@ async function main() {
 
     await cuestionarioScenarios(browser, (t) => { step = t; });
 
-    step = 'vista docente desde Yo';
-    const ctxA = await browser.newContext({ viewport: { width: 390, height: 844 } });
-    const adm = await openHome(ctxA, { session: true, admin: true, local: JSON.stringify(progressState()) });
-    await adm.page.click('#tabbar [data-tab=yo]');
-    await adm.page.waitForSelector('#s-yo button:has-text("Vista docente")');
-    await adm.page.click('#s-yo button:has-text("Vista docente")');
-    await adm.page.waitForSelector('#s-admin:not([hidden]) h1');
-    assert.deepEqual(adm.errors, [], 'errores de JS en la vista docente');
-    await ctxA.close();
+    await teacherScenarios(browser, (t) => { step = t; });
 
     for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       for (const cs of ['light', 'dark']) {

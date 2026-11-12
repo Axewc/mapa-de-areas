@@ -6,6 +6,7 @@
 //   window.__seed.session → sesión iniciada al cargar (si no, desconectado)
 //   window.__fakeLogin() → inicia sesión y avisa SIGNED_IN a los listeners
 //   window.__failSync   → el select de mapa_progreso devuelve error
+//   window.__selectCount → cuántos select se han hecho (para comprobar que un filtro no vuelve a consultar)
 //   window.__slowSync   → ms de espera antes de responder un select o upsert de mapa_progreso
 (function () {
   var seed = window.__seed || {};
@@ -65,6 +66,7 @@
       window.__db[this.table] = rows.filter(function (r) { return !(match(r) && r.user_id === USER.id); });
       return { data: null, error: null };
     }
+    window.__selectCount = (window.__selectCount || 0) + 1;
     if (this.table === 'mapa_progreso' && window.__failSync) return { data: null, error: { message: 'sin red' } };
     // RLS: cada quien ve lo suyo; la cuenta docente ve todo.
     var out = rows.filter(function (r) { return match(r) && (window.__fakeAdmin || r.user_id === USER.id); }).map(copy);
