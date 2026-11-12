@@ -782,6 +782,18 @@ async function sharedStateScenarios(browser, setStep) {
   assert.deepEqual(B.errors, []);
   await ctx.close();
 
+  setStep('la semana y la racha coinciden con un día cuyo done no es true');
+  const ctxW = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const oddDays = { v: 2, goal: 'edar-dev-jr', goalT: 1, items: {}, days: { '2026-11-09': { xp: 50, done: 1 }, '2026-11-10': { xp: 50, done: true } } };
+  const W = await openHome(ctxW, { clock: '2026-11-11T12:00:00', local: JSON.stringify(oddDays) });
+  await W.page.waitForSelector('#s-hoy:not([hidden])');
+  const weekLabels = await W.page.locator('#s-hoy .week li .sr-only').allTextContents();
+  assert.equal(weekLabels[0], 'lunes, sin sesión', 'done:1 no cuenta como día cumplido en la semana');
+  assert.equal(weekLabels[1], 'martes, cumplido');
+  assert.match(await W.page.textContent('#s-hoy .chip'), /Racha · 1 día/, 'y la racha lo ignora igual');
+  assert.deepEqual(W.errors, []);
+  await ctxW.close();
+
   setStep('lo respondido durante una sincronización no se pierde sin localStorage');
   const ctxN = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const N = await openHome(ctxN, { session: true, slowSync: 600, noStorage: true });

@@ -83,7 +83,7 @@ function weekStrip(today) {
   var ol = el('ol', { class: 'week', 'aria-label': 'Esta semana' });
   for (var i = 0; i < 7; i++) {
     var d = addDays(mon, i);
-    var done = !!(state.days[d] && state.days[d].done);
+    var done = coreIsDone(state, d); // la misma regla que la racha
     var isRest = !done && rest.indexOf(d) !== -1;
     var isToday = d === today;
     var future = d > today;
