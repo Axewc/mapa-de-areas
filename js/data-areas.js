@@ -366,7 +366,7 @@ var SETS = {
   { q: "Un programa que hiciste deja de funcionar y un asistente de IA te propone un arreglo. ¿Qué haces primero?", opts: [
     { t: "Reviso qué cambió en la conexión o la configuración antes de aceptarlo", p: {inf: 3, sec: 1} },
     { t: "Leo el arreglo línea por línea para ver si la lógica cuadra", p: {bak: 3} },
-    { t: "Me fijo si el arreglo deja abierta una puerta que antes estaba cerrada", p: {sec: 3, inf: 1} },
+    { t: "Me fijo si el arreglo deja abierta una puerta que antes estaba cerrada", p: {sec: 3, bak: 1} },
     { t: "Me quedo con la duda de por qué falló, aunque el arreglo funcione", p: {inv: 3} },
     { t: "Reproduzco la falla como la viviría quien usa el programa", p: {web: 3} }
   ]},
@@ -386,7 +386,7 @@ var SETS = {
   { q: "Vas a ayudar con el sistema de inscripciones de tu facultad en la semana de altas y bajas. ¿De qué parte te gustaría encargarte?", opts: [
     { t: "Cuidar que nadie entre con la cuenta de otro ni cambie calificaciones", p: {sec: 3} },
     { t: "Lograr que siga funcionando aunque miles entren a la misma hora", p: {inf: 3, bak: 1} },
-    { t: "Asegurar que las reglas de cupo y horarios se cumplan sin errores", p: {bak: 3, web: 1} },
+    { t: "Asegurar que las reglas de cupo y horarios se cumplan sin errores", p: {bak: 3} },
     { t: "Estimar qué tan probable es una falla y cuánto afectaría", p: {rsk: 3} }
   ]},
   { q: "Una tiendita de tu colonia quiere vender más y te pide ayuda. ¿Por dónde empiezas?", opts: [
@@ -397,7 +397,7 @@ var SETS = {
   ]},
   { q: "En tu próximo proyecto, un asistente de IA hace el primer borrador. ¿Qué parte del trabajo quieres hacer tú?", opts: [
     { t: "Afinar cómo se ve y se siente hasta que sea cómodo de usar", p: {web: 3} },
-    { t: "Ordenar la lógica por dentro para que sea fácil de cambiar", p: {bak: 3, web: 1} },
+    { t: "Ordenar la lógica por dentro para que sea fácil de cambiar", p: {bak: 3} },
     { t: "Escoger los ejemplos con los que el programa aprende a predecir", p: {ml: 3, dat: 2} },
     { t: "Atacarlo por mi cuenta para encontrar sus huecos antes que otros", p: {sec: 3} },
     { t: "Diseñar el experimento que muestre si la idea funciona", p: {inv: 3} }

@@ -95,7 +95,7 @@ test('v3: MAXP equilibrado y cada área suma en 4 preguntas o más', () => {
 });
 
 test('v3: MAXP fijo (detecta errores al copiar pesos)', () => {
-  assert.deepEqual({ ...MAXP[3] }, { dat: 14, ml: 12, bak: 15, web: 14, rsk: 14, con: 13, sec: 12, inf: 13, inv: 12 });
+  assert.deepEqual({ ...MAXP[3] }, { dat: 14, ml: 12, bak: 15, web: 13, rsk: 14, con: 13, sec: 12, inf: 13, inv: 12 });
 });
 
 test('desempate: mismo porcentaje redondeado, gana la mayor proporción exacta', () => {
