@@ -109,8 +109,8 @@ Hay 32, en `js/data-estaciones.js` (objeto `{ id: Estacion }`). Las compartidas 
 5. **Lugares donde las pruebas fijan los conteos y los nombres** (se actualizan al agregar; los números de línea son los actuales):
    - `tests/content.test.mjs`, prueba «hay 32 estaciones y 9 líneas, en orden L1 a L9» (línea 103): el conteo de estaciones y la lista de ids de las líneas. Las pruebas por línea (líneas 83, 113 y 134) fijan las nueve existentes; conviene agregar ahí la nueva.
    - `tests/content.test.mjs`, prueba «cada estación tiene en el glosario sus términos» (línea 252): la lista `need` es manual. Los términos de una estación nueva solo se exigen si los agregas ahí; hazlo siempre.
-   - `tests/quiz.test.mjs` (líneas 20 a 24) y `tests/core.test.mjs` (`lineasFor`, línea 262): las líneas esperadas por área. Una línea nueva con un área que ya tiene línea, o con `inv`, los cambia.
-   - `tests/e2e.cjs`: 9 líneas y 32 estaciones en el mapa (líneas 326, 327, 330 y 335), 9 tarjetas y sus niveles en «Elegir meta» (líneas 837 a 841), las líneas que enlaza el resultado del cuestionario (línea 523) y la prueba de la miniatura de Hoy, que recorre todas las líneas (`miniLineScenarios`).
+   - `tests/quiz.test.mjs` (líneas 20 a 24) y `tests/core.test.mjs` (`lineasFor`, línea 263): las líneas esperadas por área. Una línea nueva con un área que ya tiene línea, o con `inv`, los cambia.
+   - `tests/e2e.cjs`: 9 líneas y 32 estaciones en el mapa (líneas 326, 327, 330 y 335), 9 tarjetas y sus niveles en «Elegir meta» (líneas 885 a 889), las líneas que enlaza el resultado del cuestionario (línea 523) y la prueba de la miniatura de Hoy, que recorre todas las líneas (`miniLineScenarios`).
 6. Corre `node --test tests/*.test.mjs` y `node tests/e2e.cjs`; con `SHOTS_DIR=… node tests/e2e.cjs` revisa en las capturas que el mapa y la miniatura de Hoy se vean bien.
 
 ## Datos y privacidad
@@ -170,7 +170,7 @@ Son scripts clásicos, no módulos, para que el sitio también abra desde `file:
 ## Pruebas
 
 ```sh
-node --test tests/*.test.mjs                  # 109 pruebas de lógica y contenido
+node --test tests/*.test.mjs                  # 111 pruebas de lógica y contenido
 node tests/e2e.cjs                            # flujo completo en Chromium con un Supabase falso
 SHOTS_DIR=/tmp/capturas node tests/e2e.cjs    # además guarda capturas en esa carpeta
 ```
