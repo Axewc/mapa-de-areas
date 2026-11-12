@@ -359,6 +359,8 @@ var SETS = {
 
 // [nombre, texto a buscar en minúsculas, explicación]
 var GLOSS = [
+  ["Permisos mínimos", "permisos mínimos", "Darle a una persona o a un programa solo los permisos que necesita para su tarea y nada más, así un error o una contraseña robada hace menos daño. También se le llama principio de mínimo privilegio."],
+  ["Mínimo permiso", "mínimo permiso", "Darle a una persona o a un programa solo el permiso que necesita para su tarea y nada más, así un error o una contraseña robada hace menos daño. También se le llama principio de mínimo privilegio."],
   ["Jupyter notebook", "notebook", "Un documento donde escribes código por partes y ves el resultado al instante, con gráficas y notas. Es la herramienta más común para analizar datos."],
   ["Power BI", "power bi", "Programa de Microsoft para armar tableros: gráficas y tablas que se pueden filtrar, hechas a partir de datos."],
   ["API", "api", "La ventanilla con la que un programa le pide cosas a otro. Ejemplo: la app del clima le pregunta a un servidor qué temperatura hay."],
@@ -417,7 +419,8 @@ var GLOSS = [
   ["Llave primaria", "llave primaria", "La columna que identifica cada fila de una tabla sin repetirse, como el número de empleado."],
   ["Llave foránea", "llave foránea", "Una columna que apunta a la llave primaria de otra tabla, para conectarlas sin copiar datos."],
   ["NULL", "null", "En una base de datos, una celda vacía: no hay valor. No es cero ni texto vacío, y se busca con IS NULL."],
-  ["SELECT, FROM y WHERE", "select", "Las tres partes de una consulta SQL: qué columnas quieres, de qué tabla y qué filas."],
+  ["SELECT y FROM", "select", "Las dos primeras partes de una consulta SQL: SELECT dice qué columnas quieres y FROM, de qué tabla."],
+  ["WHERE", "where", "En SQL, la parte de la consulta que filtra filas: solo quedan las que cumplen la condición. Por ejemplo, WHERE area = 'Ventas' deja solo las filas del área de Ventas."],
   ["JOIN", "join", "En SQL, unir dos tablas por una columna en común. INNER JOIN deja solo las filas con pareja; LEFT JOIN conserva todas las de la primera tabla."],
   ["GROUP BY", "group by", "En SQL, juntar las filas que comparten un valor para contarlas o sumarlas por grupo."],
   ["HAVING", "having", "En SQL, el filtro que se aplica a los grupos ya contados, como «solo las áreas con más de 10»."],
@@ -560,7 +563,8 @@ var GLOSS = [
   ["Sobreajuste", "sobreajuste", "Cuando un modelo memoriza los ejemplos de entrenamiento, con todo y su ruido, y falla con datos nuevos."],
   ["Ingeniería de variables", "feature engineering", "Convertir datos crudos en variables útiles para un modelo, como sacar la edad de la fecha de nacimiento."],
   ["Fuga de datos", "fuga de datos", "Cuando el modelo se entrena con información que no tendría al momento de predecir. Luce perfecto en las pruebas y falla en la realidad."],
-  ["Precisión y recall", "recall", "La precisión dice, de lo que el modelo marcó, cuánto era correcto. El recall dice, de todo lo que había que encontrar, cuánto encontró."],
+  ["Precisión", "precisión", "De todo lo que el modelo marcó (por ejemplo, como fraude), la parte que de verdad lo era. Si marca 100 cobros y 90 eran fraude, su precisión es 90%."],
+  ["Recall", "recall", "De todo lo que había que encontrar, la parte que el modelo sí encontró. Si hubo 300 fraudes y encontró 90, su recall es 30%."],
   ["Interpretabilidad", "interpretabilidad", "Poder explicar por qué un modelo dio cierta predicción, por ejemplo qué variables pesaron más en un rechazo."],
   ["SHAP", "shap", "Un método para explicar una predicción: reparte el resultado de un caso entre sus variables, para ver cuál empujó hacia qué lado."],
   ["scikit-learn", "scikit-learn", "La librería de Python más usada para ML clásico: regresión, clasificación, agrupamiento y evaluación de modelos."],

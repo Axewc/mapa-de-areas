@@ -242,6 +242,8 @@ test('glossHits: la clave cuenta solo como palabra completa', () => {
   assert.ok(!hit('una hoja excelente', 'excel'));
   assert.ok(hit('COUNT(*) cuenta filas', 'count('));
   assert.ok(hit('BUSCARX devuelve #N/D', '#n/d'));
+  assert.ok(hit('WHERE area = 1', 'where') && !hit('somewhere else', 'where') && !hit('nowhere', 'where'));
+  assert.ok(hit('la precisión de 90%', 'precisión') && hit('permisos mínimos', 'permisos mínimos') && hit('con el mínimo permiso', 'mínimo permiso'));
   assert.ok(hit('usa CONTAR.SI.CONJUNTO', 'contar.si'));
   const g = [['Uno', 'a.b', 'x'], ['Dos', 'c+d', 'y']];
   assert.deepEqual(glossHits(['axb y c+d'], g).map(x => x[0]), ['Dos']);
@@ -250,19 +252,19 @@ test('glossHits: la clave cuenta solo como palabra completa', () => {
 test('cada estación tiene en el glosario sus términos', () => {
   const need = {
     git: ['git', 'commit', 'branch', 'pull request'], datos: ['llave primaria', 'llave foránea', 'null'],
-    sql: ['select', 'join', 'group by', 'having', 'distinct'], apis: ['endpoint', 'métodos http', 'código de estado', 'json'],
+    sql: ['select', 'where', 'join', 'group by', 'having', 'distinct'], apis: ['endpoint', 'métodos http', 'código de estado', 'json'],
     'pruebas-auto': ['prueba unitaria', 'pytest', 'mock', 'regresión'], hojas: ['buscarx', 'contar.si', 'sumar.si', 'tabla dinámica', 'función espacios'],
     tableros: ['power query', 'segmentación', 'visual de tarjeta'], indicadores: ['rotación', 'ausentismo', 'plantilla'],
     'casos-prueba': ['partición de equivalencia', 'valores límite'], defectos: ['severidad', 'log'],
-    linux: ['linux', 'terminal', 'grep', 'systemctl', 'df -h', 'free -h', 'comando top'], nube: ['ec2', 'de iam', 'rds', 'aws cli', 'región de aws'],
+    linux: ['linux', 'terminal', 'grep', 'systemctl', 'df -h', 'free -h', 'comando top'], nube: ['mínimo permiso', 'ec2', 'de iam', 'rds', 'aws cli', 'región de aws'],
     monitoreo: ['cloudwatch', 'métrica', 'saturación', 'sre'],
     redes: ['dirección ip', 'puerto', 'dns', 'firewall', 'tcp', 'dominio'], amenazas: ['vulnerabilidad', 'cve', 'phishing', 'parche', 'nvd', 'dominio'],
     incidentes: ['incidente', 'contención', 'falso positivo', 'siem'], python: ['python', 'pandas', 'dataframe'],
     estadistica: ['mediana', 'desviación estándar', 'correlación', 'valor p'],
-    ml: ['aprendizaje supervisado', 'sobreajuste', 'conjunto de prueba', 'feature engineering', 'shap', 'interpretabilidad'],
+    ml: ['aprendizaje supervisado', 'precisión', 'recall', 'sobreajuste', 'conjunto de prueba', 'feature engineering', 'shap', 'interpretabilidad'],
     llm: ['llm', 'token', 'embedding', 'prompt', 'ia generativa', 'agéntica'], rag: ['chunk', 'bm25', 'embedding'],
     evaluacion: ['conjunto de evaluación', 'regresión', 'rúbrica'], agentes: ['agente', 'flujo fijo'],
-    multiagente: ['orquestador'], guardrails: ['inyección de instrucciones', 'pydantic'], mcp: ['mcp', 'servidor mcp'],
+    multiagente: ['orquestador'], guardrails: ['inyección de instrucciones', 'pydantic'], mcp: ['permisos mínimos', 'mcp', 'servidor mcp'],
     observabilidad: ['traza', 'opentelemetry', 'latencia'],
     requerimientos: ['requerimiento', 'no funcional', 'historia de usuario', 'criterios de aceptación', 'análisis de impacto', 'usuarios funcionales', 'sistemas legados'],
     diagramas: ['diagrama de flujo', 'bpmn', 'carril', 'uml', 'caso de uso', 'actor', 'diagrama de secuencia', 'draw.io'],
@@ -271,8 +273,16 @@ test('cada estación tiene en el glosario sus términos', () => {
     riesgo: ['frecuencia y severidad', 'severidad', 'pérdida esperada', 'prima de riesgo', 'exposición', 'cúmulo', 'modelo catastrófico', 'zona de lago', 'monte carlo']
   };
   for (const id of Object.keys(need)) {
-    if (!ESTACIONES[id]) continue;
+    assert.ok(ESTACIONES[id], 'la estación «' + id + '» de la lista no existe');
     const keys = glossHits([JSON.stringify(ESTACIONES[id])], GLOSS).map(g => g[1]);
     need[id].forEach(k => assert.ok(keys.includes(k), id + ': ' + k));
+  }
+});
+
+test('«where», «precisión», «permisos mínimos» y «mínimo permiso» solo aparecen donde se usan', () => {
+  const esperado = { where: ['sql'], 'precisión': ['ml'], 'mínimo permiso': ['nube'], 'permisos mínimos': ['mcp'] };
+  for (const k of Object.keys(esperado)) {
+    const donde = ids.filter(id => glossHits([JSON.stringify(ESTACIONES[id])], GLOSS).some(g => g[1] === k));
+    assert.deepEqual(donde, esperado[k], k);
   }
 });
