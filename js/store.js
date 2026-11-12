@@ -1,9 +1,11 @@
 // Guardado local del progreso (localStorage). ES5, script clásico.
 var STORE_KEY = 'mapa.v2';
+var QUIZ_KEY = 'mapa.quiz';    // último intento del cuestionario: { v: 3, t, answers }
+var TIP_KEY = 'mapa.quizTip';  // '1' cuando se cerró el aviso del cuestionario
 
 var storeCore = (typeof module !== 'undefined' && typeof require === 'function')
   ? require('./core.js')
-  : { emptyState: emptyState, validState: validState, mergeState: mergeState };
+  : { emptyState: emptyState, validState: validState, mergeState: mergeState, validQuiz: validQuiz };
 
 function safeStorage() {
   try {
@@ -52,7 +54,45 @@ function saveLocal(storage, state) {
 
 function clearLocal(storage) {
   if (!storage) return;
-  try { storage.removeItem(STORE_KEY); } catch (e) { /* sin acción */ }
+  var keys = [STORE_KEY, QUIZ_KEY, TIP_KEY];
+  for (var i = 0; i < keys.length; i++) {
+    try { storage.removeItem(keys[i]); } catch (e) { /* sin acción */ }
+  }
+}
+
+// Último intento guardado si es válido para `set`; si no hay, está roto o es de otra versión: null. Nunca lanza.
+function loadQuiz(storage, set) {
+  if (!storage) return null;
+  var raw;
+  try { raw = storage.getItem(QUIZ_KEY); } catch (e) { return null; }
+  if (raw === null || raw === undefined) return null;
+  try {
+    var parsed = JSON.parse(raw);
+    return storeCore.validQuiz(parsed, set) ? parsed : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Guarda { v: 3, t: now, answers }. -> true si quedó guardado. Nunca lanza.
+function saveQuiz(storage, answers, now) {
+  if (!storage) return false;
+  try {
+    storage.setItem(QUIZ_KEY, JSON.stringify({ v: 3, t: now, answers: answers.slice() }));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function tipDismissed(storage) {
+  if (!storage) return false;
+  try { return storage.getItem(TIP_KEY) === '1'; } catch (e) { return false; }
+}
+
+function dismissTip(storage) {
+  if (!storage) return;
+  try { storage.setItem(TIP_KEY, '1'); } catch (e) { /* sin acción */ }
 }
 
 // ¿Este evento `storage` (de otra pestaña) borró el progreso? Se decide con los datos del evento, no volviendo a leer:
@@ -104,4 +144,4 @@ function deleteRemote(sb, userId) {
   }
 }
 
-if (typeof module !== 'undefined') module.exports = { STORE_KEY: STORE_KEY, safeStorage: safeStorage, loadLocal: loadLocal, saveLocal: saveLocal, clearLocal: clearLocal, isWipeEvent: isWipeEvent, syncRemote: syncRemote, deleteRemote: deleteRemote };
+if (typeof module !== 'undefined') module.exports = { STORE_KEY: STORE_KEY, QUIZ_KEY: QUIZ_KEY, TIP_KEY: TIP_KEY, safeStorage: safeStorage, loadLocal: loadLocal, saveLocal: saveLocal, clearLocal: clearLocal, loadQuiz: loadQuiz, saveQuiz: saveQuiz, tipDismissed: tipDismissed, dismissTip: dismissTip, isWipeEvent: isWipeEvent, syncRemote: syncRemote, deleteRemote: deleteRemote };

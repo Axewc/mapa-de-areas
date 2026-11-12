@@ -586,6 +586,68 @@ function lineasFor(topKeys, lines) {
   return out;
 }
 
+// Línea sugerida para un área: entre las líneas cuyo `areas` incluye areaKey, gana la que la tiene más al frente;
+// a igualdad, la de nivel 'Para empezar'; luego, la de menor n. Sin ninguna: null.
+function lineForArea(areaKey, lines) {
+  if (!Array.isArray(lines)) return null;
+  var best = null, bestIdx = -1, bestStart = false;
+  for (var i = 0; i < lines.length; i++) {
+    var l = lines[i];
+    if (!l || !Array.isArray(l.areas)) continue;
+    var idx = l.areas.indexOf(areaKey);
+    if (idx === -1) continue;
+    var start = l.level === 'Para empezar';
+    var wins = best === null ||
+      idx < bestIdx ||
+      (idx === bestIdx && start && !bestStart) ||
+      (idx === bestIdx && start === bestStart && l.n < best.n);
+    if (wins) { best = l; bestIdx = idx; bestStart = start; }
+  }
+  return best === null ? null : best.id;
+}
+
+// ranked: [{ key, pct }] ya ordenado (scoreAnswers). Primera área con línea; exact: si fue la primera del orden.
+function suggestLine(ranked, lines) {
+  if (Array.isArray(ranked)) {
+    for (var i = 0; i < ranked.length; i++) {
+      var id = ranked[i] ? lineForArea(ranked[i].key, lines) : null;
+      if (id !== null) return { line: id, area: ranked[i].key, exact: i === 0 };
+    }
+  }
+  return { line: null, area: null, exact: false };
+}
+
+// Índices de las (hasta) 2 preguntas cuya opción elegida dio más puntos a areaKey, de mayor a menor;
+// a igualdad, la más temprana. Las que dieron 0 no cuentan.
+function whyAnswers(set, answers, areaKey) {
+  var qs = set && Array.isArray(set.qs) ? set.qs : [];
+  var found = [];
+  if (!Array.isArray(answers)) return [];
+  for (var i = 0; i < qs.length && i < answers.length; i++) {
+    var opt = qs[i] && Array.isArray(qs[i].opts) ? qs[i].opts[answers[i]] : undefined;
+    var pts = opt && opt.p ? opt.p[areaKey] : 0;
+    if (typeof pts === 'number' && pts > 0) found.push({ i: i, pts: pts });
+  }
+  found.sort(function (a, b) { return b.pts - a.pts || a.i - b.i; });
+  var out = [];
+  for (var j = 0; j < found.length && j < 2; j++) out.push(found[j].i);
+  return out;
+}
+
+// ¿q es un intento guardado ({ v: 3, t, answers }) que encaja con set?
+function validQuiz(q, set) {
+  if (!isPlainObj(q) || q.v !== 3) return false;
+  if (typeof q.t !== 'number' || !isFinite(q.t)) return false;
+  if (!set || !Array.isArray(set.qs) || !Array.isArray(q.answers)) return false;
+  if (q.answers.length !== set.qs.length) return false;
+  for (var i = 0; i < q.answers.length; i++) {
+    var a = q.answers[i], opts = set.qs[i] && set.qs[i].opts;
+    if (!Array.isArray(opts)) return false;
+    if (typeof a !== 'number' || Math.floor(a) !== a || a < 0 || a >= opts.length) return false;
+  }
+  return true;
+}
+
 // Vista docente. El estado de cada alumno lo escribe su navegador: nada de él es confiable.
 // Todo número se coerciona (no finito: 0), el XP de cada día se limita a 0…1000 y solo cuentan
 // días con llave 'AAAA-MM-DD' real entre 2020-01-01 y mañana; la racha mira solo los últimos 400 días (hoy incluido).
@@ -670,5 +732,6 @@ if (typeof module !== 'undefined') module.exports = {
   totalXp: totalXp, level: level, weekKey: weekKey, streak: streak, streakCurrent: streakCurrent, mergeState: mergeState,
   applyShortcut: applyShortcut, sessionTail: sessionTail,
   segmentOffsets: segmentOffsets, lineasFor: lineasFor,
+  lineForArea: lineForArea, suggestLine: suggestLine, whyAnswers: whyAnswers, validQuiz: validQuiz,
   MAP_GEO: MAP_GEO, mapTextW: mapTextW, coreSegHitsBox: coreSegHitsBox, mapLabelLines: mapLabelLines, mapMarkerW: mapMarkerW, mapLayout: mapLayout, mapIssues: mapIssues
 };

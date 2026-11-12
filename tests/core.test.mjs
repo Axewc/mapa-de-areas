@@ -651,3 +651,139 @@ test('ok:false solo si el ítem nunca se ha acertado: un error en un repaso pesa
   assert.equal(mergeState(never, full).items['a.0'].ok, false);
   assert.equal(mergeState(full, after).items['a.0'].ok, undefined);
 });
+
+// --- Resultado del cuestionario (Tarea 1) ---
+const { lineForArea, suggestLine, whyAnswers, validQuiz } = require('../js/core.js');
+const { AREAS, SETS, scoreAnswers } = require('../js/data-areas.js');
+
+// Set sintético de 8 preguntas con distinto número de opciones (SETS[3] aún no existe).
+const o = p => ({ t: 'op', p });
+const Q8 = { name: 'Prueba', qs: [
+  { q: 'P0', opts: [o({ dat: 1 }), o({ web: 2 }), o({})] },
+  { q: 'P1', opts: [o({ dat: 3 }), o({ web: 1 }), o({ ml: 1 }), o({})] },
+  { q: 'P2', opts: [o({ dat: 3 }), o({ web: 3 })] },
+  { q: 'P3', opts: [o({ dat: 2, ml: 2 }), o({}), o({ inv: 1 }), o({}), o({})] },
+  { q: 'P4', opts: [o({}), o({ web: 2 })] },
+  { q: 'P5', opts: [o({}), o({ web: 2 })] },
+  { q: 'P6', opts: [o({}), o({ web: 2 })] },
+  { q: 'P7', opts: [o({}), o({ web: 2 })] }
+] };
+const ok8 = () => ({ v: 3, t: 1762905600000, answers: [0, 0, 0, 0, 0, 0, 0, 0] });
+const withAns = (i, a) => { const q = ok8(); q.answers[i] = a; return q; };
+
+test('lineForArea con las líneas reales', () => {
+  const esperado = {
+    dat: 'sears-datos-jr', ml: 'banorte-ds-jr', bak: 'edar-dev-jr', web: 'edar-dev-jr', rsk: 'mapfre-suscriptor-jr',
+    con: 'liverpool-negocio-jr', sec: 'safe-soc', inf: 'satori-cloud-jr', inv: null
+  };
+  assert.deepEqual(Object.keys(esperado), Object.keys(AREAS));
+  for (const k of Object.keys(esperado)) assert.equal(lineForArea(k, LINEAS), esperado[k], k);
+});
+test('lineForArea: gana el índice menor en areas, aunque la otra sea Para empezar y de menor n', () => {
+  const ls = [
+    { id: 'a', n: 1, level: 'Para empezar', areas: ['x', 'k'] },
+    { id: 'b', n: 2, level: 'Meta a 2 años', areas: ['k'] }
+  ];
+  assert.equal(lineForArea('k', ls), 'b');
+});
+test('lineForArea: a igual índice, gana Para empezar aunque tenga mayor n', () => {
+  const ls = [
+    { id: 'a', n: 1, level: 'Meta a 2 años', areas: ['k'] },
+    { id: 'b', n: 2, level: 'Para empezar', areas: ['k'] }
+  ];
+  assert.equal(lineForArea('k', ls), 'b');
+});
+test('lineForArea: a igual índice y nivel, gana el menor n', () => {
+  assert.equal(lineForArea('k', [
+    { id: 'a', n: 5, level: 'Para empezar', areas: ['k'] },
+    { id: 'b', n: 3, level: 'Para empezar', areas: ['k'] }
+  ]), 'b');
+  assert.equal(lineForArea('k', [
+    { id: 'a', n: 7, level: 'Meta', areas: ['k'] },
+    { id: 'b', n: 6, level: 'Otra meta', areas: ['k'] }
+  ]), 'b');
+});
+test('lineForArea: líneas sin areas, entradas nulas y listas vacías', () => {
+  assert.equal(lineForArea('k', [{ id: 'a', n: 1 }, { id: 'b', n: 2, areas: null }, null, { id: 'c', n: 3, areas: ['k'] }]), 'c');
+  assert.equal(lineForArea('k', [{ id: 'a', n: 1 }]), null);
+  assert.equal(lineForArea('k', []), null);
+  assert.equal(lineForArea('k', undefined), null);
+});
+
+const NADA = { line: null, area: null, exact: false };
+test('suggestLine: la primera área con línea es exacta', () => {
+  assert.deepEqual(suggestLine([{ key: 'bak', pct: 80 }, { key: 'dat', pct: 40 }], LINEAS),
+    { line: 'edar-dev-jr', area: 'bak', exact: true });
+});
+test('suggestLine: con inv primero, sugiere la línea de la segunda y no es exacta', () => {
+  assert.deepEqual(suggestLine([{ key: 'inv', pct: 90 }, { key: 'rsk', pct: 50 }, { key: 'dat', pct: 40 }], LINEAS),
+    { line: 'mapfre-suscriptor-jr', area: 'rsk', exact: false });
+});
+test('suggestLine: todo en 0 % toma la primera área por orden', () => {
+  const ranked = Object.keys(AREAS).map(k => ({ key: k, pct: 0 }));
+  assert.deepEqual(suggestLine(ranked, LINEAS), { line: 'sears-datos-jr', area: 'dat', exact: true });
+});
+test('suggestLine: sin áreas con línea, ranked vacío o no arreglo', () => {
+  assert.deepEqual(suggestLine([{ key: 'inv', pct: 100 }], LINEAS), NADA);
+  assert.deepEqual(suggestLine([], LINEAS), NADA);
+  assert.deepEqual(suggestLine(undefined, LINEAS), NADA);
+  assert.deepEqual(suggestLine([null, { key: 'sec', pct: 10 }], LINEAS), { line: 'safe-soc', area: 'sec', exact: false });
+});
+test('suggestLine con SETS[2] real: siempre hay línea y el resultado es determinista', () => {
+  for (let c = 0; c < 5; c++) {
+    const ans = SETS[2].qs.map(() => c);
+    const a = suggestLine(scoreAnswers(ans, 2), LINEAS);
+    assert.notEqual(a.line, null, 'opción ' + c);
+    assert.deepEqual(suggestLine(scoreAnswers(ans, 2), LINEAS), a);
+  }
+});
+
+test('whyAnswers: más puntos primero; a igualdad, la pregunta más temprana', () => {
+  assert.deepEqual(whyAnswers(Q8, [0, 0, 0, 0, 0, 0, 0, 0], 'dat'), [1, 2]);
+  assert.deepEqual(whyAnswers(Q8, [1, 1, 1, 0, 1, 1, 1, 1], 'web'), [2, 0]);
+  assert.deepEqual(whyAnswers(Q8, [0, 2, 0, 0, 0, 0, 0, 0], 'ml'), [3, 1]);
+});
+test('whyAnswers: omite las que dieron 0', () => {
+  assert.deepEqual(whyAnswers(Q8, [2, 3, 0, 1, 0, 0, 0, 0], 'dat'), [2]);
+  assert.deepEqual(whyAnswers(Q8, [2, 3, 1, 1, 0, 0, 0, 0], 'dat'), []);
+  assert.deepEqual(whyAnswers(Q8, [0, 0, 0, 0, 0, 0, 0, 0], 'sec'), []);
+});
+test('whyAnswers: answers no arreglo da []', () => {
+  assert.deepEqual(whyAnswers(Q8, null, 'dat'), []);
+  assert.deepEqual(whyAnswers(Q8, '00000000', 'dat'), []);
+});
+
+test('validQuiz acepta intentos válidos, también con el índice más alto de cada pregunta', () => {
+  assert.equal(validQuiz(ok8(), Q8), true);
+  assert.equal(validQuiz({ v: 3, t: 0, answers: [2, 3, 1, 4, 1, 1, 1, 1] }, Q8), true);
+});
+test('validQuiz rechaza longitudes e índices inválidos', () => {
+  const corto = ok8(); corto.answers.pop();
+  const largo = ok8(); largo.answers.push(0);
+  assert.equal(validQuiz(corto, Q8), false, 'longitud 7');
+  assert.equal(validQuiz(largo, Q8), false, 'longitud 9');
+  assert.equal(validQuiz(withAns(1, 9), Q8), false, 'índice 9');
+  assert.equal(validQuiz(withAns(0, -1), Q8), false, '-1');
+  assert.equal(validQuiz(withAns(0, 1.5), Q8), false, '1.5');
+  assert.equal(validQuiz(withAns(0, '0'), Q8), false, "'0'");
+  assert.equal(validQuiz(withAns(0, NaN), Q8), false, 'NaN');
+  assert.equal(validQuiz(withAns(0, null), Q8), false, 'null');
+  // P2 tiene 2 opciones y P3 tiene 5: el mismo índice vale en una y no en la otra.
+  assert.equal(validQuiz(withAns(3, 4), Q8), true);
+  assert.equal(validQuiz(withAns(2, 2), Q8), false);
+});
+test('validQuiz rechaza otra versión, t no finito y formas que no son intento', () => {
+  assert.equal(validQuiz({ ...ok8(), v: 2 }, Q8), false);
+  assert.equal(validQuiz({ ...ok8(), v: '3' }, Q8), false);
+  assert.equal(validQuiz({ v: 3, answers: ok8().answers }, Q8), false, 'sin t');
+  assert.equal(validQuiz({ ...ok8(), t: NaN }, Q8), false);
+  assert.equal(validQuiz({ ...ok8(), t: Infinity }, Q8), false);
+  assert.equal(validQuiz({ ...ok8(), t: '1762905600000' }, Q8), false);
+  assert.equal(validQuiz({ ...ok8(), answers: '00000000' }, Q8), false);
+  assert.equal(validQuiz({ ...ok8(), answers: { length: 8 } }, Q8), false);
+  assert.equal(validQuiz(null, Q8), false);
+  assert.equal(validQuiz('hola', Q8), false);
+  assert.equal(validQuiz([ok8()], Q8), false);
+  assert.equal(validQuiz(ok8(), null), false);
+  assert.equal(validQuiz(ok8(), SETS[2]), false, 'set de 10 preguntas');
+});

@@ -174,3 +174,103 @@ test('isWipeEvent: solo la eliminación de la clave o un clear() cuentan, según
   assert.equal(isWipeEvent({ key: 'otra', newValue: null }), false);
   assert.equal(isWipeEvent(null), false);
 });
+
+// --- Intento del cuestionario y aviso (Tarea 1) ---
+const { QUIZ_KEY, TIP_KEY, loadQuiz, saveQuiz, tipDismissed, dismissTip } = require('../js/store.js');
+
+// Set sintético de 8 preguntas (SETS[3] aún no existe); solo importa cuántas opciones tiene cada una.
+const opts = n => Array.from({ length: n }, () => ({ t: 'op', p: {} }));
+const Q8 = { name: 'Prueba', qs: [3, 4, 2, 5, 2, 2, 2, 2].map((n, i) => ({ q: 'P' + i, opts: opts(n) })) };
+const ANS = [0, 1, 0, 4, 1, 0, 1, 0];
+const T = 1762905600000;
+
+// Storage falso que lanza en el método indicado: opts.get / opts.set / opts.remove = true (siempre) o una llave.
+function fakeQ(init, opts) {
+  const m = new Map(Object.entries(init || {}));
+  const o = opts || {};
+  const boom = (which, k) => { if (o[which] === true || o[which] === k) throw new Error('SecurityError'); };
+  return {
+    getItem: k => { boom('get', k); return m.has(k) ? m.get(k) : null; },
+    setItem: (k, v) => { boom('set', k); m.set(k, String(v)); },
+    removeItem: k => { boom('remove', k); m.delete(k); },
+    has: k => m.has(k)
+  };
+}
+
+test('llaves del cuestionario', () => {
+  assert.equal(QUIZ_KEY, 'mapa.quiz');
+  assert.equal(TIP_KEY, 'mapa.quizTip');
+});
+test('saveQuiz y loadQuiz ida y vuelta', () => {
+  const st = fakeQ({});
+  const ans = ANS.slice();
+  assert.equal(saveQuiz(st, ans, T), true);
+  ans[0] = 2; // guardó una copia
+  const esperado = { v: 3, t: T, answers: ANS };
+  assert.deepEqual(JSON.parse(st.getItem('mapa.quiz')), esperado);
+  assert.deepEqual(loadQuiz(st, Q8), esperado);
+});
+test('loadQuiz: null sin storage, sin nada guardado o si getItem lanza', () => {
+  assert.equal(loadQuiz(null, Q8), null);
+  assert.equal(loadQuiz(fakeQ({}), Q8), null);
+  assert.equal(loadQuiz(fakeQ({ 'mapa.quiz': JSON.stringify({ v: 3, t: T, answers: ANS }) }, { get: true }), Q8), null);
+});
+test('loadQuiz: JSON roto u objeto inválido dan null sin borrar lo guardado', () => {
+  const malos = [
+    '{no',
+    '"hola"',
+    'null',
+    JSON.stringify({ v: 2, t: T, answers: ANS }),
+    JSON.stringify({ v: 3, t: T, answers: ANS.slice(0, 7) }),
+    JSON.stringify({ v: 3, t: T, answers: [0, 1, 2, 4, 1, 0, 1, 0] }), // P2 solo tiene 2 opciones
+    JSON.stringify({ v: 3, t: null, answers: ANS })
+  ];
+  for (const raw of malos) {
+    const st = fakeQ({ 'mapa.quiz': raw });
+    assert.equal(loadQuiz(st, Q8), null, raw);
+    assert.equal(st.getItem('mapa.quiz'), raw);
+  }
+});
+test('saveQuiz: false sin storage, si setItem lanza o si answers no es arreglo', () => {
+  assert.equal(saveQuiz(null, ANS, T), false);
+  const st = fakeQ({}, { set: true });
+  assert.equal(saveQuiz(st, ANS, T), false);
+  assert.equal(st.has('mapa.quiz'), false);
+  assert.equal(saveQuiz(fakeQ({}), null, T), false);
+});
+test('tipDismissed y dismissTip', () => {
+  const st = fakeQ({});
+  assert.equal(tipDismissed(st), false);
+  dismissTip(st);
+  assert.equal(st.getItem('mapa.quizTip'), '1');
+  assert.equal(tipDismissed(st), true);
+  assert.equal(tipDismissed(fakeQ({ 'mapa.quizTip': '0' })), false);
+  assert.equal(tipDismissed(null), false);
+  assert.equal(tipDismissed(fakeQ({ 'mapa.quizTip': '1' }, { get: true })), false);
+  dismissTip(null);
+  const lleno = fakeQ({}, { set: true });
+  dismissTip(lleno);
+  assert.equal(tipDismissed(lleno), false);
+});
+test('clearLocal borra progreso, intento y aviso, y deja lo demás', () => {
+  const st = fakeQ({ 'mapa.v2': '{}', 'mapa.quiz': '{}', 'mapa.quizTip': '1', otra: 'x' });
+  clearLocal(st);
+  assert.equal(st.has('mapa.v2'), false);
+  assert.equal(st.has('mapa.quiz'), false);
+  assert.equal(st.has('mapa.quizTip'), false);
+  assert.equal(st.getItem('otra'), 'x');
+});
+test('clearLocal: si removeItem lanza en una llave, borra las otras; si lanza siempre, no lanza', () => {
+  const st = fakeQ({ 'mapa.v2': '{}', 'mapa.quiz': '{}', 'mapa.quizTip': '1' }, { remove: 'mapa.v2' });
+  clearLocal(st);
+  assert.equal(st.has('mapa.v2'), true);
+  assert.equal(st.has('mapa.quiz'), false);
+  assert.equal(st.has('mapa.quizTip'), false);
+  clearLocal(fakeQ({ 'mapa.quiz': '{}' }, { remove: true }));
+});
+test('isWipeEvent no cambia: borrar el intento o el aviso no es borrar el progreso', () => {
+  assert.equal(isWipeEvent({ key: 'mapa.quiz', newValue: null }), false);
+  assert.equal(isWipeEvent({ key: 'mapa.quizTip', newValue: null }), false);
+  assert.equal(isWipeEvent({ key: 'mapa.v2', newValue: null }), true);
+  assert.equal(isWipeEvent({ key: null, newValue: null }), true);
+});
