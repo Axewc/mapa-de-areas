@@ -325,25 +325,8 @@ td.hi { font-weight: 600; background: var(--tint); }
 .projects b { font-weight: 600; }
 .projects .meta { display: block; margin-top: 0.15rem; }
 .vtag { font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-/* Rutas por vacante */
-.result a { color: var(--accent); overflow-wrap: anywhere; text-underline-offset: 3px; }
+/* Lo que pide la vacante y preguntas con retroalimentación */
 .asks { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.4rem; }
-.topics { display: flex; flex-direction: column; gap: 10px; }
-.topic-row {
-  text-align: left; width: 100%;
-  background: var(--panel); border: 1.5px solid var(--line); border-radius: 10px;
-  padding: 0.85rem 1rem; line-height: 1.35;
-  display: grid; grid-template-columns: 1fr auto; gap: 0.4rem 1rem; align-items: center;
-}
-.topic-row:hover { border-color: var(--accent); }
-.topic-row .tname { font-weight: 600; min-width: 0; }
-.topic-row .ev { display: block; color: var(--muted); font-size: 0.85rem; font-weight: 400; margin-top: 0.15rem; }
-.state { justify-self: end; font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 2px; padding: 0.1rem 0.45rem; white-space: nowrap; }
-.state.pendiente { background: var(--mark); color: var(--ink); border-color: transparent; }
-.state.dominado { background: var(--tint); color: var(--ink); border-color: var(--accent); }
-@media (max-width: 480px) { .topic-row { grid-template-columns: 1fr; } .state { justify-self: start; } }
-.lesson { display: flex; flex-direction: column; gap: 1.5rem; }
-.lesson .state { justify-self: auto; display: inline-block; margin-top: 0.75rem; }
 .rq { display: flex; flex-direction: column; gap: 10px; }
 .rq + .rq { margin-top: 1.5rem; }
 .rq .qtext { font-weight: 600; }
@@ -353,8 +336,11 @@ td.hi { font-weight: 600; background: var(--tint); }
 .opt.right, .opt.right:hover { border-color: var(--accent); background: var(--tint); }
 .opt.wrong, .opt.wrong:hover { border-color: var(--bad); border-style: dashed; }
 .opt .tag-r { grid-column: 2; font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-.verdict { font-family: var(--f-display); font-size: 1.3rem; font-weight: 700; margin-top: 1.75rem; }
-.review .note { margin: 0.75rem 0; }
+/* Resultado del cuestionario: líneas que encajan */
+.area .vac-list, .vac-list { list-style: none; margin: 0; padding-left: 0; display: flex; flex-direction: column; gap: 12px; }
+.vac-row { background: var(--paper); border: 1.5px solid var(--line); border-left: 6px solid var(--lc); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.vac-row .actions { margin-top: 6px; }
+.vac-row .actions .btn { flex: 1 1 10rem; }
 /* Sesión de estudio: pantalla completa, una tarjeta a la vez */
 .ses-head { display: flex; flex-direction: column; gap: 10px; }
 .ses-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

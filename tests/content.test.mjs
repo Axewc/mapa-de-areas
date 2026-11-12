@@ -7,7 +7,8 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { ESTACIONES } = require('../js/data-estaciones.js');
 const { LINEAS } = require('../js/data-lineas.js');
-const { AREAS, GLOSS, RUTAS } = require('../js/data-areas.js');
+const { AREAS, GLOSS } = require('../js/data-areas.js');
+const GETNET = require('./fixtures/getnet-preguntas.json');
 const { glossHits } = require('../js/ui.js');
 const { mapLayout, mapIssues } = require('../js/core.js');
 
@@ -154,27 +155,17 @@ test('L5 a L7 declaran la experiencia que piden', () => {
 });
 
 test('las 21 preguntas de Getnet se conservan', () => {
-  // cada diag.q y review[*].q de RUTAS['getnet-ai-deploy'] aparece, con el mismo texto de la opción correcta, en alguna pregunta de la estación del mismo id.
-  // Los distractores y el why se pueden pulir; la pregunta y su respuesta correcta, no.
-  const topics = RUTAS['getnet-ai-deploy'].topics;
-  let n = 0;
-  for (const t of topics) {
-    const st = ESTACIONES[t.id];
-    assert.ok(st, 'falta la estación ' + t.id);
-    for (const orig of [t.diag, ...t.review]) {
-      const got = preguntas(st).find(q => q.q === orig.q);
-      assert.ok(got, t.id + ': falta «' + orig.q + '»');
-      assert.equal(got.opts[got.ok], orig.opts[orig.ok], t.id + ': ' + orig.q);
-      n++;
-    }
-    // la pregunta del diagnóstico va en un paso; los dos repasos, en extra
-    assert.ok(st.steps.some(s => s.q.q === t.diag.q), t.id + ': el diagnóstico no está en un paso');
-    t.review.forEach(r => assert.ok(st.extra.some(q => q.q === r.q), t.id + ': el repaso no está en extra'));
-    // la tarea y los recursos se conservan
-    assert.deepEqual({ ...st.task }, { ...t.task }, t.id + '.task');
-    assert.deepEqual(st.res.map(r => ({ ...r })), t.res.map(r => ({ ...r })), t.id + '.res');
+  // tests/fixtures/getnet-preguntas.json guarda la pregunta y el texto de la opción correcta de las 21 preguntas
+  // de la ruta vieja de Getnet. Cada una sigue en alguna estación, con la misma correcta. Los distractores y el why se pueden pulir.
+  assert.equal(GETNET.length, 21);
+  const todasQ = ids.flatMap(id => preguntas(ESTACIONES[id]));
+  for (const { q, correct } of GETNET) {
+    const got = todasQ.find(x => x.q === q);
+    assert.ok(got, 'falta «' + q + '»');
+    assert.equal(got.opts[got.ok], correct, q);
   }
-  assert.equal(n, 21);
+  const enGetnet = ['agentes', 'multiagente', 'evaluacion', 'guardrails', 'rag', 'mcp', 'observabilidad'].flatMap(id => preguntas(ESTACIONES[id]).map(x => x.q));
+  for (const { q } of GETNET) assert.ok(enGetnet.includes(q), 'no está en una estación de Getnet: «' + q + '»');
 });
 
 test('cada estación de cada línea existe y tiene coordenadas dentro del lienzo (16 ≤ x ≤ 344, y ≥ 16)', () => {

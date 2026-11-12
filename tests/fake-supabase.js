@@ -12,7 +12,6 @@
   var USER = { id: 'u1', email: 'alumno@test.mx' };
   window.__db = {
     mapa_respuestas: seed.mapa_respuestas || [],
-    mapa_aprendizaje: seed.mapa_aprendizaje || [],
     mapa_progreso: seed.mapa_progreso || []
   };
   var session = seed.session ? { user: USER } : null;

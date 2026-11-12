@@ -396,6 +396,102 @@ async function mapaScenarios(browser, setStep) {
   await ctx.close();
 }
 
+// Cuestionario: Yo → Descubre tu área → Hacer el cuestionario → 10 respuestas con el teclado (keys: una tecla por pregunta).
+async function takeQuiz(page, keys) {
+  await page.click('#tabbar [data-tab=yo]');
+  await page.click('#s-yo button:has-text("Descubre tu área")');
+  await page.click('#s-intro #start');
+  for (let i = 0; i < 10; i++) {
+    await page.waitForFunction((n) => document.getElementById('counter').textContent === 'Pregunta ' + n + ' de 10', i + 1);
+    await page.keyboard.press(keys ? keys[i] : '1');
+  }
+  await page.waitForSelector('#s-result:not([hidden])');
+}
+
+async function cuestionarioScenarios(browser, setStep) {
+  // Sin cuenta: el intento no se guarda y el resultado enlaza con las líneas.
+  setStep('cuestionario sin cuenta');
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const { page, errors } = await openHome(ctx, { local: JSON.stringify(progressState()) });
+  await page.waitForSelector('#s-hoy:not([hidden])');
+  assert.deepEqual(await page.evaluate(() => Array.from(document.querySelectorAll('main > section'), (x) => x.id)),
+    ['s-pick', 's-hoy', 's-mapa', 's-linea', 's-estacion', 's-sesion', 's-yo', 's-intro', 's-quiz', 's-result', 's-history', 's-admin'], 'las pantallas de rutas ya no existen');
+  await takeQuiz(page);
+  const res = await page.textContent('#s-result');
+  assert.match(res, /No se guardó: no tienes cuenta\. Puedes crear una en Yo\./);
+  assert.doesNotMatch(res, /Guardando|Guardado\./);
+  assert.equal(await page.evaluate(() => window.__db.mapa_respuestas.length), 0, 'sin cuenta no se inserta nada');
+  assert.equal(await page.locator('#s-result button:has-text("Mis respuestas")').count(), 0, 'Mis respuestas solo con sesión');
+  assert.match(await page.textContent('#s-result .vacancy'), /Vacantes reales para tus áreas/);
+  const ids = await page.locator('#s-result .vacancy [data-line]').evaluateAll((n) => n.map((x) => x.getAttribute('data-line')));
+  assert.deepEqual(ids, ['edar-dev-jr', 'sears-datos-jr', 'mvs-tester-jr', 'banorte-ds-jr', 'getnet-ai-deploy'], 'líneas de ml, bak y dat en el orden de LINEAS');
+  const row = page.locator('#s-result .vacancy [data-line=banorte-ds-jr]');
+  assert.match(await row.locator('.lbadge').textContent(), /L6/);
+  const rt = await row.textContent();
+  assert.match(rt, /Científico de Datos Jr\./);
+  assert.match(rt, /Grupo Financiero Banorte/);
+  assert.match(rt, /Meta a 2 o 3 años/);
+  assert.equal(await page.evaluate(noHScroll), true, 'sin scroll horizontal en el resultado');
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'quiz-resultado-sin-cuenta.png'), fullPage: true, animations: 'disabled' });
+  // «Crear cuenta» lleva a Yo, donde está el acceso.
+  await page.click('#s-result button:has-text("Crear cuenta")');
+  await page.waitForSelector('#s-yo:not([hidden])');
+  assert.equal(await page.locator('#s-yo button:has-text("Guarda tu progreso en la nube")').count(), 1);
+  // «Ver la línea» abre la línea.
+  await takeQuiz(page);
+  await page.click('#s-result .vacancy [data-line=sears-datos-jr] button:has-text("Ver la línea")');
+  await page.waitForSelector('#s-linea:not([hidden])');
+  assert.match(await page.textContent('#s-linea h1'), /Analista de Datos Jr\./);
+  // «Elegir como meta» cambia la meta y entra a Hoy.
+  await takeQuiz(page);
+  await page.click('#s-result .vacancy [data-line=banorte-ds-jr] button:has-text("Elegir como meta")');
+  await page.waitForSelector('#s-hoy:not([hidden])');
+  assert.match(await page.textContent('#s-hoy'), /Científico de Datos Jr\./);
+  assert.equal((await localState(page)).goal, 'banorte-ds-jr');
+  await page.waitForFunction(() => /Meta cambiada a Científico de Datos Jr\./.test(document.getElementById('notices').textContent));
+  // La meta actual ya no ofrece «Elegir como meta»; «Ir a Hoy» y «Volver a empezar» funcionan.
+  await takeQuiz(page);
+  assert.equal(await page.locator('#s-result .vacancy [data-line=banorte-ds-jr] button:has-text("Elegir como meta")').count(), 0);
+  assert.equal(await page.locator('#s-result .vacancy [data-line=banorte-ds-jr] button[aria-current]').count(), 1);
+  await page.click('#s-result button:has-text("Ir a Hoy")');
+  await page.waitForSelector('#s-hoy:not([hidden])');
+  await takeQuiz(page);
+  await page.click('#s-result button:has-text("Volver a empezar")');
+  await page.waitForSelector('#s-intro:not([hidden])');
+  // Sin líneas para esas áreas.
+  await takeQuiz(page);
+  await page.evaluate(() => { window.lineasFor = () => []; renderResult(); });
+  assert.match(await page.textContent('#s-result .vacancy'), /Por ahora no hay vacantes para esas áreas\. Las agregaremos pronto\./);
+  assert.equal(await page.locator('#s-result .vacancy [data-line]').count(), 0);
+  assert.deepEqual(errors, [], 'errores de JS en el cuestionario sin cuenta');
+  await ctx.close();
+
+  // Con cuenta: se guarda el intento y aparece Mis respuestas.
+  setStep('cuestionario con cuenta guarda el intento');
+  const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const o = await openHome(ctx2, { session: true, local: JSON.stringify(progressState()) });
+  await o.page.waitForSelector('#s-hoy:not([hidden])');
+  await takeQuiz(o.page, ['2', '1', '3', '4', '1', '2', '1', '1', '3', '1']);
+  await o.page.waitForFunction(() => /Guardado\. Puedes volver a verlo en Mis respuestas\./.test(document.getElementById('s-result').textContent));
+  assert.equal(await o.page.evaluate(() => window.__db.mapa_respuestas.length), 1);
+  assert.equal(await o.page.evaluate(() => window.__db.mapa_respuestas[0].answers.length), 10);
+  assert.doesNotMatch(await o.page.textContent('#s-result'), /No se guardó/);
+  assert.equal(await o.page.locator('#s-result button:has-text("Crear cuenta")').count(), 0);
+  assert.ok(await o.page.locator('#s-result .vacancy [data-line]').count() >= 1);
+  if (SHOTS) await o.page.screenshot({ path: path.join(SHOTS, 'quiz-resultado-con-cuenta.png'), fullPage: true, animations: 'disabled' });
+  await o.page.click('#s-result button:has-text("Mis respuestas")');
+  await o.page.waitForSelector('#s-history:not([hidden]) table');
+  await o.page.click('#s-history .topnav button');
+  await o.page.waitForSelector('#s-yo:not([hidden])');
+  assert.deepEqual(o.errors, [], 'errores de JS en el cuestionario con cuenta');
+  // Falla al guardar: el aviso lo dice y el resultado sigue visible.
+  await o.page.evaluate(() => { window.__failInsert = true; });
+  await takeQuiz(o.page);
+  await o.page.waitForFunction(() => /No se pudo guardar tu resultado/.test(document.getElementById('s-result').textContent));
+  assert.equal(await o.page.evaluate(() => window.__db.mapa_respuestas.length), 1);
+  await ctx2.close();
+}
+
 async function main() {
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -822,6 +918,8 @@ async function main() {
     await bad.page.waitForFunction(() => /no se pudo leer/.test(document.getElementById('notices').textContent));
     assert.deepEqual(bad.errors, []);
     await ctxB.close();
+
+    await cuestionarioScenarios(browser, (t) => { step = t; });
 
     step = 'vista docente desde Yo';
     const ctxA = await browser.newContext({ viewport: { width: 390, height: 844 } });

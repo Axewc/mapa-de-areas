@@ -68,9 +68,11 @@ function renderPick(keep) {
   show('pick', keep);
 }
 
-function chooseGoal(id) {
+// Elige la meta y entra a Hoy. notify: avisa «Meta cambiada…» (desde Línea y desde el resultado del cuestionario).
+function chooseGoal(id, notify) {
   if (id !== state.goal) commit(setGoal(state, id, Date.now()));
   renderHoy();
+  if (notify) showNotice('Meta cambiada a ' + lineById(id).title + '.');
   syncAndRefresh();
 }
 

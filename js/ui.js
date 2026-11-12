@@ -33,7 +33,7 @@ if (typeof document !== 'undefined') {
 }
 var currentScreen = null;
 // Pestaña que se marca en cada pantalla y pantallas sin barra inferior.
-var TAB_OF = { hoy: 'hoy', mapa: 'mapa', linea: 'mapa', estacion: 'mapa', yo: 'yo', intro: 'yo', result: 'yo', history: 'yo', admin: 'yo', learn: 'yo' };
+var TAB_OF = { hoy: 'hoy', mapa: 'mapa', linea: 'mapa', estacion: 'mapa', yo: 'yo', intro: 'yo', result: 'yo', history: 'yo', admin: 'yo' };
 var NO_TABBAR = { sesion: true, quiz: true, pick: true };
 var tabNav = false; // true mientras se atiende un clic en la barra inferior (app.js)
 // Pantalla donde estuvo el último foco (null: fuera de las pantallas o aún sin foco).

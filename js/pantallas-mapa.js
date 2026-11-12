@@ -186,12 +186,7 @@ function openLinea(id, keep, from) {
     goalBtn = el('button', { class: 'btn', type: 'button', disabled: '', 'aria-current': 'true', text: 'Es tu meta' });
   } else {
     goalBtn = el('button', { class: 'btn', type: 'button', text: 'Elegir como meta' });
-    goalBtn.addEventListener('click', function () {
-      commit(setGoal(state, line.id, Date.now()));
-      renderHoy();
-      showNotice('Meta cambiada a ' + line.title + '.');
-      syncAndRefresh();
-    });
+    goalBtn.addEventListener('click', function () { chooseGoal(line.id, true); });
   }
   root.append(el('div', { class: 'actions' }, goalBtn));
 
