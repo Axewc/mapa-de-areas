@@ -237,6 +237,39 @@ test('saveQuiz: false sin storage, si setItem lanza o si answers no es arreglo',
   assert.equal(st.has('mapa.quiz'), false);
   assert.equal(saveQuiz(fakeQ({}), null, T), false);
 });
+test('claimQuizUpload y finishQuizUpload: marca up sin que loadQuiz lo rechace', () => {
+  const { claimQuizUpload, finishQuizUpload, QUIZ_CLAIM_MS } = require('../js/store.js');
+  const st = fakeQ({});
+  saveQuiz(st, ANS, T);
+  assert.equal(claimQuizUpload(st, T, T + 10), true);
+  assert.equal(JSON.parse(st.getItem('mapa.quiz')).c, T + 10);
+  assert.deepEqual(loadQuiz(st, Q8), { v: 3, t: T, answers: ANS, c: T + 10 }, 'el reclamo no invalida el intento');
+  assert.equal(claimQuizUpload(st, T, T + 20), false, 'otra pestaña no lo reclama mientras tanto');
+  assert.equal(claimQuizUpload(st, T, T + 10 + QUIZ_CLAIM_MS), true, 'un reclamo viejo se considera abandonado');
+  assert.equal(claimQuizUpload(st, T, T), true, 'un reclamo con el reloj al revés también');
+  assert.equal(finishQuizUpload(st, T, false), true);
+  assert.deepEqual(JSON.parse(st.getItem('mapa.quiz')), { v: 3, t: T, answers: ANS }, 'si falla, sin reclamo ni marca');
+  assert.equal(claimQuizUpload(st, T, T + 30), true);
+  assert.equal(finishQuizUpload(st, T, true), true);
+  assert.deepEqual(loadQuiz(st, Q8), { v: 3, t: T, answers: ANS, up: 1 });
+  assert.equal(claimQuizUpload(st, T, T + 40), false, 'ya subido');
+});
+test('claimQuizUpload y finishQuizUpload: otro intento, sin storage, roto o si setItem lanza', () => {
+  const { claimQuizUpload, finishQuizUpload } = require('../js/store.js');
+  const st = fakeQ({});
+  saveQuiz(st, ANS, T);
+  assert.equal(claimQuizUpload(st, T + 1, T), false, 'otro t');
+  assert.equal(finishQuizUpload(st, T + 1, true), false);
+  assert.deepEqual(JSON.parse(st.getItem('mapa.quiz')), { v: 3, t: T, answers: ANS });
+  assert.equal(claimQuizUpload(null, T, T), false);
+  assert.equal(finishQuizUpload(null, T, true), false);
+  assert.equal(claimQuizUpload(fakeQ({ 'mapa.quiz': '{no' }), T, T), false);
+  assert.equal(claimQuizUpload(fakeQ({ 'mapa.quiz': '[1]' }), T, T), false);
+  assert.equal(claimQuizUpload(fakeQ({}), T, T), false, 'nada guardado');
+  const lleno = fakeQ({ 'mapa.quiz': JSON.stringify({ v: 3, t: T, answers: ANS }) }, { set: true });
+  assert.equal(claimQuizUpload(lleno, T, T), false);
+  assert.equal(claimQuizUpload(fakeQ({ 'mapa.quiz': JSON.stringify({ v: 3, t: T, answers: ANS }) }, { get: true }), T, T), false);
+});
 test('tipDismissed y dismissTip', () => {
   const st = fakeQ({});
   assert.equal(tipDismissed(st), false);

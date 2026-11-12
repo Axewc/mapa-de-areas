@@ -262,13 +262,14 @@ body:not(.has-tabbar) #notices { bottom: 16px; }
 .legend { color: var(--muted); font-size: 0.85rem; margin-top: 1rem; }
 
 /* Resultado corto (#s-result, con la clase .hub). Lo visible antes de «Ver detalle» cabe en ≤ 1,300 px a 390 px. */
-#s-result { gap: 18px; }
+#s-result { gap: 14px; }
 #s-result h2 { font-size: 1.2rem; font-weight: 700; }
 .stack.tight { gap: 8px; }
 .why-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .why-list li { border-left: 3px solid var(--ink); padding-left: 10px; font-weight: 600; line-height: 1.35; }
 .line-card.sugg { padding: 12px 14px; }
 .line-card.sugg:hover { border-color: var(--line); border-left-color: var(--lc); }
+.line-card.sugg:active { transform: none; }
 .line-card.sugg .actions { margin-top: 4px; align-items: center; }
 .res-others { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .res-other { display: flex; flex-direction: column; gap: 2px; border-top: 1.5px solid var(--line); padding-top: 10px; }
@@ -309,7 +310,6 @@ body:not(.has-tabbar) #notices { bottom: 16px; }
 .steps { counter-reset: s; list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.75rem; }
 .steps li { counter-increment: s; display: grid; grid-template-columns: 2rem 1fr; gap: 0.5rem; }
 .steps li::before { content: counter(s); font-family: var(--f-mono); font-weight: 500; color: var(--accent); }
-.footer-actions { display: flex; flex-wrap: wrap; gap: 12px; }
 .share { width: 100%; min-height: 6.5rem; font: inherit; font-size: 0.9rem; background: var(--panel); color: var(--ink); border: 1.5px solid var(--line); border-radius: 10px; padding: 0.7rem; }
 
 input.field { font: inherit; min-height: 48px; background: var(--paper); color: var(--ink); border: 1.5px solid var(--line); border-radius: 10px; padding: 0.75rem 0.85rem; width: 100%; }

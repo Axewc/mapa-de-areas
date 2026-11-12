@@ -174,14 +174,17 @@ function bootAuth() {
   sb.auth.getSession().then(function (r) {
     session = r.data.session;
     checkAdmin();
-    if (session) syncAndRefresh();
-    else refreshScreen();
+    if (session) {
+      uploadQuiz(); // un resultado hecho sin cuenta (o cuyo guardado falló) se sube una vez
+      syncAndRefresh();
+    } else refreshScreen();
   });
   sb.auth.onAuthStateChange(function (ev, s) {
     session = s;
     if (ev === 'SIGNED_IN') {
       if (window.location.hash.indexOf('access_token') !== -1) history.replaceState(null, '', window.location.pathname);
       checkAdmin();
+      uploadQuiz();
       refreshScreen();
       syncAndRefresh();
     } else if (ev === 'SIGNED_OUT') {
