@@ -167,7 +167,9 @@ function openLinea(id, keep, from) {
   var root = screens.linea;
   root.textContent = '';
   var toHoy = lineaBack === 'hoy';
-  root.append(backButton(toHoy ? '← Hoy' : '← Mapa', function () { if (toHoy) renderHoy(); else renderMapa(); }));
+  root.append(backButton(toHoy ? '← Hoy' : '← Mapa', function () {
+    withDir('backward', function () { if (toHoy) renderHoy(); else renderMapa(); });
+  }));
   var pct = pctOf(line);
   var mine = line.id === state.goal;
   root.append(el('div', { class: 'hub-title ' + line.color },
@@ -219,7 +221,8 @@ function openLinea(id, keep, from) {
   root.append(el('section', { class: 'card ' + line.color, 'aria-labelledby': 'st-h' },
     el('h2', { class: 'mono card-h', id: 'st-h', text: 'Estaciones en orden' }), rows));
 
-  show('linea', keep);
+  // Con from se abre (hacia delante); sin from, se vuelve desde una estación (hacia atrás). Con keep, show() la ignora.
+  show('linea', keep, from ? 'forward' : 'backward');
 }
 
 // ---------- Estación ----------
@@ -302,7 +305,7 @@ function openEstacion(id, from, keep) {
   var back = estBack;
   var backLine = back.screen === 'linea' ? lineById(back.id) : null;
   root.append(backButton(backLine ? '← L' + backLine.n + ' · ' + backLine.title : '← Mapa', function () {
-    if (backLine) openLinea(backLine.id); else renderMapa();
+    withDir('backward', function () { if (backLine) openLinea(backLine.id); else renderMapa(); });
   }));
 
   var through = linesThrough(id);
@@ -350,5 +353,5 @@ function openEstacion(id, from, keep) {
     el('section', { class: 'card stack', 'aria-labelledby': 'rs-h' },
       el('h2', { class: 'mono card-h', id: 'rs-h', text: 'Para leer más' }), res),
     glossFor(shown, '¿Hay términos que no conoces? Aquí se explican'));
-  show('estacion', keep);
+  show('estacion', keep, from ? 'forward' : null);
 }

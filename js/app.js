@@ -102,12 +102,12 @@ function invalidateData() {
   return settlePending();
 }
 
-// Sincroniza y redibuja. Si en la primera visita (sin meta) llega una meta de la nube, entra a Hoy.
+// Sincroniza y redibuja. Si en la primera visita (sin meta, en la entrada o en Elegir meta) llega una meta de la nube, entra a Hoy.
 function syncAndRefresh() {
   var hadGoal = !!lineById(state.goal);
   return syncNow().then(function (r) {
     if (r === null) return;
-    if (!hadGoal && currentScreen === 'pick' && lineById(state.goal)) renderHoy();
+    if (!hadGoal && (currentScreen === 'pick' || currentScreen === 'entrada') && lineById(state.goal)) renderHoy();
     else refreshScreen();
   });
 }
@@ -117,6 +117,8 @@ function refreshScreen() {
   if (currentScreen === 'hoy') renderHoy(true);
   else if (currentScreen === 'yo') renderYo(true);
   else if (currentScreen === 'pick') renderPick(true);
+  else if (currentScreen === 'entrada') renderEntrada(true);
+  else if (currentScreen === 'descubre') renderDescubre(true);
   else if (currentScreen === 'mapa') renderMapa(true);
   else if (currentScreen === 'linea' && lineaShown) openLinea(lineaShown, true);
   else if (currentScreen === 'estacion' && estShown) openEstacion(estShown, null, true);
@@ -140,6 +142,7 @@ Array.prototype.forEach.call(document.querySelectorAll('#tabbar button[data-tab]
     try {
       if (t === 'hoy') renderHoy();
       else if (t === 'mapa') renderMapa();
+      else if (t === 'descubre') renderDescubre();
       else renderYo();
     } finally { tabNav = false; }
   });
@@ -152,10 +155,18 @@ document.addEventListener('visibilitychange', function () {
   if ((currentScreen === 'hoy' || currentScreen === 'yo') && renderedDay !== todayYmd()) refreshScreen();
 });
 
-// Pantalla inicial: sin meta válida se pide elegirla.
+// Pantalla de inicio según lo guardado: con meta, Hoy; sin meta pero con un resultado del cuestionario, Descubre;
+// si no, la entrada. También se usa tras «Borrar mis datos» y al cerrar sesión borrando la copia local.
+function renderInicio() {
+  if (lineById(state.goal)) renderHoy();
+  else if (loadQuiz(storage, SETS[3])) renderDescubre();
+  else renderEntrada();
+}
+
+// Pantalla inicial.
 if (bootLoad.warning === 'sin-almacenamiento') showNotice('Este navegador no deja guardar progreso. Funciona, pero no se conservará al cerrar.');
 else if (bootLoad.warning === 'estado-invalido') showNotice('Tu progreso guardado no se pudo leer, así que empezamos de cero.');
-if (lineById(state.goal)) renderHoy(); else renderPick();
+renderInicio();
 
 // Sesión: se consulta cuando el cliente real está listo. Si la biblioteca llega después, se conecta entonces.
 function bootAuth() {
@@ -199,6 +210,7 @@ window.addEventListener('storage', function (e) {
   dataEpoch++; // una sincronización en curso no devuelve el progreso borrado
   state = emptyState();
   sesRun = null;
-  if (['intro', 'quiz', 'result', 'history', 'admin'].indexOf(currentScreen) === -1) renderPick();
+  if (currentScreen === 'descubre') renderDescubre(true);
+  else if (['quiz', 'result', 'history', 'admin'].indexOf(currentScreen) === -1) renderInicio();
   showNotice('Se borró tu progreso de este dispositivo desde otra pestaña.');
 });

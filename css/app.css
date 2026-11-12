@@ -207,9 +207,18 @@ h1[tabindex="-1"]:focus, h2[tabindex="-1"]:focus { outline: none; }
 #login label, #pick-login label { display: block; }
 .pick-login { padding: 4px 0 2px; }
 
+/* Entrada: dos puertas (botones-tarjeta con título y subtítulo) */
+.doors { display: flex; flex-direction: column; gap: 12px; }
+.door { width: 100%; min-height: 72px; text-align: left; background: var(--panel); border: 1.5px solid var(--line); border-radius: 12px;
+  padding: 14px 16px; display: grid; grid-template-columns: 1fr auto; column-gap: 12px; row-gap: 4px; align-items: center; }
+.door:hover { border-color: var(--ink); }
+.door-t { font-family: var(--f-display); font-size: 1.2rem; font-weight: 700; line-height: 1.2; }
+.door-s { grid-column: 1; color: var(--muted); font-size: 0.9rem; line-height: 1.4; }
+.door .go { grid-column: 2; grid-row: 1 / span 2; font-size: 1.3rem; }
+
 /* Barra inferior */
 .tabbar { position: fixed; z-index: 10; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 560px;
-  background: var(--panel); border-top: 1.5px solid var(--line); display: grid; grid-template-columns: repeat(3, 1fr);
+  background: var(--panel); border-top: 1.5px solid var(--line); display: grid; grid-template-columns: repeat(4, 1fr);
   padding: 6px 8px calc(10px + env(safe-area-inset-bottom)); }
 @media (min-width: 600px) { .tabbar { border: 1.5px solid var(--line); border-bottom: 0; border-radius: 14px 14px 0 0; } }
 .tabbar button { background: none; border: 0; min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--muted); font-size: 0.82rem; border-radius: 10px; }
@@ -226,13 +235,6 @@ body:not(.has-tabbar) #notices { bottom: 16px; }
 .notice button { flex: none; width: 44px; height: 44px; background: none; border: 0; color: inherit; font-size: 1rem; border-radius: 8px; }
 .notice button:focus-visible { outline-color: var(--paper); outline-offset: -4px; }
 @keyframes notice-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-
-/* Intro */
-.intro { display: flex; flex-direction: column; gap: 1.5rem; }
-.intro h1 { font-size: clamp(2.1rem, 7vw, 3.4rem); font-weight: 700; max-width: 14ch; }
-.intro .lede { font-size: 1.1rem; max-width: 52ch; }
-.intro .fine { color: var(--muted); font-size: 0.9rem; max-width: 52ch; }
-.intro .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
 
 /* Quiz */
 .quiz-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; }
@@ -316,15 +318,6 @@ table.prog th.num { text-align: right; }
 .bar-tools { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 0.9rem; }
 .topnav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 
-/* Modos */
-.modes { display: grid; gap: 10px; }
-.mode { text-align: left; background: var(--paper); border: 1.5px solid var(--line); border-radius: 10px; padding: 0.85rem 1rem; display: flex; flex-direction: column; gap: 0.2rem; }
-.mode:hover { border-color: var(--accent); }
-.mode[aria-pressed="true"] { border-color: var(--accent); background: var(--tint); }
-.mode b { font-weight: 600; }
-.mode span { color: var(--muted); font-size: 0.9rem; }
-.mode .tag { align-self: flex-start; font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; background: var(--mark); color: var(--ink); padding: 0 0.35rem; border-radius: 2px; }
-.mode span.tag { color: var(--mark-ink); }
 /* Opciones con letra */
 .opt { display: grid; grid-template-columns: 1.6rem 1fr; gap: 0.5rem; align-items: start; }
 .opt .k { font-family: var(--f-mono); font-size: 0.8rem; color: var(--accent); padding-top: 0.12rem; }
@@ -416,10 +409,29 @@ table.prog th.num { text-align: right; }
 .ses-dot { flex: none; width: 16px; height: 16px; border-radius: 50%; background: var(--lc, var(--ink)); margin: 0 2px; }
 .ses-actions { display: flex; flex-direction: column; gap: 12px; }
 .ses-actions .btn { width: 100%; }
-/* Cambio de pantalla: la que entra aparece con un fundido corto. Solo opacidad: no mueve nada ni cambia medidas. */
-.wrap > section:not([hidden]) { animation: screen-in 0.16s ease-out both; }
+/* Cambio de pantalla. Todo el movimiento es opcional: solo con prefers-reduced-motion: no-preference.
+   - Con View Transitions y dirección (show(name, keep, dir)): la página se desliza 24 px hacia delante o hacia atrás.
+   - Sin ellas (o sin dirección): la pantalla que entra aparece con un fundido corto (solo opacidad).
+   Durante una transición el fundido se apaga (duración 0) para no sumarse al deslizamiento; con duración 0 y no con
+   animation: none, al terminar la transición no vuelve a empezar. La barra inferior tiene su propio nombre: no se desliza. */
+.tabbar { view-transition-name: tabbar; }
+@media (prefers-reduced-motion: no-preference) {
+  .wrap > section:not([hidden]) { animation: screen-in 0.16s ease-out both; }
+  html:active-view-transition .wrap > section:not([hidden]) { animation-duration: 0s; }
+  html:active-view-transition-type(forward)::view-transition-old(root) { animation: vt-out-left 0.22s ease-out both; }
+  html:active-view-transition-type(forward)::view-transition-new(root) { animation: vt-in-right 0.22s ease-out both; }
+  html:active-view-transition-type(backward)::view-transition-old(root) { animation: vt-out-right 0.22s ease-out both; }
+  html:active-view-transition-type(backward)::view-transition-new(root) { animation: vt-in-left 0.22s ease-out both; }
+}
 @keyframes screen-in { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+@keyframes vt-out-left { to { opacity: 0; translate: -24px 0; } }
+@keyframes vt-in-right { from { opacity: 0; translate: 24px 0; } }
+@keyframes vt-out-right { to { opacity: 0; translate: 24px 0; } }
+@keyframes vt-in-left { from { opacity: 0; translate: -24px 0; } }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*) { animation: none; }
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
 
 /* Hoy: las otras líneas son botones que abren su ficha */
 button.lrow { width: 100%; background: none; border: 0; padding: 4px 0; text-align: left; border-radius: 8px; }

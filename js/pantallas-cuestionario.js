@@ -1,4 +1,4 @@
-// Cuestionario de áreas: selector de versión, preguntas, resultado (con las líneas que encajan) y Mis respuestas.
+// Cuestionario de áreas: preguntas, resultado (con las líneas que encajan) y Mis respuestas. Se entra desde Descubre o la entrada.
 // Elegir meta, Hoy, Sesión, Mapa, Línea, Estación, Yo y la vista docente viven en los demás pantallas-*.js.
 var body = document.getElementById('quiz-body');
 var ticks = document.getElementById('ticks');
@@ -10,21 +10,9 @@ var answers = [];
 var current = 0;
 var locked = false;
 
-// Selector de versión del cuestionario (en #s-intro).
-var modesBox = document.getElementById('modes');
+// Versión que ofrece «Hacer el cuestionario» en Mis respuestas (hasta la Tarea 4).
 var chosen = 2;
-function drawModes() {
-  modesBox.textContent = '';
-  [[2, 'Explorar', 'Preguntas sobre lo que te gusta hacer, sin nombres de herramientas. Ideal si apenas estás decidiendo.', 'Recomendada si estás empezando'],
-   [1, 'Con herramientas', 'Incluye cosas como Python, Docker o Power BI, con una explicación junto a cada pregunta. Mejor si ya programaste bastante.', null]].forEach(function (m) {
-    var b = el('button', { class: 'mode', type: 'button', 'aria-pressed': chosen === m[0] ? 'true' : 'false' },
-      m[3] ? el('span', { class: 'tag', text: m[3] }) : null, el('b', { text: m[1] }), el('span', { text: m[2] }));
-    b.addEventListener('click', function () { chosen = m[0]; drawModes(); });
-    modesBox.append(b);
-  });
-}
-drawModes();
-function openIntro() { drawModes(); show('intro'); }
+
 
 function renderQuestion() {
   var q = QUESTIONS[current];
@@ -231,7 +219,7 @@ function vacancyPanel(ids) {
 
 function setVersion(v) { version = v; QUESTIONS = SETS[v].qs; }
 function startQuiz(v) { setVersion(v); answers = []; current = 0; locked = false; renderQuestion(); show('quiz'); }
-function reset() { answers = []; current = 0; locked = false; show('intro'); }
+function reset() { answers = []; current = 0; locked = false; renderDescubre(); }
 
 
 function saveAttempt(ans, ranked, v) {
@@ -326,10 +314,10 @@ function renderHistory() {
   });
 }
 
-document.getElementById('start').addEventListener('click', function () { startQuiz(chosen); });
-// En la primera pregunta, «Atrás» regresa a la presentación del cuestionario.
+// En la primera pregunta, «Atrás» sale del cuestionario: a Descubre si hay meta o resultado guardado; si no, a la entrada.
 backBtn.addEventListener('click', function () {
   if (locked) return;
-  if (current > 0) { current--; renderQuestion(); } else show('intro');
+  if (current > 0) { current--; renderQuestion(); }
+  else if (lineById(state.goal) || loadQuiz(storage, SETS[3])) renderDescubre();
+  else renderEntrada();
 });
-document.getElementById('intro-back').addEventListener('click', function () { renderYo(); });

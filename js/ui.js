@@ -1,4 +1,4 @@
-// Utilidades de interfaz: el, elNS (SVG), screens, show (con la barra inferior), showNotice, glossHits, glossFor, extLink, fmtDate, fmtDay y navBack.
+// Utilidades de interfaz: el, elNS (SVG), screens, show y withDir (con la barra inferior, el título y las transiciones), showNotice, glossHits, glossFor, extLink, fmtDate, fmtDay y navBack.
 function el(tag, attrs) {
   var n = document.createElement(tag);
   if (attrs) Object.keys(attrs).forEach(function (k) {
@@ -33,9 +33,14 @@ if (typeof document !== 'undefined') {
 }
 var currentScreen = null;
 // Pestaña que se marca en cada pantalla y pantallas sin barra inferior.
-var TAB_OF = { hoy: 'hoy', mapa: 'mapa', linea: 'mapa', estacion: 'mapa', yo: 'yo', intro: 'yo', result: 'yo', history: 'yo', admin: 'yo' };
-var NO_TABBAR = { sesion: true, quiz: true, pick: true };
+var TAB_OF = { hoy: 'hoy', mapa: 'mapa', linea: 'mapa', estacion: 'mapa', descubre: 'descubre', quiz: 'descubre', result: 'descubre', yo: 'yo', history: 'yo', admin: 'yo' };
+var NO_TABBAR = { sesion: true, quiz: true, pick: true, entrada: true };
+// Título de la pestaña del navegador en cada pantalla: «<título> · Mapa de áreas». La entrada usa solo «Mapa de áreas».
+var SCREEN_TITLE = { pick: 'Elige tu meta', hoy: 'Hoy', mapa: 'Mapa', linea: 'Línea', estacion: 'Estación', sesion: 'Sesión de estudio',
+  descubre: 'Descubre', quiz: 'Cuestionario', result: 'Tu resultado', yo: 'Yo', history: 'Mis respuestas', admin: 'Vista docente' };
 var tabNav = false; // true mientras se atiende un clic en la barra inferior (app.js)
+// Dirección de la navegación en curso ('forward' | 'backward' | null), para show(). La pone withDir().
+var navDir = null;
 // Pantalla donde estuvo el último foco (null: fuera de las pantallas o aún sin foco).
 var lastFocusScreen = null;
 if (typeof document !== 'undefined') document.addEventListener('focusin', function (e) {
@@ -51,13 +56,38 @@ function focusHeading(screen) {
   h.focus({ preventScroll: true });
 }
 
-// keep: no regresa al inicio de la página (para volver a dibujar la misma pantalla).
+// Ejecuta fn (que dibuja una pantalla y llama a show()) con una dirección de transición: 'forward' o 'backward'.
+function withDir(dir, fn) {
+  var prev = navDir;
+  navDir = dir;
+  try { fn(); } finally { navDir = prev; }
+}
+
+// Cambia de pantalla. keep: no regresa al inicio de la página (para volver a dibujar la misma pantalla).
+// dir ('forward' | 'backward', o el de withDir): con View Transitions, el cambio se anima en esa dirección; sin dir,
+// con keep o sin soporte, cambia al instante.
 // Foco: si el cambio vino de la barra inferior, se queda en su botón; si no, pasa al título de la pantalla.
 // Al redibujar (keep) solo se mueve si el elemento enfocado de esa pantalla desapareció.
-function show(name, keep) {
+function show(name, keep, dir) {
   var first = currentScreen === null;
-  Object.keys(screens).forEach(function (k) { screens[k].hidden = (k !== name); });
+  var fromTab = tabNav;
   currentScreen = name;
+  var d = keep ? null : (dir || navDir);
+  var update = function () {
+    if (currentScreen !== name) return; // otra navegación posterior ya cambió la pantalla
+    paintScreen(name, keep, first, fromTab);
+  };
+  if (!d || !document.startViewTransition) { update(); return; }
+  try {
+    document.startViewTransition({ update: update, types: [d] });
+  } catch (e) {
+    update(); // navegador con View Transitions pero sin la forma con objeto (types)
+  }
+}
+
+// La parte de show() que cambia la página: visibilidad, barra inferior, título, scroll y foco.
+function paintScreen(name, keep, first, fromTab) {
+  Object.keys(screens).forEach(function (k) { screens[k].hidden = (k !== name); });
   var bar = document.getElementById('tabbar');
   if (bar) {
     bar.hidden = !!NO_TABBAR[name];
@@ -67,10 +97,11 @@ function show(name, keep) {
       else b.removeAttribute('aria-current');
     });
   }
+  document.title = SCREEN_TITLE[name] ? SCREEN_TITLE[name] + ' · Mapa de áreas' : 'Mapa de áreas';
   if (!keep) window.scrollTo(0, 0);
   // Al arrancar (sin interacción todavía) no se toma el foco.
   var lost = !document.activeElement || document.activeElement === document.body;
-  if (keep ? (lost && lastFocusScreen === name) : (!first && !tabNav)) focusHeading(screens[name]);
+  if (keep ? (lost && lastFocusScreen === name) : (!first && !fromTab)) focusHeading(screens[name]);
 }
 
 // Aviso discreto: uno a la vez, se cierra solo a los 6 s o con su botón. #notices es role="status".
@@ -111,7 +142,7 @@ function glossFor(texts, title, limit) {
 function fmtDate(iso) { return new Date(iso).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }); }
 function navBack() {
   var b = el('button', { class: 'linkbtn', type: 'button', text: '← Volver' });
-  b.addEventListener('click', function () { renderYo(); });
+  b.addEventListener('click', function () { withDir('backward', function () { renderYo(); }); });
   return el('div', { class: 'topnav' }, b);
 }
 function fmtDay(ymd) { return new Date(ymd + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }); }

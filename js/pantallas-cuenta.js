@@ -7,8 +7,8 @@ function statTile(value, label) {
   return el('div', { class: 'stat' }, el('b', { text: value }), el('span', { class: 'small', text: label }));
 }
 
-// Botón que despliega el formulario de acceso por correo (enlace mágico). Se usa en Yo y en Elegir meta.
-// prefix distingue los ids de cada copia (#email, #send-link y #auth-msg en Yo; #pick-email… en Elegir meta).
+// Botón que despliega el formulario de acceso por correo (enlace mágico). Se usa en Yo y en la entrada.
+// prefix distingue los ids de cada copia (#email, #send-link y #auth-msg en Yo; #pick-email… en la entrada).
 function signInBlock(prefix, openText, quiet) {
   var formId = prefix + 'login', emailId = prefix + 'email';
   var open = el('button', { class: quiet ? 'linkbtn' : 'btn ghost', type: 'button', 'aria-expanded': 'false', 'aria-controls': formId, text: openText });
@@ -80,7 +80,7 @@ function accountCard() {
           deleting = false;
           answers = [];
           if (wipe) {
-            renderPick();
+            renderInicio();
             showNotice('Cerraste sesión. Tu avance quedó en tu cuenta y borramos la copia de este dispositivo.');
           } else {
             showNotice('Cerraste sesión. Tu avance sigue en este navegador: quien entre después en él lo combinará con su cuenta.');
@@ -134,7 +134,7 @@ function deleteCard() {
       if (uid && waited && waited.timedOut) waited.settled.then(function () { deleteRemote(sb, uid); });
       clearLocal(storage);
       state = emptyState();
-      renderPick();
+      renderInicio();
       showNotice('Listo. Borramos tu progreso.');
     }).then(done, function (e) { done(); throw e; });
   });
@@ -167,7 +167,7 @@ function renderYo(keep) {
   root.append(accountCard());
 
   var quiz = el('button', { class: 'btn', type: 'button', text: 'Descubre tu área' });
-  quiz.addEventListener('click', openIntro);
+  quiz.addEventListener('click', function () { renderDescubre(); });
   var actions = el('div', { class: 'actions' }, quiz);
   if (session) {
     var hist = el('button', { class: 'btn ghost', type: 'button', text: 'Mis respuestas' });

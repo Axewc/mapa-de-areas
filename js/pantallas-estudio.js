@@ -27,20 +27,17 @@ function renderPick(keep) {
   var root = screens.pick;
   root.textContent = '';
   var hasGoal = !!lineById(state.goal);
-  if (hasGoal) {
-    var back = el('button', { class: 'linkbtn', type: 'button', text: '← Volver' });
-    back.addEventListener('click', function () { renderYo(); });
-    root.append(el('div', { class: 'topnav' }, back));
-  } else {
-    root.append(hubHead());
-  }
+  // Con meta se llega desde Yo; sin meta, desde la entrada.
+  var back = el('button', { class: 'linkbtn', type: 'button', text: '← Volver' });
+  back.addEventListener('click', function () {
+    withDir('backward', function () { if (lineById(state.goal)) renderYo(); else renderEntrada(); });
+  });
+  root.append(el('div', { class: 'topnav' }, back));
   root.append(el('div', { class: 'hub-title' },
     el('h1', { text: hasGoal ? 'Cambia tu meta' : 'Elige tu meta' }),
     el('p', { class: 'lede', text: 'Elige una vacante real como meta. Vas a estudiar las habilidades que pide, a tu ritmo.' })
   ));
   if (hasGoal) root.append(el('p', { class: 'small', text: 'Lo que ya estudiaste se conserva: las habilidades compartidas cuentan para todas las líneas.' }));
-  // Quien ya tiene cuenta puede entrar antes de elegir, para traer su meta de la nube sin pisarla.
-  if (!hasGoal && !session) root.append(el('div', { class: 'pick-login' }, signInBlock('pick-', '¿Ya tienes cuenta? Entra', true)));
 
   var groups = [
     ['Para empezar', 'Piden poca o ninguna experiencia.', LINEAS.filter(function (l) { return l.level === 'Para empezar'; })],
