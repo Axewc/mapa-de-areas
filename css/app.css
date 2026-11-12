@@ -296,8 +296,9 @@ td.hi { font-weight: 600; background: var(--tint); }
 .admin-sec > h2 { margin-bottom: 0; }
 table.prog tbody th { font-family: var(--f-body); font-size: 0.9rem; letter-spacing: 0; text-transform: none; color: var(--ink); font-weight: 500; white-space: normal; overflow-wrap: anywhere; min-width: 9.5rem; max-width: 14rem; text-align: left; }
 table.prog td.meta { white-space: normal; min-width: 8rem; }
-.scrollhint { display: none; }
-@media (max-width: 719px) { .scrollhint { display: block; } }
+@media (max-width: 719px) {
+  table.prog tbody th { width: 9rem; min-width: 9rem; max-width: 9rem; }
+}
 table.prog tbody th { position: sticky; left: 0; background: var(--panel); z-index: 1; box-shadow: 1px 0 0 var(--line); }
 table.prog tbody tr:last-child th, table.prog tbody tr:last-child td { border-bottom: 0; }
 table.prog td.bad { color: var(--muted); font-style: italic; }

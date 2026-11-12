@@ -6,6 +6,7 @@
 //   window.__seed.session → sesión iniciada al cargar (si no, desconectado)
 //   window.__fakeLogin() → inicia sesión y avisa SIGNED_IN a los listeners
 //   window.__failSync   → el select de mapa_progreso devuelve error
+//   window.__failQuiz   → el select de mapa_respuestas devuelve error
 //   window.__selectCount → cuántos select se han hecho (para comprobar que un filtro no vuelve a consultar)
 //   window.__slowSync   → ms de espera antes de responder un select o upsert de mapa_progreso
 (function () {
@@ -23,7 +24,8 @@
   };
   var clock = Date.parse('2026-11-10T12:00:00Z');
   var nextId = 1;
-  var copy = function (x) { return JSON.parse(JSON.stringify(x)); };
+  // JSON.stringify no soporta anidados de miles de niveles (filas hostiles de la prueba): en ese caso se devuelve la misma referencia.
+  var copy = function (x) { try { return JSON.parse(JSON.stringify(x)); } catch (e) { return x; } };
 
   function Query(table) { this.table = table; this.op = 'select'; this.filters = []; this.ord = null; this.lim = null; this.payload = null; }
   Query.prototype.select = function () { return this; };
@@ -67,6 +69,7 @@
       return { data: null, error: null };
     }
     window.__selectCount = (window.__selectCount || 0) + 1;
+    if (this.table === 'mapa_respuestas' && window.__failQuiz) return { data: null, error: { message: 'sin red' } };
     if (this.table === 'mapa_progreso' && window.__failSync) return { data: null, error: { message: 'sin red' } };
     // RLS: cada quien ve lo suyo; la cuenta docente ve todo.
     var out = rows.filter(function (r) { return match(r) && (window.__fakeAdmin || r.user_id === USER.id); }).map(copy);

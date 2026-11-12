@@ -11,7 +11,7 @@ const {
   buildSession, enqueueRepeat, describeSession, nextDue,
   recordAnswer, finishSession, setGoal, totalXp, level, weekKey, streak, mergeState,
   applyShortcut, sessionSummary, segmentOffsets, lineasFor,
-  mapLabelLines, mapMarkerW, mapLayout, mapIssues, MAP_GEO, mapTextW, adminRow, adminCompare
+  mapLabelLines, mapMarkerW, mapLayout, mapIssues, MAP_GEO, mapTextW, adminRow, adminCompare, streakCurrent
 } = require('../js/core.js');
 const { LINEAS } = require('../js/data-lineas.js');
 const { ESTACIONES } = require('../js/data-estaciones.js');
@@ -364,6 +364,7 @@ test('mapLayout: insignia «L#» de cada línea junto a su primera estación (li
 
 // Vista docente: el estado lo escribe el navegador del alumno, así que adminRow trata todo como no confiable.
 const TODAY = '2026-11-12';
+const addDaysUtc = (ymd, n) => new Date(Date.parse(ymd + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
 const mk = (o) => ({ v: 2, goal: null, goalT: 0, items: {}, days: {}, ...o });
 const row = (st) => adminRow(st, TODAY, LINEAS, ESTACIONES);
 const INVALID = { valid: false, goalId: null, pct: null, streak: null, xp: null, lastDay: null };
@@ -453,14 +454,54 @@ test('adminRow: el último día es el más reciente con done === true o XP mayor
   assert.deepEqual([row(mk()).xp, row(mk()).streak], [0, 0]);
 });
 
-test('adminRow: la racha cuenta hasta hoy y no se rompe por días lejanos o miles de llaves', () => {
+test('adminRow: miles de llaves de día no frenan el cálculo y la racha es la esperada', () => {
   const days = {};
   for (let i = 0; i < 3000; i++) days[new Date(Date.UTC(2020, 0, 1 + i)).toISOString().slice(0, 10)] = { xp: 5, done: true };
   const t0 = Date.now();
   const r = row(mk({ days }));
   assert.ok(Date.now() - t0 < 2000, 'tarda demasiado');
-  assert.ok(r.streak >= 1 && Number.isFinite(r.streak));
+  // Días seguidos desde 2020 hasta hoy y mañana: la racha actual llega al tope de 400 días.
+  assert.equal(r.streak, 400);
+  assert.equal(r.lastDay, '2026-11-13'); // mañana todavía se acepta (zona horaria del alumno)
   assert.equal(row(mk({ days: { '2026-11-01': { xp: 5, done: true } } })).streak, 0);
+});
+
+test('adminRow: la racha mira solo los últimos 400 días (tope deliberado, para acotar el costo)', () => {
+  const run = (n) => {
+    const days = {};
+    for (let i = 0; i < n; i++) days[addDaysUtc(TODAY, -i)] = { xp: 5, done: true };
+    return row(mk({ days })).streak;
+  };
+  assert.equal(run(399), 399);
+  assert.equal(run(400), 400);
+  assert.equal(run(500), 400);
+});
+
+test('adminRow: valores anidados miles de veces (xp, caja, done, meta) no lanzan ni cuentan', () => {
+  let deep = 1;
+  for (let i = 0; i < 6000; i++) deep = [deep];
+  assert.throws(() => Number(deep), RangeError, 'la premisa: Number() lanza con este valor');
+  const items = {};
+  for (const id of itemIds(ESTACIONES.git)) items[id] = { b: deep };
+  let r;
+  assert.doesNotThrow(() => {
+    r = row(mk({ goal: 'edar-dev-jr', items, days: { '2026-11-10': { xp: deep, done: deep }, '2026-11-11': { xp: 30, done: true } }, goalT: deep }));
+  });
+  assert.equal(r.valid, true);
+  assert.equal(r.pct, 0);
+  assert.equal(r.xp, 30);
+  assert.equal(r.streak, 1);
+  assert.equal(r.lastDay, '2026-11-11');
+  assert.deepEqual(row(mk({ goal: deep, days: { '2026-11-10': { xp: deep } } })), { valid: true, goalId: null, pct: null, streak: 0, xp: 0, lastDay: null });
+});
+
+test('streakCurrent: igual a streak().current y 0 sin días cumplidos', () => {
+  const days = {};
+  for (const d of ['2026-11-12', '2026-11-11', '2026-11-09', '2026-11-05', '2026-11-04', '2026-10-20']) days[d] = { xp: 1, done: true };
+  days['2026-11-10'] = { xp: 3, done: false };
+  for (const st of [mk({ days }), mk(), mk({ days: { '2026-11-12': { xp: 9, done: false } } })]) {
+    for (const t of ['2026-11-12', '2026-11-13', '2026-11-20']) assert.equal(streakCurrent(st, t), streak(st, t).current);
+  }
 });
 
 test('adminCompare: último día más reciente primero, sin día al final y empates por correo', () => {

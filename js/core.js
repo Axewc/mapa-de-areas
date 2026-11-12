@@ -299,6 +299,15 @@ function streak(state, today) {
   return { current: cur.count, best: best, rest: cur.rest };
 }
 
+// Solo la racha actual (igual a streak().current) sin calcular la mejor, que es O(n²) en días cumplidos.
+function streakCurrent(state, today) {
+  var oldest = null, k;
+  for (k in state.days) {
+    if (Object.prototype.hasOwnProperty.call(state.days, k) && coreIsDone(state, k) && (oldest === null || k < oldest)) oldest = k;
+  }
+  return oldest === null ? 0 : coreStreakAt(state, today, oldest).count;
+}
+
 function coreCopyState(s) {
   var items = {}, days = {}, k;
   for (k in s.items) if (Object.prototype.hasOwnProperty.call(s.items, k)) items[k] = s.items[k];
@@ -578,12 +587,13 @@ function lineasFor(topKeys, lines) {
 
 // Vista docente. El estado de cada alumno lo escribe su navegador: nada de él es confiable.
 // Todo número se coerciona (no finito: 0), el XP de cada día se limita a 0…1000 y solo cuentan
-// días con llave 'AAAA-MM-DD' real entre 2020-01-01 y mañana; la racha mira solo los últimos 400 días.
+// días con llave 'AAAA-MM-DD' real entre 2020-01-01 y mañana; la racha mira solo los últimos 400 días (hoy incluido).
 var ADMIN_XP_DAY = 1000;
-var ADMIN_STREAK_DAYS = 400;
+var ADMIN_STREAK_DAYS = 400; // tope deliberado: una racha de más de 400 días se muestra como 400
 
+// Solo acepta primitivos: Number() sobre un arreglo anidado miles de veces desborda la pila (y lanzaría).
 function adminNum(x) {
-  var n = Number(x);
+  var n = typeof x === 'number' ? x : typeof x === 'string' ? Number(x) : 0;
   return isFinite(n) ? n : 0;
 }
 
@@ -616,7 +626,7 @@ function adminRow(state, today, lines, stations) {
     out.pct = p < 0 ? 0 : p > 100 ? 100 : p;
   }
 
-  var minDay = '2020-01-01', maxDay = addDays(today, 1), streakFrom = addDays(today, -ADMIN_STREAK_DAYS);
+  var minDay = '2020-01-01', maxDay = addDays(today, 1), streakFrom = addDays(today, 1 - ADMIN_STREAK_DAYS);
   var recent = {}, xp = 0, last = null;
   var keys = Object.keys(state.days);
   for (k = 0; k < keys.length; k++) {
@@ -631,7 +641,7 @@ function adminRow(state, today, lines, stations) {
   }
   out.xp = Math.round(xp);
   out.lastDay = last;
-  out.streak = streak({ v: 2, items: {}, days: recent }, today).current;
+  out.streak = streakCurrent({ v: 2, items: {}, days: recent }, today);
   return out;
 }
 
@@ -656,7 +666,7 @@ if (typeof module !== 'undefined') module.exports = {
   buildSession: buildSession, enqueueRepeat: enqueueRepeat, describeSession: describeSession,
   nextDue: nextDue,
   XP: XP, recordAnswer: recordAnswer, finishSession: finishSession, setGoal: setGoal,
-  totalXp: totalXp, level: level, weekKey: weekKey, streak: streak, mergeState: mergeState,
+  totalXp: totalXp, level: level, weekKey: weekKey, streak: streak, streakCurrent: streakCurrent, mergeState: mergeState,
   applyShortcut: applyShortcut, sessionSummary: sessionSummary,
   segmentOffsets: segmentOffsets, lineasFor: lineasFor,
   MAP_GEO: MAP_GEO, mapTextW: mapTextW, coreSegHitsBox: coreSegHitsBox, mapLabelLines: mapLabelLines, mapMarkerW: mapMarkerW, mapLayout: mapLayout, mapIssues: mapIssues

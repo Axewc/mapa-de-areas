@@ -22,7 +22,7 @@ async function setupRoutes(page) {
 const noHScroll = () => document.documentElement.scrollWidth <= window.innerWidth;
 
 // Abre el sitio. Por defecto sin sesión (la primera visita normal).
-// opts: { seed, seedJson (texto JSON del seed, para llaves como «__proto__»), session, admin, failSync, slowSync (ms), failDelete, local, clock (fecha fija) }.
+// opts: { seed, seedJson (texto JSON del seed, para llaves como «__proto__»), session, admin, failSync, failQuiz, slowSync (ms), failDelete, local, clock (fecha fija) }.
 // `local` es el texto que se guarda en localStorage antes de cargar (null: no se toca).
 async function openHome(context, opts) {
   const o = opts || {};
@@ -34,13 +34,14 @@ async function openHome(context, opts) {
     window.__seed = Object.assign({}, a.seedJson ? JSON.parse(a.seedJson) : (a.seed || {}), a.session ? { session: true } : {});
     if (a.admin) window.__fakeAdmin = true;
     if (a.failSync) window.__failSync = true;
+    if (a.failQuiz) window.__failQuiz = true;
     if (a.local !== null && a.local !== undefined && !sessionStorage.getItem('e2e.seeded')) {
       localStorage.setItem(a.key, a.local);
       sessionStorage.setItem('e2e.seeded', '1');
     }
     if (a.slowSync) window.__slowSync = a.slowSync;
     if (a.failDelete) window.__failDelete = true;
-  }, { seed: o.seed, seedJson: o.seedJson || null, session: !!o.session, admin: !!o.admin, failSync: !!o.failSync, slowSync: o.slowSync || 0, failDelete: !!o.failDelete,
+  }, { seed: o.seed, seedJson: o.seedJson || null, session: !!o.session, admin: !!o.admin, failSync: !!o.failSync, failQuiz: !!o.failQuiz, slowSync: o.slowSync || 0, failDelete: !!o.failDelete,
     local: o.local === undefined ? null : o.local, key: KEY });
   if (o.clock) await page.clock.setFixedTime(new Date(o.clock));
   await page.goto(INDEX_URL);
@@ -497,7 +498,9 @@ async function cuestionarioScenarios(browser, setStep) {
 // como llega de la base de datos.
 const TEACHER_DAY = '2026-11-10';
 const goalOnly = () => ({ v: 2, goal: 'edar-dev-jr', goalT: 1, items: {}, days: {} });
+const LONG_EMAIL = 'estudiante.con.un.correo.muy.largo.de.prueba@universidad.ejemplo.edu.mx';
 function teacherSeedJson() {
+  const deep = '['.repeat(6000) + '1' + ']'.repeat(6000);
   const items = {};
   // Primera estación de safe-soc entera en caja 5 y la segunda empezada: el avance sale de estaciones de su meta.
   const soc = require('../js/data-lineas.js').LINEAS.find((l) => l.id === 'safe-soc').stations;
@@ -512,6 +515,9 @@ function teacherSeedJson() {
     JSON.stringify({ user_id: 'u5', email: 'otra@test.mx', state: otra, updated_at: '2026-11-10T10:00:00Z' }),
     JSON.stringify({ user_id: 'u2', email: 'rara@test.mx', state: { v: 9 }, updated_at: '2026-11-10T09:00:00Z' }),
     '{"user_id":"u3","email":"weird@test.mx","state":' + weird + ',"updated_at":"2026-11-10T08:00:00Z"}',
+    // Valores anidados 6000 veces: Number() sobre ellos lanza RangeError; una fila así no debe tumbar la tabla.
+    '{"user_id":"u6","email":"hostil@test.mx","state":{"v":2,"goal":"safe-soc","goalT":' + deep + ',"items":{"git.0":{"b":' + deep + '}},"days":{"2026-11-10":{"xp":' + deep + ',"done":false}}},"updated_at":"2026-11-10T06:00:00Z"}',
+    JSON.stringify({ user_id: 'u7', email: LONG_EMAIL, state: { v: 2, goal: null, goalT: 0, items: {}, days: {} }, updated_at: '2026-11-10T05:00:00Z' }),
     JSON.stringify({ user_id: 'u4', email: 'nuevo@test.mx', state: { v: 2, goal: null, goalT: 0, items: {}, days: {} }, updated_at: '2026-11-10T07:00:00Z' })
   ].join(',') + '],"mapa_respuestas":' + JSON.stringify([quiz('otra@test.mx', 1), quiz('nuevo@test.mx', 2), quiz('rara@test.mx', 3)]) + '}';
 }
@@ -537,7 +543,7 @@ async function teacherScenarios(browser, setStep) {
     trs.map((tr) => Array.from(tr.children, (c) => c.tagName + ':' + c.textContent.trim())));
   const rows = await rowsOf();
   // Orden: último día desc, empate por correo, sin día al final.
-  assert.deepEqual(rows.map((r) => r[0]), ['TH:otra@test.mx', 'TH:weird@test.mx', 'TH:alumno@test.mx', 'TH:nuevo@test.mx', 'TH:rara@test.mx']);
+  assert.deepEqual(rows.map((r) => r[0]), ['TH:otra@test.mx', 'TH:weird@test.mx', 'TH:alumno@test.mx', 'TH:' + LONG_EMAIL, 'TH:hostil@test.mx', 'TH:nuevo@test.mx', 'TH:rara@test.mx']);
   const fmt = await page.evaluate(() => fmtDay('2026-11-10'));
   assert.match(rows[0][1], /^TD:L5\s*Analista SOC Tier 2$/);
   assert.match(rows[0][2], /^TD:[1-9]\d?%$/, 'avance mayor a 0');
@@ -549,11 +555,36 @@ async function teacherScenarios(browser, setStep) {
   // alumno@test.mx es la cuenta docente: su propio progreso (sin estudio todavía) también se guardó al iniciar sesión.
   assert.deepEqual(rows[2].slice(1), ['TD:L1 Desarrollador de Software Jr.', 'TD:0%', 'TD:0 días', 'TD:0', 'TD:–']);
   assert.deepEqual(rows[3].slice(1), ['TD:Sin meta', 'TD:–', 'TD:0 días', 'TD:0', 'TD:–']);
-  assert.deepEqual(rows[4].slice(1), ['TD:estado no válido', 'TD:–', 'TD:–', 'TD:–', 'TD:–']);
-  assert.match(await page.textContent('#s-admin'), /5 estudiantes con progreso/);
-  assert.match(await page.textContent('#s-admin'), /4 con estado válido/);
-  assert.equal(await page.locator('#s-admin table.prog tbody th[scope=row]').count(), 5);
+  // Fila hostil (valores anidados): se ve con ceros, sin tumbar la sección.
+  assert.match(rows[4][1], /^TD:L5\s*Analista SOC Tier 2$/);
+  assert.deepEqual([rows[4][2], rows[4][3], rows[4][4], rows[4][5]], ['TD:0%', 'TD:0 días', 'TD:0', 'TD:–']);
+  assert.deepEqual(rows[5].slice(1), ['TD:Sin meta', 'TD:–', 'TD:0 días', 'TD:0', 'TD:–']);
+  assert.deepEqual(rows[6].slice(1), ['TD:estado no válido', 'TD:–', 'TD:–', 'TD:–', 'TD:–']);
+  assert.match(await page.textContent('#s-admin'), /7 estudiantes con progreso/);
+  assert.match(await page.textContent('#s-admin'), /6 con estado válido/);
+  assert.equal(await page.locator('#s-admin table.prog tbody th[scope=row]').count(), 7);
   assert.equal(await page.locator('#s-admin thead th[scope=col]').count(), 6);
+  // Accesibilidad de la tabla y aviso de deslizar (solo si de verdad se desborda).
+  const wrapAttrs = await page.locator('#s-admin .tablewrap').evaluate((w) => [w.getAttribute('tabindex'), w.getAttribute('role'), w.getAttribute('aria-label')]);
+  assert.deepEqual(wrapAttrs, ['0', 'region', 'Progreso de estudio']);
+  assert.ok(await page.locator('#s-admin .scrollhint').isVisible(), 'a 390 px la tabla se desborda y el aviso se ve');
+  // Correo largo: la columna fija se limita y envuelve, y al deslizar al final quedan al menos dos columnas de datos a la vista.
+  const lay = await page.locator('#s-admin .tablewrap').evaluate((w) => {
+    const th = Array.from(w.querySelectorAll('tbody th')).find((x) => x.title.length > 40);
+    const thW = th.getBoundingClientRect().width;
+    w.scrollLeft = w.scrollWidth;
+    const wr = w.getBoundingClientRect(), thr = w.querySelector('tbody th').getBoundingClientRect();
+    const visible = Array.from(w.querySelectorAll('thead th')).slice(1).filter((h) => {
+      const r = h.getBoundingClientRect();
+      return r.left >= thr.right - 1 && r.right <= wr.right + 1;
+    }).map((h) => h.textContent);
+    w.scrollLeft = 0;
+    return { thW, visible, title: th.title, text: th.textContent };
+  });
+  assert.ok(lay.thW <= 150, 'columna del correo demasiado ancha: ' + lay.thW);
+  assert.equal(lay.title, LONG_EMAIL);
+  assert.equal(lay.text, LONG_EMAIL);
+  assert.ok(lay.visible.length >= 2, 'columnas de datos visibles al final del deslizamiento: ' + lay.visible.join(','));
   // El quiz sigue: 3 intentos.
   assert.match(await page.textContent('#s-admin'), /Intentos del cuestionario/);
   assert.equal(await page.locator('#s-admin .attempts details.attempt').count(), 3);
@@ -568,7 +599,7 @@ async function teacherScenarios(browser, setStep) {
   assert.equal(await page.locator('#s-admin table.prog').count(), 0);
   assert.equal(await page.locator('#s-admin .admin-sec', { hasText: 'Sin resultados.' }).count(), 2);
   await page.fill('#admin-filter', '');
-  assert.equal((await rowsOf()).length, 5);
+  assert.equal((await rowsOf()).length, 7);
   assert.deepEqual(o.errors, [], 'errores de JS en la vista docente');
   assert.equal(await page.evaluate(() => window.__selectCount), selects, 'el filtro no vuelve a consultar');
   // «← Volver» regresa a Yo.
@@ -587,6 +618,7 @@ async function teacherScenarios(browser, setStep) {
       await v.page.waitForSelector('#s-admin table.prog tbody tr');
       await v.page.waitForSelector('#s-admin .attempts details.attempt');
       assert.ok(await v.page.evaluate(noHScroll), 'scroll horizontal en la vista docente (' + vp.width + ', ' + cs + ')');
+      assert.equal(await v.page.locator('#s-admin .scrollhint').isVisible(), vp.width < 720, 'aviso de deslizar según el desborde real (' + vp.width + ')');
       if (SHOTS) await v.page.screenshot({ path: path.join(SHOTS, vp.width + '-' + cs + '-docente.png'), fullPage: true, animations: 'disabled' });
       assert.deepEqual(v.errors, []);
       await c.close();
@@ -605,6 +637,40 @@ async function teacherScenarios(browser, setStep) {
   assert.equal(await f.page.locator('#s-admin .attempts details.attempt').count(), 3);
   assert.deepEqual(f.errors, []);
   await ctxF.close();
+
+  // La consulta del cuestionario falla: la tabla de progreso sigue.
+  setStep('vista docente: el cuestionario falla, el progreso sigue');
+  const ctxQ = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const q = await openHome(ctxQ, { session: true, admin: true, failQuiz: true, seedJson: teacherSeedJson(), clock: TEACHER_DAY + 'T12:00:00', local: JSON.stringify(goalOnly()) });
+  await q.page.click('#tabbar [data-tab=yo]');
+  await q.page.click('#s-yo button:has-text("Vista docente")');
+  await q.page.waitForSelector('#s-admin table.prog tbody tr');
+  assert.equal(await q.page.locator('#s-admin table.prog tbody tr').count(), 7);
+  await q.page.waitForFunction(() => /No se pudo cargar las respuestas \(sin red\)/.test(document.getElementById('s-admin').textContent));
+  assert.equal(await q.page.locator('#s-admin .attempts').count(), 0);
+  assert.deepEqual(q.errors, []);
+  await ctxQ.close();
+
+  // Con exactamente 1000 filas el aviso dice que puede haber más y no afirma un total.
+  setStep('vista docente: 1000 filas');
+  const many = [], manyQuiz = [];
+  const okState = { v: 2, goal: null, goalT: 0, items: {}, days: { '2026-11-10': { xp: 10, done: true } } };
+  for (let i = 0; i < 1000; i++) {
+    many.push({ user_id: 'm' + i, email: 'm' + String(i).padStart(4, '0') + '@test.mx', state: okState, updated_at: '2026-11-10T00:00:00Z' });
+    manyQuiz.push({ id: 'z' + i, user_id: 'm' + i, email: 'm' + i + '@test.mx', created_at: '2026-11-01T12:00:00Z', answers: [0], scores: { ml: 10, bak: 5, dat: 3 }, quiz_version: 2 });
+  }
+  const ctxM = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const m = await openHome(ctxM, { session: true, admin: true, seedJson: JSON.stringify({ mapa_progreso: many, mapa_respuestas: manyQuiz }), clock: TEACHER_DAY + 'T12:00:00', local: JSON.stringify(goalOnly()) });
+  await m.page.click('#tabbar [data-tab=yo]');
+  await m.page.click('#s-yo button:has-text("Vista docente")');
+  await m.page.waitForSelector('#s-admin table.prog tbody tr');
+  const txt = await m.page.textContent('#s-admin');
+  assert.equal((txt.match(/Se muestran los primeros 1000; puede haber más\./g) || []).length, 2, 'aviso en las dos secciones');
+  assert.match(txt, /1000 estudiantes cargados/);
+  assert.match(txt, /1000 intentos cargados/);
+  assert.doesNotMatch(txt, /estudiantes con progreso/);
+  assert.deepEqual(m.errors, []);
+  await ctxM.close();
 
   // Sin filas de progreso: estado vacío.
   setStep('vista docente: vacía');

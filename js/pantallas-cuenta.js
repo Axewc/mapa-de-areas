@@ -163,7 +163,38 @@ function adminSection(id, title) {
   return { body: body, node: el('section', { class: 'admin-sec stack', 'aria-labelledby': id }, el('h2', { id: id, text: title }), body) };
 }
 
-function adminEmail(x) { return typeof x === 'string' ? x : x == null ? '' : String(x); }
+// Solo texto: String() sobre un valor anidado hostil podría lanzar.
+function adminEmail(x) { return typeof x === 'string' ? x : ''; }
+
+var ADMIN_LIMIT = 1000;
+var ADMIN_CUT = 'Se muestran los primeros 1000; puede haber más.';
+var adminHintWrap = null, adminHintObs = null;
+
+// La fila de un estado que no se pudo leer: «estado no válido» y guiones.
+function adminBadRow() { return { valid: false, goalId: null, pct: null, streak: null, xp: null, lastDay: null }; }
+
+// Una fila hostil nunca debe detener la sección: cualquier excepción da la fila no válida.
+function adminBuildRow(x, today) {
+  try {
+    return { email: adminEmail(x && x.email), row: adminRow(x && x.state, today, LINEAS, ESTACIONES) };
+  } catch (e) {
+    return { email: adminEmail(x && x.email), row: adminBadRow() };
+  }
+}
+
+// El aviso de deslizar solo sale cuando la tabla de verdad se desborda.
+function adminWatchOverflow(wrap, hint) {
+  var update = function () { hint.hidden = !(wrap.scrollWidth > wrap.clientWidth + 1); };
+  if (adminHintObs) { adminHintObs.disconnect(); adminHintObs = null; }
+  adminHintWrap = update;
+  update();
+  if (typeof ResizeObserver !== 'undefined') {
+    adminHintObs = new ResizeObserver(update);
+    adminHintObs.observe(wrap);
+    if (wrap.firstChild) adminHintObs.observe(wrap.firstChild);
+  }
+}
+window.addEventListener('resize', function () { if (adminHintWrap) adminHintWrap(); });
 
 function adminMeta(line) {
   return el('td', { class: 'meta' }, lineBadge(line), ' ' + line.title);
@@ -173,7 +204,7 @@ function adminProgressRow(item) {
   var r = item.row, line = null, i;
   if (r.valid && r.goalId) for (i = 0; i < LINEAS.length; i++) if (LINEAS[i].id === r.goalId) { line = LINEAS[i]; break; }
   var dash = function (cls) { return el('td', { class: cls || '', text: '–' }); };
-  var tr = el('tr', null, el('th', { scope: 'row', class: 'who', text: item.email }));
+  var tr = el('tr', null, el('th', { scope: 'row', class: 'who', title: item.email, text: item.email }));
   if (!r.valid) {
     tr.append(el('td', { class: 'bad', text: 'estado no válido' }), dash('num'), dash('num'), dash('num'), dash());
     return tr;
@@ -210,7 +241,11 @@ function renderAdmin() {
     var valid = progRows.filter(function (x) { return x.row.valid; }).length;
     prog.body.textContent = '';
     if (!progRows.length) { prog.body.append(el('p', { class: 'status', text: 'Todavía nadie guarda progreso de estudio.' })); return; }
-    prog.body.append(el('p', { class: 'small', text: plural(progRows.length, 'estudiante', 'estudiantes') + ' con progreso (' + valid + ' con estado válido).' }));
+    var cut = progRows.length >= ADMIN_LIMIT;
+    prog.body.append(el('p', { class: 'small', text: cut
+      ? plural(progRows.length, 'estudiante', 'estudiantes') + ' cargados (' + valid + ' con estado válido).'
+      : plural(progRows.length, 'estudiante', 'estudiantes') + ' con progreso (' + valid + ' con estado válido).' }));
+    if (cut) prog.body.append(el('div', { class: 'note', text: ADMIN_CUT }));
     if (!shown.length) { prog.body.append(el('p', { class: 'status', text: 'Sin resultados.' })); return; }
     var head = el('tr', null);
     ['Correo', 'Meta', '% listo', 'Racha', 'XP', 'Último día'].forEach(function (h, i) {
@@ -218,10 +253,12 @@ function renderAdmin() {
     });
     var tbody = el('tbody');
     shown.forEach(function (x) { tbody.append(adminProgressRow(x)); });
-    prog.body.append(el('p', { class: 'fine scrollhint', text: 'Desliza la tabla a un lado para ver todas las columnas.' }));
-    prog.body.append(el('div', { class: 'tablewrap' }, el('table', { class: 'prog' },
+    var hint = el('p', { class: 'fine scrollhint', text: 'Desliza la tabla a un lado para ver todas las columnas.', hidden: 'hidden' });
+    var wrap = el('div', { class: 'tablewrap', tabindex: '0', role: 'region', 'aria-label': 'Progreso de estudio' }, el('table', { class: 'prog' },
       el('caption', { class: 'sr-only', text: 'Progreso de estudio por estudiante, del último día de estudio más reciente al más antiguo' }),
-      el('thead', null, head), tbody)));
+      el('thead', null, head), tbody));
+    prog.body.append(hint, wrap);
+    adminWatchOverflow(wrap, hint);
   }
 
   function drawQuiz() {
@@ -232,14 +269,23 @@ function renderAdmin() {
     quizRows.forEach(function (x) { people[adminEmail(x.email)] = true; });
     quiz.body.textContent = '';
     if (!quizRows.length) { quiz.body.append(el('p', { class: 'status', text: 'Todavía no hay intentos del cuestionario.' })); return; }
-    quiz.body.append(el('p', { class: 'small', text: plural(quizRows.length, 'intento', 'intentos') + ' de ' + plural(Object.keys(people).length, 'persona', 'personas') + '.' }));
+    var cutQ = quizRows.length >= ADMIN_LIMIT;
+    quiz.body.append(el('p', { class: 'small', text: cutQ
+      ? plural(quizRows.length, 'intento', 'intentos') + ' cargados.'
+      : plural(quizRows.length, 'intento', 'intentos') + ' de ' + plural(Object.keys(people).length, 'persona', 'personas') + '.' }));
+    if (cutQ) quiz.body.append(el('div', { class: 'note', text: ADMIN_CUT }));
     if (!shown.length) { quiz.body.append(el('p', { class: 'status', text: 'Sin resultados.' })); return; }
     var list = el('div', { class: 'attempts' });
     shown.forEach(function (x) {
-      list.append(el('details', { class: 'attempt' },
-        el('summary', null, el('span', { class: 'mono when', text: adminEmail(x.email) + ' · ' + fmtDate(x.created_at) + ' · ' + (SETS[x.quiz_version] || SETS[1]).name }), topLine(x.scores)),
-        qaList(x.answers, x.quiz_version)
-      ));
+      try {
+        list.append(el('details', { class: 'attempt' },
+          el('summary', null, el('span', { class: 'mono when', text: adminEmail(x.email) + ' · ' + fmtDate(x.created_at) + ' · ' + (SETS[x.quiz_version] || SETS[1]).name }), topLine(x.scores)),
+          qaList(x.answers, x.quiz_version)
+        ));
+      } catch (e) {
+        // Un intento con datos ilegibles no tumba a los demás.
+        list.append(el('p', { class: 'status', text: adminEmail(x.email) + ' · intento ilegible' }));
+      }
     });
     quiz.body.append(list);
   }
@@ -249,18 +295,25 @@ function renderAdmin() {
     box.append(el('div', { class: 'note', text: 'No se pudo cargar ' + what + ' (' + ((e && e.message) || 'error de red') + ').' }));
   };
 
-  sb.from('mapa_progreso').select('email,state,updated_at').order('updated_at', { ascending: false }).limit(1000).then(function (r) {
-    if (r.error) { fail(prog.body, 'el progreso', r.error); return; }
-    progRows = (r.data || []).map(function (x) { return { email: adminEmail(x.email), row: adminRow(x.state, today, LINEAS, ESTACIONES) }; });
+  // Cada consulta es independiente; un fallo al procesar (no solo al pedir) cae en la misma nota de error.
+  var toProg = function (e) { progRows = null; fail(prog.body, 'el progreso', e); };
+  var toQuiz = function (e) { quizRows = null; fail(quiz.body, 'las respuestas', e); };
+
+  sb.from('mapa_progreso').select('email,state,updated_at').order('updated_at', { ascending: false }).limit(ADMIN_LIMIT).then(function (r) {
+    if (r.error) { toProg(r.error); return; }
+    progRows = (r.data || []).map(function (x) { return adminBuildRow(x, today); });
     progRows.sort(adminCompare);
     drawProgress();
-  }, function (e) { fail(prog.body, 'el progreso', e); });
+  }).then(null, toProg);
 
-  sb.from('mapa_respuestas').select('id,email,created_at,answers,scores,quiz_version').order('created_at', { ascending: false }).limit(1000).then(function (r) {
-    if (r.error) { fail(quiz.body, 'las respuestas', r.error); return; }
+  sb.from('mapa_respuestas').select('id,email,created_at,answers,scores,quiz_version').order('created_at', { ascending: false }).limit(ADMIN_LIMIT).then(function (r) {
+    if (r.error) { toQuiz(r.error); return; }
     quizRows = r.data || [];
     drawQuiz();
-  }, function (e) { fail(quiz.body, 'las respuestas', e); });
+  }).then(null, toQuiz);
 
-  filter.addEventListener('input', function () { drawProgress(); drawQuiz(); });
+  filter.addEventListener('input', function () {
+    try { drawProgress(); } catch (e) { toProg(e); }
+    try { drawQuiz(); } catch (e) { toQuiz(e); }
+  });
 }
