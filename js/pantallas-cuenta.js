@@ -53,12 +53,15 @@ function accountCard() {
       showNotice('No se pudo cerrar la sesión. Intenta de nuevo.');
     };
     // Cierra la sesión. Con wipe (lo normal, para que el siguiente en este equipo no mezcle su avance con el tuyo) primero
-    // intenta una última sincronización y, si salió bien, borra la copia de este dispositivo. Si falla, no borra nada.
+    // espera (con tope) a las sincronizaciones en curso, para que ninguna con un estado más viejo pise la fila después,
+    // intenta una última sincronización y, si salió bien, borra la copia de este dispositivo. Si algo falla, no borra nada.
     var logout = function (wipe) {
       out.disabled = true;
       noWipe.disabled = true;
       msg.textContent = wipe ? 'Guardando tu avance en tu cuenta…' : '';
-      (wipe ? runSync() : Promise.resolve({ ok: true, discarded: false })).then(function (r) {
+      (wipe
+        ? settlePending().then(function (w) { return w.timedOut ? { ok: false, discarded: false } : runSync(); })
+        : Promise.resolve({ ok: true, discarded: false })).then(function (r) {
         if (!r.ok) {
           out.disabled = false;
           noWipe.disabled = false;
@@ -66,7 +69,7 @@ function accountCard() {
           noWipe.hidden = false;
           msg.textContent = r.discarded
             ? 'Se está borrando tu progreso. Espera un momento e intenta de nuevo.'
-            : 'No se pudo guardar tu avance en tu cuenta, así que no lo borramos de este dispositivo. Puedes reintentar o cerrar sesión sin borrar; en ese caso el avance se queda aquí.';
+            : 'No se pudo guardar tu avance en tu cuenta, así que no lo borramos de este dispositivo. Puedes reintentar o cerrar sesión sin borrar: el avance se queda en este navegador y quien entre después en él lo combinará con su cuenta.';
           return;
         }
         deleting = true; // ninguna sincronización empieza mientras se cierra la sesión y se borra la copia local
@@ -79,6 +82,8 @@ function accountCard() {
           if (wipe) {
             renderPick();
             showNotice('Cerraste sesión. Tu avance quedó en tu cuenta y borramos la copia de este dispositivo.');
+          } else {
+            showNotice('Cerraste sesión. Tu avance sigue en este navegador: quien entre después en él lo combinará con su cuenta.');
           }
         });
       }).then(null, function () { deleting = false; failOut(); });

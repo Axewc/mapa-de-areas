@@ -8,7 +8,7 @@
 //   window.__failSync   → el select de mapa_progreso devuelve error
 //   window.__failQuiz   → el select de mapa_respuestas devuelve error
 //   window.__selectCount → cuántos select se han hecho (para comprobar que un filtro no vuelve a consultar)
-//   window.__slowSync   → ms de espera antes de responder un select o upsert de mapa_progreso
+//   window.__slowSync   → ms de espera antes de responder un select (lee de inmediato) o de aplicar un upsert de mapa_progreso
 (function () {
   var seed = window.__seed || {};
   var USER = { id: 'u1', email: 'alumno@test.mx' };
@@ -90,6 +90,8 @@
     var self = this;
     var wait = this.table === 'mapa_progreso' && this.op !== 'delete' ? (window.__slowSync || 0) : 0;
     if (!wait) return Promise.resolve(this.run()).then(resolve, reject);
+    // Una lectura toma sus datos al llegar la petición y los entrega después (como una red lenta); una escritura entra al terminar la espera.
+    if (this.op === 'select') { var early = this.run(); return new Promise(function (res) { setTimeout(function () { res(early); }, wait); }).then(resolve, reject); }
     return new Promise(function (res) { setTimeout(function () { res(self.run()); }, wait); }).then(resolve, reject);
   };
 

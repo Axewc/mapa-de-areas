@@ -61,16 +61,21 @@ function syncNow() {
   });
 }
 
-// Para borrar o cerrar sesión: invalida las sincronizaciones en curso y espera a que terminen (sin usar su resultado),
-// así su upsert no vuelve a crear la fila remota después del borrado. La espera tiene tope (INVALIDATE_WAIT_MS) para que
-// una red colgada no deje trabado el borrado. Resuelve { timedOut, settled }: settled es la espera completa, por si hace falta
-// repetir el borrado remoto cuando las sincronizaciones tardías terminen.
+// Espera a que terminen las sincronizaciones en curso, con tope (INVALIDATE_WAIT_MS) para que una red colgada no deje
+// trabado el borrado ni el cierre de sesión. Resuelve { timedOut, settled }: settled es la espera completa, por si hace falta
+// repetir algo cuando las sincronizaciones tardías terminen.
 var INVALIDATE_WAIT_MS = 8000;
-function invalidateData() {
-  dataEpoch++;
+function settlePending() {
   var settled = Promise.all(pendingSyncs).then(function () { return false; });
   var limit = new Promise(function (resolve) { setTimeout(function () { resolve(true); }, INVALIDATE_WAIT_MS); });
   return Promise.race([settled, limit]).then(function (timedOut) { return { timedOut: timedOut, settled: settled }; });
+}
+
+// Para borrar o cerrar sesión: invalida las sincronizaciones en curso y espera a que terminen (sin usar su resultado),
+// así su upsert no vuelve a crear la fila remota después del borrado.
+function invalidateData() {
+  dataEpoch++;
+  return settlePending();
 }
 
 // Sincroniza y redibuja. Si en la primera visita (sin meta) llega una meta de la nube, entra a Hoy.

@@ -794,6 +794,42 @@ async function sharedStateScenarios(browser, setStep) {
   assert.deepEqual(W.errors, []);
   await ctxW.close();
 
+  setStep('cerrar sesión espera a una sincronización lenta antes de guardar y borrar');
+  const ctxR = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const R = await openHome(ctxR, { session: true, slowSync: 1500, local: JSON.stringify(goalOnly()) }); // sin ítems: lo que responda es nuevo
+  await R.page.waitForSelector('#s-hoy:not([hidden])');
+  await R.page.evaluate(() => { window.__slowSync = 50; }); // la sincronización de arranque sigue lenta; las siguientes, rápidas
+  await R.page.click('#s-hoy .session-cta');
+  const slowAns = await answerCard(R.page, true);
+  await R.page.click('#s-sesion button:has-text("Salir")');
+  await R.page.click('#tabbar [data-tab=yo]');
+  await R.page.click('#s-yo #logout');
+  await R.page.waitForSelector('#s-pick:not([hidden])', { timeout: 15000 });
+  await R.page.waitForTimeout(2500); // más que lo que le falta a la sincronización lenta: no debe pisar la fila con su estado viejo
+  assert.ok(await R.page.evaluate((id) => !!window.__db.mapa_progreso.find((r) => r.user_id === 'u1').state.items[id], slowAns.item), 'la fila remota conserva lo respondido');
+  assert.equal(await localState(R.page), null);
+  assert.deepEqual(R.errors, []);
+  await ctxR.close();
+
+  setStep('cerrar sesión con una sincronización colgada no borra y ofrece reintentar');
+  const ctxT = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const T = await openHome(ctxT, { session: true, slowSync: 30000, local: JSON.stringify(progressState()) });
+  await T.page.waitForSelector('#s-hoy:not([hidden])');
+  await T.page.evaluate(() => { INVALIDATE_WAIT_MS = 300; });
+  await T.page.click('#tabbar [data-tab=yo]');
+  await T.page.click('#s-yo #logout');
+  await T.page.waitForFunction(() => /No se pudo guardar tu avance en tu cuenta/.test(document.getElementById('logout-msg').textContent), null, { timeout: 5000 });
+  assert.match(await T.page.textContent('#logout-msg'), /quien entre después en él lo combinará con su cuenta/);
+  assert.equal((await localState(T.page)).goal, 'edar-dev-jr', 'no se borró nada');
+  assert.equal(await T.page.evaluate(() => !!session), true);
+  assert.equal(await T.page.isVisible('#s-yo #logout-keep'), true);
+  await T.page.click('#s-yo #logout-keep');
+  await T.page.waitForSelector('#s-yo button:has-text("Guarda tu progreso en la nube")');
+  await T.page.waitForFunction(() => /quien entre después en él lo combinará con su cuenta/.test(document.getElementById('notices').textContent));
+  assert.equal((await localState(T.page)).goal, 'edar-dev-jr', 'sin borrar: el avance sigue en el dispositivo');
+  assert.deepEqual(T.errors, []);
+  await ctxT.close();
+
   setStep('lo respondido durante una sincronización no se pierde sin localStorage');
   const ctxN = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const N = await openHome(ctxN, { session: true, slowSync: 600, noStorage: true });
