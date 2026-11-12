@@ -14,7 +14,7 @@ El hábito se construye con sesiones cortas que terminan, progreso visible y rep
 4. **Mapa.** Las nueve líneas dibujadas como mapa de transporte. Tocar una estación abre su página; debajo hay la misma información en lista.
 5. **Línea.** Ficha de la vacante (lo que piden, nivel, enlace, «leída el…»), sus estaciones en orden con su avance y «Elegir como meta».
 6. **Estación.** Qué es, para qué sirve, pasos ya vistos, ejercicio, recursos y glosario. Si no se ha empezado, ofrece el atajo «¿Ya sabes esto?».
-7. **Yo.** Nivel, XP, mejor racha, cambiar de meta, cuenta opcional («Guarda tu progreso en la nube» con correo y enlace mágico), el cuestionario de áreas, «Borrar mis datos» (con confirmación en dos pasos) y, solo para el correo docente, la vista docente.
+7. **Yo.** Nivel, XP, mejor racha, cambiar de meta, cuenta opcional («Guarda tu progreso en la nube» con correo y enlace mágico), el cuestionario de áreas, «Borrar mis datos» (confirmación en dos pasos; borra el progreso de estudio del dispositivo y, con cuenta, de la nube) y, solo para el correo docente, la vista docente.
 8. **Cuestionario de áreas** («Descubre tu área»). Diez preguntas que sugieren tres áreas. Se puede hacer sin cuenta; el resultado se guarda solo con sesión y enlaza con las líneas que encajan («Elegir como meta»). Hay dos versiones: «Explorar» (actividades cotidianas, sin nombres de herramientas) y «Con herramientas» (menciona Python, Docker, Power BI…). Las áreas están en `AREAS` de `js/data-areas.js`.
 9. **Vista docente.** Tabla de progreso por alumno (correo, meta, «% listo», racha, XP, último día) e intentos del cuestionario, con un filtro por correo.
 
@@ -24,11 +24,11 @@ Son funciones puras en `js/core.js`, con pruebas en `tests/core.test.mjs`.
 
 - **Preguntas («ítems»).** Cada estación tiene 6: las 4 de sus pasos y 2 de aplicación. Su id es `estación.n` (`sql.2`), con n de 0 a 3 para los pasos y 4 y 5 para las extra. Cada pregunta tiene exactamente 4 opciones.
 - **Cajas.** Cada ítem está en una caja de 0 («sin ver») a 5. Un acierto sube una caja (tope 5) y programa el repaso a **1, 3, 7, 16 y 35 días** para las cajas 1 a 5. Un error baja a la caja 1, vuelve mañana y además se repite una vez al final de la misma sesión; esa repetición no mueve la caja. Un ítem atrasado no pierde caja.
-- **Sesión.** 5 tarjetas como máximo: hasta 3 repasos (los más atrasados primero) y el resto, pasos nuevos de la estación actual de la meta. Si no hay pasos nuevos se completa con repasos; cuando la meta ya no tiene pasos nuevos siguen las preguntas de aplicación y luego los pasos de otras líneas.
+- **Sesión.** 5 tarjetas como máximo: hasta 3 repasos vencidos (los más atrasados primero) y el resto, tarjetas nuevas. Las nuevas recorren las estaciones de la línea meta en orden (los 4 pasos de cada una); cuando la meta ya no tiene pasos nuevos siguen las preguntas de aplicación («Reto») de sus estaciones y después las de otras líneas. Si faltan tarjetas, se completa con más repasos vencidos y, con «Otra sesión», con repasos que aún no vencen.
 - **XP y nivel.** 10 por acierto, 2 por error y 20 por terminar la sesión. Nivel = 1 + piso(XP / 200).
 - **Racha.** Días cumplidos consecutivos hasta hoy o ayer; un día cumplido es aquel en que terminas al menos una sesión. Se tolera un día faltante por semana (de lunes a domingo), que se muestra como «día de descanso». Las fechas son las locales del dispositivo, en `AAAA-MM-DD`; la fecha se calcula en cada respuesta y al cerrar la sesión, no al empezarla.
 - **Avance.** Peso por caja: 0, 0.4, 0.6, 0.8, 0.9 y 1. El avance de una estación es el promedio del peso de sus 6 ítems, y el **«% listo»** de una línea es el promedio del avance de sus estaciones. Como las cajas altas tardan días, el porcentaje sigue subiendo durante semanas. Una estación está «visitada» cuando sus 6 ítems están en caja 1 o más.
-- **Atajo «¿Ya sabes esto?».** En una estación sin empezar, 2 preguntas de aplicación. Si aciertas las dos, los 6 ítems pasan a la caja 3 y vuelven en 7 días. Si fallas alguna, la estación se estudia normal y esas respuestas cuentan como cualquier otra.
+- **Atajo «¿Ya sabes esto?».** En una estación sin empezar, 2 preguntas de aplicación. Si aciertas las dos, los 6 ítems pasan a la caja 3 y vuelven en 7 días. Si fallas alguna, la estación se estudia normal y esas respuestas cuentan como cualquier otra. El atajo no da XP ni cuenta como día cumplido: solo mueve las cajas.
 
 ## Contenido
 
@@ -48,7 +48,7 @@ Nueve vacantes reales de la Ciudad de México, leídas completas el 10 de noviem
 | L8 | Analista de Negocios Jr. (Business Analysis) | El Puerto de Liverpool (Corporativo) | Para empezar |
 | L9 | Suscriptor Jr. (Daños) | MAPFRE | Para empezar |
 
-L5, L6 y L7 piden experiencia: se presentan como mapa de lo que hay que aprender, no como vacante para aplicar hoy. De cada vacante solo se guarda lo necesario para estudiar (puesto, empresa, lugar, lo que piden y el enlace); no se copian correos ni datos de contacto.
+L5 a L7 están marcadas como metas a mediano plazo (nivel «Meta a 2 años» o «Meta a 2 o 3 años») y se presentan como mapa de lo que hay que aprender. Cada línea dice en su nota (`note`) cuánta experiencia pide la vacante, si lo dice: L5 pide al menos 2 años y L6 de 2 a 4; L7 no pide años, pero valora haber construido algo real con IA. También L2 y L4, aunque son «Para empezar», listan requisitos de experiencia en su nota (L2 de 1 a 2 años en análisis de datos; L4, título y experiencia previa en soporte o infraestructura); L9 pide una ingeniería afín e inglés B2. De cada vacante solo se guarda lo necesario para estudiar (puesto, empresa, lugar, lo que piden y el enlace); no se copian correos ni datos de contacto.
 
 **Las vacantes caducan.** Cada línea muestra «leída el…», y el enlace puede dejar de funcionar sin que la línea se rompa. Conviene revisarlas de vez en cuando.
 
@@ -106,26 +106,40 @@ Hay 32, en `js/data-estaciones.js` (objeto `{ id: Estacion }`). Las compartidas 
    - una estación compartida lleva coordenadas idénticas en todas sus líneas;
    - dos estaciones distintas quedan al menos a 44 px una de otra;
    - ninguna etiqueta se encima con otra, con una estación ni con una línea.
-5. Corre `node --test tests/*.test.mjs` y `node tests/e2e.cjs`; con `SHOTS_DIR=… node tests/e2e.cjs` revisa en las capturas que el mapa se vea bien. Si cambian los conteos (por ejemplo 9 líneas y 32 estaciones), actualiza las pruebas que los fijan.
+5. **Lugares donde las pruebas fijan los conteos y los nombres** (se actualizan al agregar; los números de línea son los actuales):
+   - `tests/content.test.mjs`, prueba «hay 32 estaciones y 9 líneas, en orden L1 a L9» (línea 103): el conteo de estaciones y la lista de ids de las líneas. Las pruebas por línea (líneas 83, 113 y 134) fijan las nueve existentes; conviene agregar ahí la nueva.
+   - `tests/content.test.mjs`, prueba «cada estación tiene en el glosario sus términos» (línea 250): la lista `need` es manual. Los términos de una estación nueva solo se exigen si los agregas ahí; hazlo siempre.
+   - `tests/quiz.test.mjs` (líneas 20 a 24) y `tests/core.test.mjs` (`lineasFor`, línea 264): las líneas esperadas por área. Una línea nueva con un área que ya tiene línea, o con `inv`, los cambia.
+   - `tests/e2e.cjs`: 9 líneas y 32 estaciones en el mapa (líneas 325, 326, 329 y 334), 9 tarjetas y sus niveles en «Elegir meta» (líneas 772 a 776), las líneas que enlaza el resultado del cuestionario (línea 522) y la prueba de la miniatura de Hoy, que recorre todas las líneas (`miniLineScenarios`).
+6. Corre `node --test tests/*.test.mjs` y `node tests/e2e.cjs`; con `SHOTS_DIR=… node tests/e2e.cjs` revisa en las capturas que el mapa y la miniatura de Hoy se vean bien.
 
 ## Datos y privacidad
 
 Sin cuenta, nada sale del dispositivo: el progreso vive en una sola clave de `localStorage`, `mapa.v2` (`{ v: 2, goal, goalT, items, days }`). El XP, el nivel y la racha se calculan a partir de `days`. Si `localStorage` no está disponible, el sitio funciona en memoria y avisa que el progreso no se guardará.
 
-Con cuenta se guardan el correo, las respuestas del cuestionario y el progreso de estudio; el profesor puede verlos, y todo se puede borrar desde Yo. Proyecto de Supabase: `fbd-lab-tracker`.
+Con cuenta se guardan el correo, las respuestas del cuestionario y el progreso de estudio, y el profesor puede verlos. El texto de la app (`PRIVACIDAD` en `js/pantallas-cuenta.js`) dice: «Sin cuenta, nada sale de tu dispositivo. Con cuenta se guardan tu correo, tus respuestas del cuestionario y tu progreso de estudio; el profesor puede verlos; puedes borrar tu progreso aquí y tus respuestas desde Mis respuestas.»
+
+Lo que se puede borrar desde la app:
+- **«Borrar mis datos» (Yo):** el progreso de estudio del dispositivo y, con cuenta, la fila de `mapa_progreso`.
+- **«Borrar este intento» (Mis respuestas):** cada intento del cuestionario, uno por uno.
+- **La cuenta en sí no se borra desde la app:** el usuario (y su correo) queda en Supabase, en Authentication, Users. Si alguien pide que se elimine su cuenta, el docente o administrador lo hace en Supabase (Authentication, Users); al eliminar al usuario, su fila de `mapa_progreso` se borra en cascada.
+
+Proyecto de Supabase: `fbd-lab-tracker`. La URL del proyecto y la llave publicable (`sb_publishable_…`) están escritas en `js/app.js`; son públicas por diseño, y lo que protege los datos son las políticas RLS, no el secreto de la llave.
 
 | Tabla | Para qué sirve | Políticas (RLS activado) |
 | --- | --- | --- |
 | `public.mapa_progreso` | Una fila por usuario: `user_id` (llave primaria), `email`, `state jsonb` (versión 2, menos de 200 KB) y `updated_at`. SQL en `sql/mapa_progreso.sql`. | Cada quien ve, crea, actualiza y borra su fila. El correo docente ve todas. El rol anónimo, nada. Nadie puede escribir ni borrar la fila de otra persona. |
 | `public.mapa_respuestas` | Un renglón por intento del cuestionario (usuario, correo, fecha, respuestas, puntajes, `quiz_version`). | Cada alumno ve, crea y borra solo sus intentos. El correo docente ve todos. No se puede insertar un intento a nombre de otra persona. |
-| `public.mapa_admins` | Correos con vista docente. Hoy solo `axewcasas@gmail.com`. | Se administra desde el panel de Supabase (con el SQL de abajo); la app solo la consulta para saber si el correo de la sesión es docente. |
+| `public.mapa_admins` | Correos con vista docente. Hoy solo `axewcasas@gmail.com`. | Sus políticas no están en este repositorio: viven en Supabase (la app solo la consulta para saber si el correo de la sesión es docente). Se edita con el SQL de abajo. |
 | `public.mapa_aprendizaje` | **En desuso.** Era de las rutas por vacante (`sql/mapa_aprendizaje.sql`); la app ya no la usa. Tiene una fila, de una prueba. | Se conserva sin tocar; puede borrarse. |
 
-Para agregar otro docente:
+Para agregar otro docente, inserta el correo **en minúsculas**: las políticas comparan `lower(auth.jwt() ->> 'email')` con `a.email` tal cual.
 
 ```sql
 insert into public.mapa_admins (email) values ('correo@ejemplo.com');
 ```
+
+La vista docente lee como máximo 1000 filas por tabla (`ADMIN_LIMIT` en `js/pantallas-cuenta.js`), sin paginación; si hay más, la pantalla avisa que puede haber más.
 
 **Sincronización.** Con sesión, al iniciar y al terminar cada sesión de estudio, la app lee la fila, la combina con el estado local y guarda el resultado en los dos lados. La combinación es optimista y por ítem: gana el de cambio más reciente (`t`); por día, el XP mayor y `done` si lo está en cualquiera; de la meta, la del estado con el cambio más reciente. Si la fila remota es de otra versión o tiene forma rara, no se sobrescribe y el estudio sigue en el dispositivo. Si la sincronización falla, aparece un aviso y se reintenta en la siguiente sesión.
 
@@ -164,16 +178,16 @@ SHOTS_DIR=/tmp/capturas node tests/e2e.cjs    # además guarda capturas en esa c
 - `tests/content.test.mjs`: integridad de las 32 estaciones y 9 líneas, reglas de preguntas, glosario y legibilidad del mapa.
 - `tests/store.test.mjs`: `localStorage` (estado inválido, dos pestañas, cuota llena) y sincronización con Supabase (fila de otra versión, fallas de red).
 - `tests/quiz.test.mjs`: puntaje del cuestionario y su enlace con las líneas.
-- `tests/e2e.cjs`: recorridos de primera visita, sesión con teclado, repasos con el reloj adelantado, mapa, atajo, cuenta, borrado, cuestionario sin cuenta y vista docente. Termina con una revisión visual de todas las pantallas a 390 × 844 y 1280 × 900, en tema claro y oscuro, que verifica que no haya scroll horizontal ni errores de JavaScript y, con `SHOTS_DIR`, guarda `{ancho}-{tema}-{pantalla}.png`.
+- `tests/e2e.cjs`: recorridos de primera visita, sesión con teclado, repasos con el reloj adelantado, mapa, atajo, cuenta, borrado, cuestionario sin cuenta y vista docente. Termina con una revisión visual de todas las pantallas a 390 × 844 y 1280 × 900, en tema claro y oscuro, que verifica que no haya scroll horizontal ni errores de JavaScript y, con `SHOTS_DIR`, guarda `{ancho}-{tema}-{pantalla}.png`. Además recorre la línea en miniatura de Hoy con cada una de las nueve líneas como meta, a 320, 360 y 390 px, y falla si una etiqueta se corta, se parte a media palabra o se encima con otra.
 - `tests/fake-supabase.js` y `tests/fixtures/`: Supabase falso y las preguntas originales de Getnet.
 
 Playwright ya está instalado en el entorno; no hace falta `playwright install`.
 
 ## Desplegar
 
-Vercel despliega solo cuando se hace merge a `main`; no hay build.
+Si el proyecto de Vercel de este sitio está conectado a este repositorio, despliega solo al hacer merge a `main`; no hay build.
 
-1. El proyecto de Vercel se llama `mapa-de-areas` y sirve la carpeta tal cual (`index.html`, `css/` y `js/`); no necesita framework ni comando de build.
+1. El proyecto de Vercel de este sitio sirve la carpeta tal cual (`index.html`, `css/` y `js/`); no necesita framework ni comando de build. Si no está conectado al repositorio, se puede subir la carpeta completa (arrastrándola al panel o con `vercel deploy --prod` dentro de ella).
 2. **No lo subas al proyecto `pilates-project`**: reemplazaría BersamaFlow.
 
 Para usarlo en un subdominio de bersama.dev, agrega el dominio al proyecto en Vercel y crea el registro DNS que Vercel indique en el proveedor donde administras bersama.dev.
@@ -188,6 +202,7 @@ Para usarlo en un subdominio de bersama.dev, agrega el dominio al proyecto en Ve
 ## Decisiones y límites conocidos
 
 - Esta es la entrega 1 de 3. El **ranking con alias** va en la entrega 1b, porque necesita cuentas y progreso sincronizado; el **cuestionario nuevo**, en la entrega 2; y **más vacantes**, en la 3 (el área Investigación, `inv`, no tiene línea todavía).
+- Las cuentas dependen del script de `supabase-js`, que se carga desde jsdelivr (`index.html`) con el flujo implícito. Hoy el cliente de Supabase se crea sin comprobar que el script cargó (`js/app.js`): sin conexión o con ese CDN bloqueado, el sitio no arranca (queda en blanco, con un error de JavaScript), aunque el estudio sin cuenta no necesite la red. Es un límite conocido. El enlace mágico no puede volver a una URL `file://`: para probar el sitio en local, sírvelo por http (por ejemplo `python3 -m http.server` dentro de la carpeta) y agrega esa URL a Redirect URLs de Supabase.
 - Mientras llega la entrega 2, el cuestionario actual se conserva tal cual y su resultado es largo en teléfono.
 - La sincronización es optimista y combina por ítem; no hay validación en servidor. Un reloj mal puesto o un viaje entre zonas horarias puede hacer que un día cuente doble o no cuente.
 - Un estado local ilegible o de otra versión se ignora, se empieza de cero y se avisa; no se borra hasta que haya un estado nuevo que guardar.

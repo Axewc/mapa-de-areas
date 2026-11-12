@@ -123,15 +123,8 @@ async function visualPass(browser, viewport, colorScheme) {
   const ctx = await browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1 });
   const { page, errors } = await openHome(ctx, { local: JSON.stringify(progressState()) });
   const check = (name) => shoot(page, name);
-  // Las etiquetas de la línea en miniatura de Hoy no se cortan con «…» a 390 px (L1 trae «Pruebas automáticas», L6 son 7 estaciones).
-  const miniLabelsFit = async (name) => {
-    const cut = await page.evaluate(() => Array.from(document.querySelectorAll('#s-hoy .mini-labels .lab'))
-      .filter((l) => l.scrollWidth > l.clientWidth + 1 || l.scrollHeight > l.clientHeight + 1).map((l) => l.textContent));
-    if (viewport.width < 720) assert.deepEqual(cut, [], 'etiquetas cortadas en la miniatura de ' + name + ' (' + tag + ')');
-  };
   await page.waitForSelector('#s-hoy:not([hidden])');
   await check('hoy');
-  await miniLabelsFit('hoy');
   await page.click('#tabbar [data-tab=yo]');
   await page.waitForSelector('#s-yo:not([hidden])');
   await check('yo');
@@ -141,7 +134,6 @@ async function visualPass(browser, viewport, colorScheme) {
   await page.locator('#s-pick .line-card', { hasText: 'Científico de Datos Jr.' }).click();
   await page.waitForSelector('#s-hoy:not([hidden])');
   await check('hoy-l6');
-  await miniLabelsFit('hoy-l6');
   await page.click('#tabbar [data-tab=mapa]');
   await page.waitForSelector('#s-mapa:not([hidden]) svg');
   await check('mapa');
@@ -227,6 +219,53 @@ async function visualPass(browser, viewport, colorScheme) {
   await shoot(t.page, 'docente');
   assert.deepEqual(t.errors, [], 'errores de JS en la vista docente (' + tag + ')');
   await ctxT.close();
+}
+
+// Línea en miniatura de Hoy: con cada una de las nueve líneas como meta, a 320, 360 y 390 px, ninguna etiqueta se corta
+// (ni en ancho ni con «…» por exceso de renglones), ninguna palabra se parte a media palabra, ninguna se encima con otra
+// y la página no se desborda.
+async function miniLineScenarios(browser, setStep) {
+  const { LINEAS } = require('../js/data-lineas.js');
+  for (const width of [320, 360, 390]) {
+    const ctx = await browser.newContext({ viewport: { width, height: 844 }, colorScheme: 'light', deviceScaleFactor: 1 });
+    for (const line of LINEAS) {
+      setStep('miniatura de Hoy: ' + line.id + ' a ' + width + ' px');
+      const goal = { v: 2, goal: line.id, goalT: 1, items: {}, days: {} };
+      const { page, errors } = await openHome(ctx, { local: JSON.stringify(goal) });
+      await page.waitForSelector('#s-hoy .mini-labels .lab');
+      const problems = await page.evaluate(() => {
+        const out = [];
+        const labs = Array.from(document.querySelectorAll('#s-hoy .mini-labels .lab'));
+        const probe = document.createElement('span');
+        document.body.append(probe);
+        labs.forEach((l) => {
+          const t = l.textContent;
+          if (l.scrollWidth > l.clientWidth + 1 || l.scrollHeight > l.clientHeight + 1) out.push('cortada: ' + t);
+          const cs = getComputedStyle(l);
+          probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font:' + cs.font + ';letter-spacing:' + cs.letterSpacing;
+          t.split(/\s+/).forEach((w) => {
+            probe.textContent = w;
+            if (probe.getBoundingClientRect().width > l.clientWidth + 0.5) out.push('palabra partida «' + w + '» (' + probe.getBoundingClientRect().width.toFixed(1) + '/' + l.clientWidth.toFixed(1) + ')');
+          });
+        });
+        probe.remove();
+        const r = labs.map((l) => l.getBoundingClientRect());
+        for (let i = 0; i < r.length; i++) for (let j = i + 1; j < r.length; j++) {
+          if (r[i].left < r[j].right - 0.5 && r[j].left < r[i].right - 0.5 && r[i].top < r[j].bottom - 0.5 && r[j].top < r[i].bottom - 0.5) out.push('encimadas: ' + labs[i].textContent + ' y ' + labs[j].textContent);
+        }
+        if (!(document.documentElement.scrollWidth <= window.innerWidth)) out.push('scroll horizontal');
+        return out;
+      });
+      assert.deepEqual(problems, [], 'miniatura de ' + line.id + ' a ' + width + ' px');
+      assert.deepEqual(errors, []);
+      if (SHOTS) {
+        const box = await page.locator('#s-hoy .goal').boundingBox();
+        await page.screenshot({ path: path.join(SHOTS, 'mini-' + width + '-' + line.id + '.png'), clip: { x: 0, y: box.y, width, height: box.height }, animations: 'disabled' });
+      }
+      await page.close();
+    }
+    await ctx.close();
+  }
 }
 
 // Revisa con las cajas reales (getBBox) que ninguna etiqueta ni insignia «L#» del mapa se encime con otra, con una
@@ -1152,6 +1191,8 @@ async function main() {
     await cuestionarioScenarios(browser, (t) => { step = t; });
 
     await teacherScenarios(browser, (t) => { step = t; });
+
+    await miniLineScenarios(browser, (t) => { step = t; });
 
     for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       for (const cs of ['light', 'dark']) {

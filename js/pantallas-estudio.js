@@ -108,10 +108,23 @@ function miniLine(line) {
   nodes.style.setProperty('--n', n);
   labels.style.setProperty('--n', n);
   var said = [];
-  // Columnas (1 a n, fin exclusivo) de cada etiqueta. Con más de 5 estaciones solo se nombran la actual
-  // y los extremos que caben sin encimarse; cada etiqueta ocupa también las columnas vacías de al lado.
+  // Con 5 estaciones o menos se nombran todas, escalonadas en dos renglones: cada etiqueta puede medir el doble de una
+  // columna, centrada en su estación (la primera y la última, pegadas a su borde y de 1.5 columnas; y la caja se ajusta al texto, así que las del
+  // mismo renglón solo se tocan si ambos textos son largos: la prueba lo revisa con las nueve líneas). La cuadrícula
+  // de etiquetas tiene 2n unidades (media columna cada una). Con más de 5 solo se nombran la actual y los extremos
+  // que caben sin encimarse; cada etiqueta ocupa también las columnas vacías de al lado (columnas 1 a n, fin exclusivo).
   var named = {};
-  if (n <= 5) ids.forEach(function (id, i) { named[i] = [i + 1, i + 2]; });
+  var stagger = n <= 5;
+  if (stagger) {
+    // La primera etiqueta pasa de 1.5 a 2 columnas solo si trae una palabra larga («Requerimientos»); entonces la tercera,
+    // que comparte su renglón, cede media columna.
+    var longWord = ESTACIONES[ids[0]].name.split(' ').some(function (w) { return w.length > 11; });
+    ids.forEach(function (id, i) {
+      var from = i === 0 ? 1 : i === n - 1 ? 2 * n - 2 : i === 2 && longWord ? 2 * i + 1 : 2 * i;
+      var to = i === 0 ? (longWord ? 5 : 4) : i === n - 1 ? 2 * n + 1 : 2 * i + 4;
+      named[i] = [from, to];
+    });
+  }
   else {
     var c = curIdx === -1 ? null : curIdx;
     if (c === null || c >= 3) named[0] = [1, 3];
@@ -120,6 +133,7 @@ function miniLine(line) {
     else if (c === n - 1) named[n - 1] = [n - 1, n + 1];
     else if (c !== null) named[c] = [c, c + 3];
   }
+  if (stagger) labels.classList.add('stagger');
   ids.forEach(function (id, i) {
     var st = ESTACIONES[id];
     var visited = isVisited(state, st);
@@ -128,9 +142,10 @@ function miniLine(line) {
     nodes.append(el('span', { class: 'node' + (visited ? ' done' : '') + (started ? ' started' : '') + (i === curIdx ? ' now' : '') + (prevVisited ? ' reach' : '') }, el('i')));
     said.push(st.name + (i === curIdx ? ' (vas aquí)' : visited ? ' (visitada)' : ''));
     if (named[i]) {
-      var edge = n > 5 && i === 0 ? ' start' : n > 5 && i === n - 1 ? ' end' : '';
+      var edge = i === 0 ? ' start' : i === n - 1 ? ' end' : '';
       var lab = el('span', { class: 'lab' + (i === curIdx ? ' cur' : '') + edge, title: st.name, text: st.name });
       lab.style.gridColumn = named[i][0] + ' / ' + named[i][1];
+      if (stagger) lab.style.gridRow = String(i % 2 + 1);
       labels.append(lab);
     }
   });
