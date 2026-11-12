@@ -9,12 +9,12 @@ El hábito se construye con sesiones cortas que terminan, progreso visible y rep
 ## Cómo se usa
 
 1. **Primera visita, sin cuenta.** Aparece «Elige tu meta» con las nueve vacantes (primero las de «Para empezar»). No se pide correo.
-2. **Hoy.** Racha y semana, tarjeta de la meta con su «% listo», línea en miniatura y el botón «Sesión de hoy», que dice qué trae («5 min · 3 repasos · 1 paso nuevo de SQL»). Si no hay nada pendiente dice «Estás al día» y cuándo toca el próximo repaso; «Otra sesión» adelanta los repasos más próximos.
-3. **Sesión.** Pantalla completa de 5 tarjetas (teclas 1 a 4 para responder y Enter para avanzar). Un paso nuevo muestra una idea y luego su pregunta; un repaso, solo la pregunta. Al responder se marca la correcta y se explica por qué. Al final, el cierre muestra XP, racha, cuánto subió el «% listo» y cuántos repasos tocan mañana. Salir a media sesión conserva lo ya respondido.
+2. **Hoy.** Racha y semana, tarjeta de la meta con su «% listo», línea en miniatura y el botón «Sesión de hoy», que dice qué trae («5 min · 3 repasos · 2 pasos nuevos de SQL»). Si no hay nada pendiente dice «Estás al día» y cuándo toca el próximo repaso; «Otra sesión» adelanta los repasos más próximos.
+3. **Sesión.** Pantalla completa de hasta 5 tarjetas, más las repeticiones de los errores (teclas 1 a 4 para responder y Enter para avanzar). Un paso nuevo muestra una idea y luego su pregunta; un repaso, solo la pregunta. Al responder se marca la correcta y se explica por qué. Al final, el cierre muestra XP, racha, cuánto subió el «% listo» y cuántos repasos tocan mañana. Salir a media sesión conserva lo ya respondido.
 4. **Mapa.** Las nueve líneas dibujadas como mapa de transporte. Tocar una estación abre su página; debajo hay la misma información en lista.
 5. **Línea.** Ficha de la vacante (lo que piden, nivel, enlace, «leída el…»), sus estaciones en orden con su avance y «Elegir como meta».
 6. **Estación.** Qué es, para qué sirve, pasos ya vistos, ejercicio, recursos y glosario. Si no se ha empezado, ofrece el atajo «¿Ya sabes esto?».
-7. **Yo.** Nivel, XP, mejor racha, cambiar de meta, cuenta opcional («Guarda tu progreso en la nube» con correo y enlace mágico), el cuestionario de áreas, «Borrar mis datos» (confirmación en dos pasos; borra el progreso de estudio del dispositivo y, con cuenta, de la nube) y, solo para el correo docente, la vista docente.
+7. **Yo.** Nivel, XP, mejor racha, cambiar de meta, cuenta opcional («Guarda tu progreso en la nube» con correo y enlace mágico), el cuestionario de áreas, «Borrar mis datos» (confirmación en dos pasos; borra el progreso de estudio del dispositivo y, con cuenta, de la nube; no borra tus intentos del cuestionario ni tu cuenta), «Cerrar sesión» (primero guarda tu avance en la cuenta y borra la copia de este dispositivo, para que quien use el equipo después no mezcle su avance con el tuyo; si no se pudo guardar, no borra y ofrece reintentar o cerrar sin borrar) y, solo para el correo docente, la vista docente.
 8. **Cuestionario de áreas** («Descubre tu área»). Diez preguntas que sugieren tres áreas. Se puede hacer sin cuenta; el resultado se guarda solo con sesión y enlaza con las líneas que encajan («Elegir como meta»). Hay dos versiones: «Explorar» (actividades cotidianas, sin nombres de herramientas) y «Con herramientas» (menciona Python, Docker, Power BI…). Las áreas están en `AREAS` de `js/data-areas.js`.
 9. **Vista docente.** Tabla de progreso por alumno (correo, meta, «% listo», racha, XP, último día) e intentos del cuestionario, con un filtro por correo.
 
@@ -23,11 +23,11 @@ El hábito se construye con sesiones cortas que terminan, progreso visible y rep
 Son funciones puras en `js/core.js`, con pruebas en `tests/core.test.mjs`.
 
 - **Preguntas («ítems»).** Cada estación tiene 6: las 4 de sus pasos y 2 de aplicación. Su id es `estación.n` (`sql.2`), con n de 0 a 3 para los pasos y 4 y 5 para las extra. Cada pregunta tiene exactamente 4 opciones.
-- **Cajas.** Cada ítem está en una caja de 0 («sin ver») a 5. Un acierto sube una caja (tope 5) y programa el repaso a **1, 3, 7, 16 y 35 días** para las cajas 1 a 5. Un error baja a la caja 1, vuelve mañana y además se repite una vez al final de la misma sesión; esa repetición no mueve la caja. Un ítem atrasado no pierde caja.
+- **Cajas.** Cada ítem está en una caja de 0 («sin ver») a 5. Un acierto sube una caja (tope 5) y programa el repaso a **1, 3, 7, 16 y 35 días** para las cajas 1 a 5. Un error baja a la caja 1, vuelve mañana y además se repite una vez al final de la misma sesión; esa repetición no mueve la caja. El ítem guarda `ok: false` hasta que lo aciertes: cuenta como visto, pero no suma al «% listo» (un estado guardado sin el campo se asume acertado). Un ítem atrasado no pierde caja. Un repaso adelantado («Otra sesión», con un ítem que aún no vence) da XP pero no mueve la caja, ni siquiera con un error; por eso adelantar repasos no sube el avance.
 - **Sesión.** 5 tarjetas como máximo: hasta 3 repasos vencidos (los más atrasados primero) y el resto, tarjetas nuevas. Las nuevas recorren las estaciones de la línea meta en orden (los 4 pasos de cada una); cuando la meta ya no tiene pasos nuevos siguen las preguntas de aplicación («Reto») de sus estaciones y después las de otras líneas. Si faltan tarjetas, se completa con más repasos vencidos y, con «Otra sesión», con repasos que aún no vencen.
-- **XP y nivel.** 10 por acierto, 2 por error y 20 por terminar la sesión. Nivel = 1 + piso(XP / 200).
+- **XP y nivel.** 10 por acierto, 2 por error y 20 por terminar la sesión; el bono de 20 se da una sola vez por día. Nivel = 1 + piso(XP / 200).
 - **Racha.** Días cumplidos consecutivos hasta hoy o ayer; un día cumplido es aquel en que terminas al menos una sesión. Se tolera un día faltante por semana (de lunes a domingo), que se muestra como «día de descanso». Las fechas son las locales del dispositivo, en `AAAA-MM-DD`; la fecha se calcula en cada respuesta y al cerrar la sesión, no al empezarla.
-- **Avance.** Peso por caja: 0, 0.4, 0.6, 0.8, 0.9 y 1. El avance de una estación es el promedio del peso de sus 6 ítems, y el **«% listo»** de una línea es el promedio del avance de sus estaciones. Como las cajas altas tardan días, el porcentaje sigue subiendo durante semanas. Una estación está «visitada» cuando sus 6 ítems están en caja 1 o más.
+- **Avance.** Peso por caja: 0, 0.4, 0.6, 0.8, 0.9 y 1. El avance de una estación es el promedio del peso de sus 6 ítems, y el **«% listo»** de una línea es el promedio del avance de sus estaciones. Un ítem fallado pesa 0 hasta que se acierta. Un solo día no lleva una línea a 100 %: en cada ítem solo el primer acierto del día sube la caja, y las cajas altas tardan días, así que el porcentaje sigue subiendo durante semanas. Una estación está «visitada» cuando sus 6 ítems están en caja 1 o más.
 - **Atajo «¿Ya sabes esto?».** En una estación sin empezar, 2 preguntas de aplicación. Si aciertas las dos, los 6 ítems pasan a la caja 3 y vuelven en 7 días. Si fallas alguna, la estación se estudia normal y esas respuestas cuentan como cualquier otra. El atajo no da XP ni cuenta como día cumplido: solo mueve las cajas.
 
 ## Contenido
@@ -108,19 +108,20 @@ Hay 32, en `js/data-estaciones.js` (objeto `{ id: Estacion }`). Las compartidas 
    - ninguna etiqueta se encima con otra, con una estación ni con una línea.
 5. **Lugares donde las pruebas fijan los conteos y los nombres** (se actualizan al agregar; los números de línea son los actuales):
    - `tests/content.test.mjs`, prueba «hay 32 estaciones y 9 líneas, en orden L1 a L9» (línea 103): el conteo de estaciones y la lista de ids de las líneas. Las pruebas por línea (líneas 83, 113 y 134) fijan las nueve existentes; conviene agregar ahí la nueva.
-   - `tests/content.test.mjs`, prueba «cada estación tiene en el glosario sus términos» (línea 250): la lista `need` es manual. Los términos de una estación nueva solo se exigen si los agregas ahí; hazlo siempre.
-   - `tests/quiz.test.mjs` (líneas 20 a 24) y `tests/core.test.mjs` (`lineasFor`, línea 264): las líneas esperadas por área. Una línea nueva con un área que ya tiene línea, o con `inv`, los cambia.
-   - `tests/e2e.cjs`: 9 líneas y 32 estaciones en el mapa (líneas 325, 326, 329 y 334), 9 tarjetas y sus niveles en «Elegir meta» (líneas 772 a 776), las líneas que enlaza el resultado del cuestionario (línea 522) y la prueba de la miniatura de Hoy, que recorre todas las líneas (`miniLineScenarios`).
+   - `tests/content.test.mjs`, prueba «cada estación tiene en el glosario sus términos» (línea 252): la lista `need` es manual. Los términos de una estación nueva solo se exigen si los agregas ahí; hazlo siempre.
+   - `tests/quiz.test.mjs` (líneas 20 a 24) y `tests/core.test.mjs` (`lineasFor`, línea 262): las líneas esperadas por área. Una línea nueva con un área que ya tiene línea, o con `inv`, los cambia.
+   - `tests/e2e.cjs`: 9 líneas y 32 estaciones en el mapa (líneas 326, 327, 330 y 335), 9 tarjetas y sus niveles en «Elegir meta» (líneas 837 a 841), las líneas que enlaza el resultado del cuestionario (línea 523) y la prueba de la miniatura de Hoy, que recorre todas las líneas (`miniLineScenarios`).
 6. Corre `node --test tests/*.test.mjs` y `node tests/e2e.cjs`; con `SHOTS_DIR=… node tests/e2e.cjs` revisa en las capturas que el mapa y la miniatura de Hoy se vean bien.
 
 ## Datos y privacidad
 
 Sin cuenta, nada sale del dispositivo: el progreso vive en una sola clave de `localStorage`, `mapa.v2` (`{ v: 2, goal, goalT, items, days }`). El XP, el nivel y la racha se calculan a partir de `days`. Si `localStorage` no está disponible, el sitio funciona en memoria y avisa que el progreso no se guardará.
 
-Con cuenta se guardan el correo, las respuestas del cuestionario y el progreso de estudio, y el profesor puede verlos. El texto de la app (`PRIVACIDAD` en `js/pantallas-cuenta.js`) dice: «Sin cuenta, nada sale de tu dispositivo. Con cuenta se guardan tu correo, tus respuestas del cuestionario y tu progreso de estudio; el profesor puede verlos; puedes borrar tu progreso aquí y tus respuestas desde Mis respuestas.»
+Con cuenta se guardan el correo, las respuestas del cuestionario y el progreso de estudio, y el profesor puede verlos. El texto de la app (`PRIVACIDAD` en `js/pantallas-cuenta.js`) dice: «Sin cuenta, nada sale de tu dispositivo. Con cuenta se guardan tu correo, tus respuestas del cuestionario y tu progreso de estudio; el profesor puede verlos; puedes borrar tu progreso aquí y tus respuestas desde Mis respuestas. Si tienes la sesión abierta en otros dispositivos, pueden volver a subir su copia hasta que cierres sesión o borres allí también.»
 
 Lo que se puede borrar desde la app:
-- **«Borrar mis datos» (Yo):** el progreso de estudio del dispositivo y, con cuenta, la fila de `mapa_progreso`.
+- **«Borrar mis datos» (Yo):** el progreso de estudio del dispositivo y, con cuenta, la fila de `mapa_progreso`. Otras pestañas del mismo navegador se enteran (evento `storage`) y adoptan el estado vacío. **Limitación conocida:** otro dispositivo con la sesión abierta conserva su copia y la puede volver a subir en su próxima sincronización, hasta que cierre sesión o borre allí también; no hay una marca de borrado remota.
+- **«Cerrar sesión» (Yo):** hace una última sincronización y, si salió bien, borra la copia local (el avance queda en la cuenta). Si la sesión caduca por sí sola o se cierra desde otro lado, la copia local se queda en el dispositivo.
 - **«Borrar este intento» (Mis respuestas):** cada intento del cuestionario, uno por uno.
 - **La cuenta en sí no se borra desde la app:** el usuario (y su correo) queda en Supabase, en Authentication, Users. Si alguien pide que se elimine su cuenta, el docente o administrador lo hace en Supabase (Authentication, Users); al eliminar al usuario, su fila de `mapa_progreso` se borra en cascada.
 
@@ -141,7 +142,7 @@ insert into public.mapa_admins (email) values ('correo@ejemplo.com');
 
 La vista docente lee como máximo 1000 filas por tabla (`ADMIN_LIMIT` en `js/pantallas-cuenta.js`), sin paginación; si hay más, la pantalla avisa que puede haber más.
 
-**Sincronización.** Con sesión, al iniciar y al terminar cada sesión de estudio, la app lee la fila, la combina con el estado local y guarda el resultado en los dos lados. La combinación es optimista y por ítem: gana el de cambio más reciente (`t`); por día, el XP mayor y `done` si lo está en cualquiera; de la meta, la del estado con el cambio más reciente. Si la fila remota es de otra versión o tiene forma rara, no se sobrescribe y el estudio sigue en el dispositivo. Si la sincronización falla, aparece un aviso y se reintenta en la siguiente sesión.
+**Sincronización.** Con sesión, la app sincroniza al abrir el sitio con la sesión ya iniciada, al iniciar sesión, al elegir o cambiar de meta, al terminar una sesión de estudio (o al salir de ella habiendo respondido algo), al usar el atajo «¿Ya sabes esto?» y al cerrar sesión; no sincroniza en cada respuesta. En cada una, la app lee la fila, la combina con el estado local y guarda el resultado en los dos lados. La combinación es optimista y por ítem: gana el de cambio más reciente (`t`); por día, el XP mayor y `done` si lo está en cualquiera; de la meta, la del estado con el cambio más reciente. Si la fila remota es de otra versión o tiene forma rara, no se sobrescribe y el estudio sigue en el dispositivo. Si lo respondido cambia mientras una sincronización está en vuelo, se vuelve a combinar al terminar para no perderlo. El correo de la sesión viaja en minúsculas en cada guardado (la política de actualización lo exige igual al del token). Si la sincronización falla, aparece un aviso y se reintenta en la siguiente.
 
 **Dato no confiable.** El progreso lo escribe el navegador, así que un alumno podría inflar el suyo desde la API. Es autoevaluación y solo afecta sus propios datos. La vista docente lo trata como no confiable: normaliza valores, topa el XP de cada día y descarta lo que no tiene forma válida. Se retomará al diseñar el ranking.
 
@@ -169,16 +170,16 @@ Son scripts clásicos, no módulos, para que el sitio también abra desde `file:
 ## Pruebas
 
 ```sh
-node --test tests/*.test.mjs                  # 98 pruebas de lógica y contenido
+node --test tests/*.test.mjs                  # 109 pruebas de lógica y contenido
 node tests/e2e.cjs                            # flujo completo en Chromium con un Supabase falso
 SHOTS_DIR=/tmp/capturas node tests/e2e.cjs    # además guarda capturas en esa carpeta
 ```
 
-- `tests/core.test.mjs`: cajas, avance, `buildSession`, XP, racha, `mergeState`, atajo, geometría del mapa y la fila de la vista docente.
+- `tests/core.test.mjs`: cajas (incluido `ok: false` y los repasos adelantados), avance, `buildSession`, XP, racha, `mergeState`, días con valores raros, atajo, geometría del mapa y la fila de la vista docente.
 - `tests/content.test.mjs`: integridad de las 32 estaciones y 9 líneas, reglas de preguntas, glosario y legibilidad del mapa.
 - `tests/store.test.mjs`: `localStorage` (estado inválido, dos pestañas, cuota llena) y sincronización con Supabase (fila de otra versión, fallas de red).
 - `tests/quiz.test.mjs`: puntaje del cuestionario y su enlace con las líneas.
-- `tests/e2e.cjs`: recorridos de primera visita, sesión con teclado, repasos con el reloj adelantado, mapa, atajo, cuenta, borrado, cuestionario sin cuenta y vista docente. Termina con una revisión visual de todas las pantallas a 390 × 844 y 1280 × 900, en tema claro y oscuro, que verifica que no haya scroll horizontal ni errores de JavaScript y, con `SHOTS_DIR`, guarda `{ancho}-{tema}-{pantalla}.png`. Además recorre la línea en miniatura de Hoy con cada una de las nueve líneas como meta, a 320, 360 y 390 px, y falla si una etiqueta se corta, se parte a media palabra o se encima con otra.
+- `tests/e2e.cjs`: recorridos de primera visita, sesión con teclado, repasos con el reloj adelantado, mapa, atajo, cuenta (incluido cerrar sesión con y sin falla de sincronización y el cambio de cuenta en un mismo equipo), borrado (también desde otra pestaña y con la red colgada), sincronización sin `localStorage`, cuestionario sin cuenta y vista docente. Termina con una revisión visual de todas las pantallas a 390 × 844 y 1280 × 900, en tema claro y oscuro, que verifica que no haya scroll horizontal ni errores de JavaScript y, con `SHOTS_DIR`, guarda `{ancho}-{tema}-{pantalla}.png`. Además recorre la línea en miniatura de Hoy con cada una de las nueve líneas como meta, a 320, 360 y 390 px, y falla si una etiqueta se corta, se parte a media palabra o se encima con otra.
 - `tests/fake-supabase.js` y `tests/fixtures/`: Supabase falso y las preguntas originales de Getnet.
 
 Playwright ya está instalado en el entorno; no hace falta `playwright install`.
@@ -203,6 +204,7 @@ Para usarlo en un subdominio de bersama.dev, agrega el dominio al proyecto en Ve
 
 - Esta es la entrega 1 de 3. El **ranking con alias** va en la entrega 1b, porque necesita cuentas y progreso sincronizado; el **cuestionario nuevo**, en la entrega 2; y **más vacantes**, en la 3 (el área Investigación, `inv`, no tiene línea todavía).
 - Las cuentas dependen del script de `supabase-js`, que se carga desde jsdelivr (`index.html`) con el flujo implícito. Hoy el cliente de Supabase se crea sin comprobar que el script cargó (`js/app.js`): sin conexión o con ese CDN bloqueado, el sitio no arranca (queda en blanco, con un error de JavaScript), aunque el estudio sin cuenta no necesite la red. Es un límite conocido. El enlace mágico no puede volver a una URL `file://`: para probar el sitio en local, sírvelo por http (por ejemplo `python3 -m http.server` dentro de la carpeta) y agrega esa URL a Redirect URLs de Supabase.
+- El script de `supabase-js` se carga de jsdelivr sin `integrity` (SRI): no se pudo descargar el archivo exacto del CDN para calcular su hash, y un hash equivocado dejaría el sitio sin cuenta. Para agregarlo, descarga la misma URL de `index.html`, calcula `openssl dgst -sha384 -binary archivo | openssl base64 -A` y añade `integrity="sha384-…" crossorigin="anonymous"` (la prueba de flujo reemplaza ese script por uno falso, así que no se ve afectada).
 - Mientras llega la entrega 2, el cuestionario actual se conserva tal cual y su resultado es largo en teléfono.
 - La sincronización es optimista y combina por ítem; no hay validación en servidor. Un reloj mal puesto o un viaje entre zonas horarias puede hacer que un día cuente doble o no cuente.
 - Un estado local ilegible o de otra versión se ignora, se empieza de cero y se avisa; no se borra hasta que haya un estado nuevo que guardar.
