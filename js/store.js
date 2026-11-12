@@ -55,6 +55,12 @@ function clearLocal(storage) {
   try { storage.removeItem(STORE_KEY); } catch (e) { /* sin acción */ }
 }
 
+// ¿Este evento `storage` (de otra pestaña) borró el progreso? Se decide con los datos del evento, no volviendo a leer:
+// si la otra pestaña guarda otra vez enseguida, releer ya no vería el borrado.
+function isWipeEvent(e) {
+  return !!e && (e.key === null || (e.key === STORE_KEY && e.newValue === null));
+}
+
 function storeMsg(e) {
   return (e && e.message) ? String(e.message) : String(e || 'error');
 }
@@ -98,4 +104,4 @@ function deleteRemote(sb, userId) {
   }
 }
 
-if (typeof module !== 'undefined') module.exports = { STORE_KEY: STORE_KEY, safeStorage: safeStorage, loadLocal: loadLocal, saveLocal: saveLocal, clearLocal: clearLocal, syncRemote: syncRemote, deleteRemote: deleteRemote };
+if (typeof module !== 'undefined') module.exports = { STORE_KEY: STORE_KEY, safeStorage: safeStorage, loadLocal: loadLocal, saveLocal: saveLocal, clearLocal: clearLocal, isWipeEvent: isWipeEvent, syncRemote: syncRemote, deleteRemote: deleteRemote };

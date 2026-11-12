@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const { emptyState, recordAnswer } = require('../js/core.js');
-const { STORE_KEY, safeStorage, loadLocal, saveLocal, clearLocal } = require('../js/store.js');
+const { STORE_KEY, safeStorage, loadLocal, saveLocal, clearLocal, isWipeEvent } = require('../js/store.js');
 
 function fake(init, opts) {
   const m = new Map(Object.entries(init || {}));
@@ -165,4 +165,12 @@ test('guardar con un día null guardado antes no lanza y lo normaliza', () => {
   assert.equal(r.ok, true);
   assert.deepEqual({ ...r.state.days['2026-11-01'] }, { xp: 0, done: false });
   assert.ok(r.state.items['git.0']);
+});
+
+test('isWipeEvent: solo la eliminación de la clave o un clear() cuentan, según los datos del evento', () => {
+  assert.equal(isWipeEvent({ key: 'mapa.v2', newValue: null, oldValue: '{}' }), true);
+  assert.equal(isWipeEvent({ key: null, newValue: null }), true, 'clear()');
+  assert.equal(isWipeEvent({ key: 'mapa.v2', newValue: '{"v":2}' }), false, 'otra pestaña guardó');
+  assert.equal(isWipeEvent({ key: 'otra', newValue: null }), false);
+  assert.equal(isWipeEvent(null), false);
 });

@@ -148,14 +148,11 @@ sb.auth.onAuthStateChange(function (ev, s) {
 });
 
 // «Borrar mis datos» (o limpiar los datos del sitio) en otra pestaña de este navegador: esta pestaña adopta el estado vacío
-// y se redibuja, sin volver a escribir lo que ya no está. Una pestaña con la sesión de estudio abierta la deja.
+// y se redibuja, sin volver a escribir lo que ya no está. Si tenía una sesión de estudio abierta, se cierra.
 window.addEventListener('storage', function (e) {
   if (!storage || deleting) return;
   if (e.storageArea && e.storageArea !== storage) return;
-  if (e.key !== null && e.key !== STORE_KEY) return;
-  var gone = false;
-  try { gone = storage.getItem(STORE_KEY) === null; } catch (err) { return; }
-  if (!gone) return;
+  if (!isWipeEvent(e)) return;
   dataEpoch++; // una sincronización en curso no devuelve el progreso borrado
   state = emptyState();
   sesRun = null;
