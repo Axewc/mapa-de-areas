@@ -29,8 +29,8 @@ var LINEAS = [
     ],
     note: "De $12,000 a $15,000 al mes. Para estudiantes del último semestre o recién egresados, con 0 a 2 años de experiencia.",
     stations: ["git", "datos", "sql", "apis", "pruebas-auto"],
-    map: { "git": [215, 120, "l"], "datos": [175, 160, "l"], "sql": [215, 200, "r"], "apis": [160, 270, "r"], "pruebas-auto": [150, 325, "b"] },
-    badge: [235, 140]
+    map: { "git": [215, 120, "t"], "datos": [175, 160, "l"], "sql": [215, 200, "r"], "apis": [160, 270, "r"], "pruebas-auto": [150, 325, "b"] },
+    badge: [183, 120]
   },
   {
     id: "sears-datos-jr",
@@ -76,8 +76,8 @@ var LINEAS = [
     ],
     note: "$13,000 al mes. Temporal y presencial, con turnos rotativos que incluyen fines de semana.",
     stations: ["casos-prueba", "defectos", "hojas", "pruebas-auto"],
-    map: { "casos-prueba": [85, 90, "t"], "defectos": [85, 150, "l"], "hojas": [135, 200, "l"], "pruebas-auto": [150, 325, "b"] },
-    badge: [107, 90]
+    map: { "casos-prueba": [85, 90, "t"], "defectos": [85, 140, "l"], "hojas": [135, 200, "l"], "pruebas-auto": [150, 325, "b"] },
+    badge: [63, 90]
   },
   {
     id: "satori-cloud-jr",
@@ -100,7 +100,7 @@ var LINEAS = [
     ],
     note: "De $20,000 a $25,000 al mes. 100% presencial, de lunes a viernes de 9 a 19 h. Pide título y experiencia previa en soporte o infraestructura.",
     stations: ["linux", "nube", "monitoreo", "sql", "git"],
-    map: { "linux": [300, 522, "b"], "nube": [262, 485, "l"], "monitoreo": [260, 355, "r"], "sql": [215, 200, "r"], "git": [215, 120, "l"] },
+    map: { "linux": [300, 522, "b"], "nube": [262, 485, "l"], "monitoreo": [260, 355, "r"], "sql": [215, 200, "r"], "git": [215, 120, "t"] },
     badge: [332, 522]
   },
   {
@@ -125,7 +125,7 @@ var LINEAS = [
     note: "De $20,000 a $26,000 al mes, 100% presencial. Pide al menos 2 años de experiencia en un puesto parecido: es una meta, no un primer empleo.",
     stations: ["redes", "linux", "monitoreo", "amenazas", "incidentes"],
     map: { "redes": [338, 485, "t"], "linux": [300, 522, "b"], "monitoreo": [260, 355, "r"], "amenazas": [235, 395, "l"], "incidentes": [235, 445, "l"] },
-    badge: [338, 449]
+    badge: [338, 450]
   },
   {
     id: "banorte-ds-jr",
@@ -148,7 +148,7 @@ var LINEAS = [
     ],
     note: "Híbrido. Pide de 2 a 4 años de experiencia en ciencia de datos, ML o IA.",
     stations: ["python", "sql", "estadistica", "ml", "llm", "rag", "evaluacion"],
-    map: { "python": [220, 300, "l"], "sql": [215, 200, "r"], "estadistica": [95, 285, "l"], "ml": [110, 420, "r"], "llm": [110, 510, "r"], "rag": [110, 565, "l"], "evaluacion": [195, 565, "b"] },
+    map: { "python": [220, 300, "l"], "sql": [215, 200, "r"], "estadistica": [95, 285, "l"], "ml": [110, 420, "r"], "llm": [110, 510, "r"], "rag": [110, 565, "l"], "evaluacion": [190, 565, "b"] },
     badge: [220, 320]
   },
   {
@@ -171,8 +171,8 @@ var LINEAS = [
     ],
     note: "Híbrido. No pide años de experiencia: valora haber construido algo real con IA, en el trabajo, en un proyecto propio o en un emprendimiento.",
     stations: ["agentes", "multiagente", "guardrails", "mcp", "observabilidad", "rag", "evaluacion"],
-    map: { "agentes": [265, 580, "r"], "multiagente": [265, 640, "r"], "guardrails": [200, 705, "b"], "mcp": [110, 705, "l"], "observabilidad": [110, 650, "l"], "rag": [110, 565, "l"], "evaluacion": [195, 565, "b"] },
-    badge: [265, 560]
+    map: { "agentes": [265, 580, "r"], "multiagente": [265, 640, "r"], "guardrails": [200, 705, "b"], "mcp": [110, 705, "l"], "observabilidad": [110, 650, "l"], "rag": [110, 565, "l"], "evaluacion": [190, 565, "b"] },
+    badge: [243, 580]
   },
   {
     id: "liverpool-negocio-jr",
@@ -195,7 +195,7 @@ var LINEAS = [
     ],
     note: "Híbrido: en el corporativo por la mañana y remoto por la tarde, con varios horarios.",
     stations: ["requerimientos", "diagramas", "agil", "sql", "hojas"],
-    map: { "requerimientos": [305, 40, "t"], "diagramas": [255, 85, "l"], "agil": [255, 160, "r"], "sql": [215, 200, "r"], "hojas": [135, 200, "l"] },
+    map: { "requerimientos": [305, 40, "t"], "diagramas": [255, 75, "l"], "agil": [255, 160, "r"], "sql": [215, 200, "r"], "hojas": [135, 200, "l"] },
     badge: [327, 40]
   },
   {
@@ -219,7 +219,7 @@ var LINEAS = [
     note: "Pide una ingeniería afín, como mecánica o industrial, e inglés B2. Si estudias computación, estas estaciones te dan la base de seguros y riesgos que el puesto da por hecha, para esta vacante o para otras parecidas del sector. Ofrece bono anual, vales y prestaciones superiores.",
     stations: ["hojas", "estadistica", "seguros", "riesgo"],
     map: { "hojas": [135, 200, "l"], "estadistica": [95, 285, "l"], "seguros": [80, 360, "l"], "riesgo": [55, 430, "b"] },
-    badge: [74, 219]
+    badge: [92, 182]
   }
 ];
 

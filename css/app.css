@@ -442,6 +442,7 @@ button.lrow:hover .lrow-t b { text-decoration: underline; text-underline-offset:
 .metro .st:focus-visible .ring-gap { stroke: var(--paper); stroke-width: 9; }
 .metro .st:focus-visible .ring { stroke: var(--ink); stroke-width: 4.5; }
 .metro .st:focus-visible .ring-dash { stroke: var(--focus-dash); stroke-width: 2; stroke-dasharray: 5 4; }
+.metro .badges { pointer-events: none; } /* decorativas: no tapan el área táctil de las estaciones vecinas */
 .metro .badge rect { fill: var(--panel); stroke: var(--lc); stroke-width: 2.5; }
 .metro .badge text { font-family: var(--f-mono); font-size: 10.5px; font-weight: 600; fill: var(--ink); }
 .metro .halo { fill: var(--mark); stroke: var(--ink); stroke-width: 1.5; }

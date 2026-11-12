@@ -243,6 +243,32 @@ async function mapaScenarios(browser, setStep) {
     return svg.getBoundingClientRect().width / 360 * parseFloat(getComputedStyle(svg.querySelector('[data-badge] text')).fontSize);
   });
   assert.ok(badgeFs >= 10, 'letra de insignia de ' + badgeFs + ' px');
+  // Las insignias no roban toques: en cada punto del área táctil (radio 22) de una estación que cae dentro
+  // de una insignia, el elemento que recibe el toque es esa estación.
+  const stolen = await page.evaluate(() => {
+    const svg = document.querySelector('#s-mapa svg.metro');
+    const lay = mapLayout(LINEAS, ESTACIONES);
+    const out = [];
+    let checked = 0;
+    lay.nodes.forEach((n) => {
+      const g = svg.querySelector('[data-station="' + n.id + '"]');
+      g.scrollIntoView({ block: 'center' });
+      const ctm = svg.getScreenCTM();
+      lay.badges.forEach((b) => {
+        for (let x = b.box.x0; x <= b.box.x1; x += 2) for (let y = b.box.y0; y <= b.box.y1; y += 2) {
+          if (Math.hypot(x - n.x, y - n.y) > 21) continue;
+          const p = new DOMPoint(x, y).matrixTransform(ctm);
+          const hit = document.elementFromPoint(p.x, p.y);
+          checked++;
+          if (!hit || hit.closest('[data-badge]') || !g.contains(hit)) out.push(n.id + ' en ' + x + ',' + y + ' → ' + (hit ? hit.getAttribute('class') : 'nada'));
+        }
+      });
+    });
+    window.scrollTo(0, 0);
+    return { checked, out };
+  });
+  assert.ok(stolen.checked > 50, 'se revisaron ' + stolen.checked + ' puntos');
+  assert.deepEqual(stolen.out, [], 'toques que caen en una insignia');
   assert.match(await page.getAttribute('#s-mapa [data-station=git]', 'aria-label'), /vas aquí/);
   assert.equal(await page.locator('#s-mapa [data-station].cur').count(), 1, 'una sola estación actual');
   assert.match(await page.textContent('#s-mapa .line-list [data-line=safe-soc]'), /L5[^]*Analista SOC[^]*SAFE[^]*0% listo/);

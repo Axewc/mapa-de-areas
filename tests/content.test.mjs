@@ -213,6 +213,19 @@ test('dos estaciones distintas quedan al menos a 44 px (un objetivo táctil cada
   }
 });
 
+test('insignia «L#»: si la línea trae badge, es [x, y] y queda pegada a su primera estación (a 20 o menos de su marcador)', () => {
+  // 20 = lo que mide un renglón de etiqueta con su margen: la insignia puede quedar detrás de la etiqueta, no más lejos.
+  const lay = mapLayout(LINEAS, ESTACIONES);
+  for (const l of LINEAS) {
+    if (l.badge === undefined) continue;
+    assert.ok(Array.isArray(l.badge) && l.badge.length === 2 && l.badge.every((v) => typeof v === 'number' && Number.isFinite(v)), l.id + '.badge');
+    const b = lay.badges.find((x) => x.line === l.id).box, s = lay.byId[l.stations[0]];
+    const dx = Math.max(0, b.x0 - (s.x + s.w / 2), (s.x - s.w / 2) - b.x1);
+    const dy = Math.max(0, b.y0 - (s.y + s.h / 2), (s.y - s.h / 2) - b.y1);
+    assert.ok(Math.hypot(dx, dy) <= 20, l.id + ': la insignia queda a ' + Math.hypot(dx, dy).toFixed(1) + ' de ' + s.id);
+  }
+});
+
 test('mapa legible: ninguna etiqueta se encima con otra, con una estación o con una línea', () => {
   assert.deepEqual(mapIssues(mapLayout(LINEAS, ESTACIONES), 44), []);
 });
