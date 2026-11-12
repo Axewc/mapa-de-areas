@@ -54,7 +54,8 @@ function saveLocal(storage, state) {
 
 function clearLocal(storage) {
   if (!storage) return;
-  var keys = [STORE_KEY, QUIZ_KEY, TIP_KEY];
+  // El progreso va al final: otra pestaña que reacciona a su borrado ya ve borrados el resultado y el aviso.
+  var keys = [QUIZ_KEY, TIP_KEY, STORE_KEY];
   for (var i = 0; i < keys.length; i++) {
     try { storage.removeItem(keys[i]); } catch (e) { /* sin acción */ }
   }
@@ -76,7 +77,7 @@ function loadQuiz(storage, set) {
 
 // Guarda { v: 3, t: now, answers }. -> true si quedó guardado. Nunca lanza.
 function saveQuiz(storage, answers, now) {
-  if (!storage) return false;
+  if (!storage || !Array.isArray(answers) || typeof now !== 'number' || !isFinite(now)) return false;
   try {
     storage.setItem(QUIZ_KEY, JSON.stringify({ v: 3, t: now, answers: answers.slice() }));
     return true;

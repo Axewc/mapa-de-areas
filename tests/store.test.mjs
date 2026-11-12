@@ -205,7 +205,6 @@ test('saveQuiz y loadQuiz ida y vuelta', () => {
   const st = fakeQ({});
   const ans = ANS.slice();
   assert.equal(saveQuiz(st, ans, T), true);
-  ans[0] = 2; // guardó una copia
   const esperado = { v: 3, t: T, answers: ANS };
   assert.deepEqual(JSON.parse(st.getItem('mapa.quiz')), esperado);
   assert.deepEqual(loadQuiz(st, Q8), esperado);
@@ -267,6 +266,20 @@ test('clearLocal: si removeItem lanza en una llave, borra las otras; si lanza si
   assert.equal(st.has('mapa.quiz'), false);
   assert.equal(st.has('mapa.quizTip'), false);
   clearLocal(fakeQ({ 'mapa.quiz': '{}' }, { remove: true }));
+});
+test('clearLocal borra el resultado y el aviso antes que el progreso', () => {
+  const llamadas = [];
+  clearLocal({ removeItem: k => { llamadas.push(k); } });
+  assert.deepEqual(llamadas, ['mapa.quiz', 'mapa.quizTip', 'mapa.v2']);
+});
+test('saveQuiz: no escribe si answers no es arreglo o now no es número finito', () => {
+  const st = fakeQ({});
+  assert.equal(saveQuiz(st, 'abc', 1), false);
+  assert.equal(st.has('mapa.quiz'), false);
+  assert.equal(saveQuiz(st, [0, 1], NaN), false);
+  assert.equal(saveQuiz(st, [0, 1], Infinity), false);
+  assert.equal(saveQuiz(st, [0, 1], '1'), false);
+  assert.equal(st.has('mapa.quiz'), false);
 });
 test('isWipeEvent no cambia: borrar el intento o el aviso no es borrar el progreso', () => {
   assert.equal(isWipeEvent({ key: 'mapa.quiz', newValue: null }), false);

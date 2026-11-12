@@ -693,6 +693,12 @@ test('lineForArea: a igual índice, gana Para empezar aunque tenga mayor n', () 
   ];
   assert.equal(lineForArea('k', ls), 'b');
 });
+test('lineForArea: a igual índice, gana Para empezar aunque la otra tenga menor n, en cualquier orden', () => {
+  const meta = { id: 'meta', n: 1, level: 'Meta a 2 años', areas: ['x'] };
+  const pe = { id: 'pe', n: 5, level: 'Para empezar', areas: ['x'] };
+  assert.equal(lineForArea('x', [meta, pe]), 'pe');
+  assert.equal(lineForArea('x', [pe, meta]), 'pe');
+});
 test('lineForArea: a igual índice y nivel, gana el menor n', () => {
   assert.equal(lineForArea('k', [
     { id: 'a', n: 5, level: 'Para empezar', areas: ['k'] },
@@ -729,13 +735,24 @@ test('suggestLine: sin áreas con línea, ranked vacío o no arreglo', () => {
   assert.deepEqual(suggestLine(undefined, LINEAS), NADA);
   assert.deepEqual(suggestLine([null, { key: 'sec', pct: 10 }], LINEAS), { line: 'safe-soc', area: 'sec', exact: false });
 });
-test('suggestLine con SETS[2] real: siempre hay línea y el resultado es determinista', () => {
+test('suggestLine con SETS[2] real: valores fijados a mano (datos del repo)', () => {
+  const esperado = [
+    { line: 'banorte-ds-jr', area: 'ml', exact: true },
+    { line: 'liverpool-negocio-jr', area: 'con', exact: true },
+    { line: 'banorte-ds-jr', area: 'ml', exact: true },
+    { line: 'edar-dev-jr', area: 'bak', exact: true },
+    { line: 'liverpool-negocio-jr', area: 'con', exact: true }
+  ];
   for (let c = 0; c < 5; c++) {
     const ans = SETS[2].qs.map(() => c);
-    const a = suggestLine(scoreAnswers(ans, 2), LINEAS);
-    assert.notEqual(a.line, null, 'opción ' + c);
-    assert.deepEqual(suggestLine(scoreAnswers(ans, 2), LINEAS), a);
+    assert.deepEqual(suggestLine(scoreAnswers(ans, 2), LINEAS), esperado[c], 'opción ' + c);
   }
+});
+test('suggestLine: empate total de 0 % en orden de AREAS; si la primera no tiene línea, no es exacta', () => {
+  const orden = Object.keys(AREAS).map(k => ({ key: k, pct: 0 }));
+  assert.deepEqual(suggestLine(orden, LINEAS), { line: 'sears-datos-jr', area: 'dat', exact: true });
+  const invPrimero = [{ key: 'inv', pct: 0 }].concat(orden.filter(r => r.key !== 'inv'));
+  assert.deepEqual(suggestLine(invPrimero, LINEAS), { line: 'sears-datos-jr', area: 'dat', exact: false });
 });
 
 test('whyAnswers: más puntos primero; a igualdad, la pregunta más temprana', () => {
