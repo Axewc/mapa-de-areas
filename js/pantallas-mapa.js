@@ -6,6 +6,11 @@ var estBack = { screen: 'mapa' };
 // Atajo respondido en esta visita a la estación: { id, answers, passed }. Se conserva al redibujar.
 var estShortcut = null;
 var lineaShown = null; // línea abierta (para redibujar tras sincronizar)
+// A dónde regresa «Volver» desde una línea: 'mapa' u 'hoy' (Otras líneas).
+var lineaBack = 'mapa';
+// Región viva (role=status) del atajo: se crea vacía con la tarjeta y sobrevive al redibujo de la estación,
+// así el resultado se anuncia al escribirlo en ella.
+var estLive = null;
 var estShown = null;   // estación abierta
 
 function stationPct(st) { return Math.round(100 * stationProgress(state, st)); }
@@ -67,7 +72,10 @@ function mapSvg() {
     var onGoal = !!goal && goal.stations.indexOf(n.id) !== -1;
     var isCur = n.id === cur;
     var pct = stationPct(st);
-    var label = st.name + ', ' + plural(n.lines.length, 'línea', 'líneas') + ', ' + pct + '% de avance' +
+    // Las líneas se nombran por su número, no solo por su color: «SQL, líneas L1, L2, L4, L6 y L8, 40% de avance».
+    var nums = n.lines.map(function (lid) { return 'L' + lineById(lid).n; });
+    var named = nums.length === 1 ? 'línea ' + nums[0] : 'líneas ' + nums.slice(0, -1).join(', ') + ' y ' + nums[nums.length - 1];
+    var label = st.name + ', ' + named + ', ' + pct + '% de avance' +
       (visited ? ', vista' : '') + (isCur ? ', vas aquí' : '');
     var g = elNS('g', { class: 'st' + (visited ? ' done' : '') + (isCur ? ' cur' : '') + (onGoal ? ' on-goal' : ''),
       role: 'link', tabindex: '0', 'data-station': n.id, 'aria-label': label });
@@ -75,7 +83,9 @@ function mapSvg() {
     if (n.lines.length > 1) {
       var w = n.w, h = n.h;
       if (isCur) g.append(elNS('rect', { class: 'halo', x: n.x - w / 2 - 4, y: n.y - h / 2 - 4, width: w + 8, height: h + 8, rx: h / 2 + 4 }));
-      g.append(elNS('rect', { class: 'ring', x: n.x - w / 2 - 4, y: n.y - h / 2 - 4, width: w + 8, height: h + 8, rx: h / 2 + 4 }));
+      ['ring-gap', 'ring', 'ring-dash'].forEach(function (k) {
+        g.append(elNS('rect', { class: k, x: n.x - w / 2 - 7, y: n.y - h / 2 - 7, width: w + 14, height: h + 14, rx: h / 2 + 7 }));
+      });
       g.append(elNS('rect', { class: 'pill', x: n.x - w / 2, y: n.y - h / 2, width: w, height: h, rx: h / 2 }));
       n.lines.forEach(function (lid, i) {
         var cx = n.x - (n.lines.length - 1) * G.dotGap / 2 + i * G.dotGap;
@@ -84,7 +94,7 @@ function mapSvg() {
     } else {
       var c = colorOf[n.lines[0]];
       if (isCur) g.append(elNS('circle', { class: 'halo', cx: n.x, cy: n.y, r: G.r + 4 }));
-      g.append(elNS('circle', { class: 'ring', cx: n.x, cy: n.y, r: G.r + 5 }));
+      ['ring-gap', 'ring', 'ring-dash'].forEach(function (k) { g.append(elNS('circle', { class: k, cx: n.x, cy: n.y, r: G.r + 7 })); });
       g.append(elNS('circle', { class: 'dot ' + c, cx: n.x, cy: n.y, r: G.r - 1.5 }));
     }
     var t = elNS('text', { class: 'lab', x: n.label.x, 'text-anchor': n.label.anchor, 'aria-hidden': 'true' });
@@ -98,6 +108,16 @@ function mapSvg() {
     activateOnKeys(g, function () { openEstacion(n.id, { screen: 'mapa' }); });
     svg.append(g);
   });
+
+  // Insignias «L#» donde empieza cada línea: número más color. Son decorativas para lectores de pantalla
+  // (la etiqueta de cada estación y la lista de líneas ya dicen los números).
+  var badges = elNS('g', { class: 'badges', 'aria-hidden': 'true' });
+  lay.badges.forEach(function (b) {
+    badges.append(elNS('g', { class: 'badge ' + colorOf[b.line], 'data-badge': b.line },
+      elNS('rect', { x: b.box.x0, y: b.box.y0, width: G.badgeW, height: G.badgeH, rx: G.badgeH / 2 }),
+      elNS('text', { x: b.x, y: (b.y + 3.6).toFixed(1), 'text-anchor': 'middle', text: 'L' + b.n })));
+  });
+  svg.append(badges);
   return svg;
 }
 
@@ -110,7 +130,7 @@ function lineRow(line) {
       el('span', { class: 'lvl' + (line.level === 'Para empezar' ? ' start' : ''), text: line.level })),
     el('span', { class: 'pct', text: pct + '% listo' }));
   if (line.id === state.goal) b.append(el('span', { class: 'sr-only', text: ', tu meta' }));
-  b.addEventListener('click', function () { openLinea(line.id); });
+  b.addEventListener('click', function () { openLinea(line.id, false, 'mapa'); });
   return b;
 }
 
@@ -138,13 +158,16 @@ function renderMapa(keep) {
 }
 
 // ---------- Línea ----------
-function openLinea(id, keep) {
+// from: 'mapa' u 'hoy'. Sin from (al redibujar o al volver desde una estación) se conserva el anterior.
+function openLinea(id, keep, from) {
   var line = lineById(id);
   if (!line) { renderMapa(); return; }
+  if (from) lineaBack = from;
   lineaShown = id; estShown = null;
   var root = screens.linea;
   root.textContent = '';
-  root.append(backButton('← Mapa', function () { renderMapa(); }));
+  var toHoy = lineaBack === 'hoy';
+  root.append(backButton(toHoy ? '← Hoy' : '← Mapa', function () { if (toHoy) renderHoy(); else renderMapa(); }));
   var pct = pctOf(line);
   var mine = line.id === state.goal;
   root.append(el('div', { class: 'hub-title ' + line.color },
@@ -234,16 +257,30 @@ function shortcutCard(st) {
     openEstacion(st.id, null, true);
     var h = screens.estacion.querySelector('.shortcut-result h2');
     if (h) h.focus({ preventScroll: false });
+    // El anuncio no depende del foco: se escribe en la región viva que ya estaba en la página.
+    if (estLive) estLive.textContent = shortcutSummary(st, estShortcut);
   });
   card.append(el('div', { class: 'actions' }, check));
   return card;
 }
 
+function shortcutHeadline(res) {
+  return res.passed ? 'Listo: la estación queda vista y la repasas en 7 días' : 'Vamos paso a paso: esta estación entra en tus sesiones';
+}
+
+function shortcutSummary(st, res) {
+  var parts = [shortcutHeadline(res) + '.'];
+  st.extra.forEach(function (q, qi) {
+    parts.push('Pregunta ' + (qi + 1) + ': ' + (res.answers[qi] === q.ok ? 'correcto.' : 'casi; la correcta es ' + q.opts[q.ok] + '.'));
+  });
+  return parts.join(' ');
+}
+
 function shortcutResult(st, res) {
   var card = el('section', { class: 'card shortcut-result' + (res.passed ? ' good' : ''), 'aria-labelledby': 'scr-h' },
-    el('h2', { id: 'scr-h', tabindex: '-1', text: res.passed ? 'Listo: la estación queda vista y la repasas en 7 días' : 'Vamos paso a paso: esta estación entra en tus sesiones' }));
+    el('h2', { id: 'scr-h', tabindex: '-1', text: shortcutHeadline(res) }));
   if (!res.passed) card.append(el('p', { class: 'small', text: 'Lo que contestaste cuenta: las dos preguntas vuelven en tus repasos.' }));
-  var why = el('div', { class: 'stack', 'aria-live': 'polite' });
+  var why = el('div', { class: 'stack' });
   st.extra.forEach(function (q, qi) {
     var mine = res.answers[qi], right = mine === q.ok;
     why.append(el('div', { class: 'rq' },
@@ -263,7 +300,10 @@ function openEstacion(id, from, keep) {
   if (from) { estBack = from; estShortcut = null; }
   estShown = id; lineaShown = null;
   var root = screens.estacion;
-  root.textContent = '';
+  // Al redibujar la misma visita, la región viva del atajo se queda en su lugar; lo demás se rehace.
+  var keepLive = !from && !!estLive && estLive.parentNode === root;
+  Array.prototype.slice.call(root.childNodes).forEach(function (c) { if (!keepLive || c !== estLive) root.removeChild(c); });
+  if (!keepLive) estLive = null;
   var back = estBack;
   var backLine = back.screen === 'linea' ? lineById(back.id) : null;
   root.append(backButton(backLine ? '← L' + backLine.n + ' · ' + backLine.title : '← Mapa', function () {
@@ -274,7 +314,7 @@ function openEstacion(id, from, keep) {
   var chips = el('ul', { class: 'st-lines', 'aria-label': 'Líneas que pasan por aquí' });
   through.forEach(function (l) {
     var b = el('button', { class: 'lchip', type: 'button', 'aria-label': 'L' + l.n + ': ' + l.title }, lineBadge(l));
-    b.addEventListener('click', function () { openLinea(l.id); });
+    b.addEventListener('click', function () { openLinea(l.id, false, 'mapa'); });
     chips.append(el('li', null, b));
   });
   root.append(el('div', { class: 'hub-title' },
@@ -289,7 +329,10 @@ function openEstacion(id, from, keep) {
     through.length > 1 ? el('p', { class: 'small', text: 'Lo que aprendas aquí cuenta para las ' + through.length + ' líneas.' }) : null));
 
   if (estShortcut && estShortcut.id === id) root.append(shortcutResult(st, estShortcut));
-  else if (stationProgress(state, st) === 0) root.append(shortcutCard(st));
+  else if (stationProgress(state, st) === 0) {
+    if (!estLive) estLive = el('div', { class: 'sr-only', role: 'status', 'aria-live': 'polite', 'data-live': 'atajo' });
+    root.append(estLive, shortcutCard(st));
+  }
 
   var shown = [st.plain, st.why, st.task.d];
   var steps = el('ol', { class: 'st-steps' });

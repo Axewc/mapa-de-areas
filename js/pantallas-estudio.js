@@ -192,7 +192,7 @@ function renderHoy(keep) {
       var row = el('button', { class: 'lrow ' + l.color, type: 'button', 'data-line': l.id }, lineBadge(l),
         el('span', { class: 'lrow-t' }, el('b', { text: l.title }), el('span', { class: 'small', text: l.company })),
         el('span', { class: 'pct', text: pctOf(l) + '%' }));
-      row.addEventListener('click', function () { openLinea(l.id); });
+      row.addEventListener('click', function () { openLinea(l.id, false, 'hoy'); });
       list.append(el('li', null, row));
     });
     root.append(el('section', { class: 'card', 'aria-labelledby': 'others-h' },

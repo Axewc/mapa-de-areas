@@ -21,6 +21,7 @@
   --ok: #1B8F5A; --okbg: #E4F4EB; --ok-ink: #12663F;
   --l1: #1B8F5A; --l2: #E0722B; --l3: #7A4CC2; --l4: #0F8FA8; --l5: #C2323C;
   --l6: #C2327E; --l7: #1F4FD8; --l8: #8A6D1F; --l9: #4D5B66;
+  --focus-dash: var(--mark); /* segundo tono del aro de foco del mapa */
   --f-display: 'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif;
   --f-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --f-mono: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
@@ -35,6 +36,7 @@
     --ok: #3DBE80; --okbg: #183328; --ok-ink: #7DDDB0;
     --l1: #3DBE80; --l2: #F09A5A; --l3: #A988E6; --l4: #3CC0D8; --l5: #F06F78;
     --l6: #EE6FB0; --l7: #7C9CFF; --l8: #C9A646; --l9: #9AA9B4;
+    --focus-dash: var(--paper);
     color-scheme: dark;
   }
 }
@@ -46,6 +48,7 @@
   --ok: #3DBE80; --okbg: #183328; --ok-ink: #7DDDB0;
   --l1: #3DBE80; --l2: #F09A5A; --l3: #A988E6; --l4: #3CC0D8; --l5: #F06F78;
   --l6: #EE6FB0; --l7: #7C9CFF; --l8: #C9A646; --l9: #9AA9B4;
+  --focus-dash: var(--paper);
   color-scheme: dark;
 }
 .l1 { --lc: var(--l1); } .l2 { --lc: var(--l2); } .l3 { --lc: var(--l3); }
@@ -432,9 +435,15 @@ button.lrow:hover .lrow-t b { text-decoration: underline; text-underline-offset:
 .metro .trk.goal { opacity: 1; }
 .metro .st { cursor: pointer; outline: none; }
 .metro .hit { fill: transparent; }
-.metro .ring { fill: none; stroke: transparent; stroke-width: 3; }
-.metro .st:focus-visible .ring { stroke: var(--ink); }
-.metro .st:hover .ring { stroke: var(--muted); }
+/* Foco en una estación: aro de dos tonos (tinta con trazos amarillos; en oscuro, trazos de papel) sobre una banda de papel, a 7 del marcador,
+   para que contraste con el papel y con cualquier color de línea, en claro y en oscuro. */
+.metro .ring, .metro .ring-gap, .metro .ring-dash { fill: none; stroke: none; }
+.metro .st:hover .ring { stroke: var(--muted); stroke-width: 2; }
+.metro .st:focus-visible .ring-gap { stroke: var(--paper); stroke-width: 9; }
+.metro .st:focus-visible .ring { stroke: var(--ink); stroke-width: 4.5; }
+.metro .st:focus-visible .ring-dash { stroke: var(--focus-dash); stroke-width: 2; stroke-dasharray: 5 4; }
+.metro .badge rect { fill: var(--panel); stroke: var(--lc); stroke-width: 2.5; }
+.metro .badge text { font-family: var(--f-mono); font-size: 10.5px; font-weight: 600; fill: var(--ink); }
 .metro .halo { fill: var(--mark); stroke: var(--ink); stroke-width: 1.5; }
 .metro .dot { fill: var(--paper); stroke: var(--lc); stroke-width: 3.5; }
 .metro .on-goal .dot { stroke-width: 4.5; }

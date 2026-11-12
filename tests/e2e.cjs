@@ -124,6 +124,20 @@ async function visualPass(browser, viewport, colorScheme) {
   await page.waitForSelector('#s-mapa:not([hidden]) svg');
   await check('mapa');
   assert.deepEqual(await mapLabelProblems(page), [], 'etiquetas del mapa (' + tag + ')');
+  // Foco con teclado en una estación compartida (Datos → Tab → SQL): el aro de dos tonos se dibuja.
+  await page.focus('#s-mapa [data-station=git]');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(() => document.activeElement.getAttribute('data-station')), 'sql');
+  const ring = await page.evaluate(() => {
+    const g = document.activeElement;
+    return ['ring-gap', 'ring', 'ring-dash'].map((k) => getComputedStyle(g.querySelector('.' + k)).stroke);
+  });
+  assert.ok(ring.every((c) => c !== 'none'), 'aro de foco visible: ' + ring.join(' / '));
+  if (SHOTS) {
+    const r = await page.locator('#s-mapa [data-station=sql]').boundingBox();
+    await page.screenshot({ path: path.join(SHOTS, tag + '-mapa-foco.png'), clip: { x: Math.max(0, r.x - 120), y: r.y - 120, width: 300, height: 260 }, animations: 'disabled' });
+  }
   await page.click('#s-mapa .line-list [data-line=edar-dev-jr]');
   await page.waitForSelector('#s-linea:not([hidden])');
   await check('linea');
@@ -159,8 +173,8 @@ async function visualPass(browser, viewport, colorScheme) {
   await ctx.close();
 }
 
-// Revisa con las cajas reales (getBBox) que ninguna etiqueta del mapa se encime con otra, con una estación
-// ni con un tramo, y que la estimación de core.js (mapLayout) sea holgada respecto al texto dibujado.
+// Revisa con las cajas reales (getBBox) que ninguna etiqueta ni insignia «L#» del mapa se encime con otra, con una
+// estación ni con un tramo, y que la estimación de core.js (mapLayout) sea holgada respecto a lo dibujado.
 async function mapLabelProblems(page) {
   return page.evaluate(() => {
     const svg = document.querySelector('#s-mapa svg.metro');
@@ -175,6 +189,14 @@ async function mapLabelProblems(page) {
       if (b.x0 < est.x0 - 1 || b.x1 > est.x1 + 1) out.push('estimación corta: ' + id + ' ' + JSON.stringify([b.x0, b.x1, est.x0, est.x1]));
       if (b.x0 < 0 || b.x1 > 360) out.push('etiqueta fuera del lienzo: ' + id);
       boxes.push(b);
+    });
+    svg.querySelectorAll('[data-badge]').forEach((g) => {
+      const lid = g.getAttribute('data-badge');
+      const r = g.querySelector('rect').getBBox(), t = g.querySelector('text').getBBox();
+      // El texto de la insignia cabe en su rectángulo, con 2 de aire a los lados.
+      if (t.x < r.x + 2 || t.x + t.width > r.x + r.width - 2 || t.y < r.y - 1 || t.y + t.height > r.y + r.height + 1) out.push('texto fuera de la insignia: ' + lid);
+      if (r.x < 0 || r.x + r.width > 360) out.push('insignia fuera del lienzo: ' + lid);
+      boxes.push({ x0: r.x, x1: r.x + r.width, y0: r.y, y1: r.y + r.height, id: 'insignia ' + lid });
     });
     const hit = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
     for (let i = 0; i < boxes.length; i++) {
@@ -211,7 +233,16 @@ async function mapaScenarios(browser, setStep) {
   assert.equal(await page.getAttribute('#s-mapa svg', 'role'), 'group');
   assert.equal(await page.locator('#s-mapa svg polyline.trk').count(), 9);
   assert.equal(await page.getAttribute('#s-mapa [data-station=sql]', 'role'), 'link');
-  assert.equal(await page.getAttribute('#s-mapa [data-station=sql]', 'aria-label'), 'SQL, 5 líneas, 0% de avance');
+  assert.equal(await page.getAttribute('#s-mapa [data-station=sql]', 'aria-label'), 'SQL, líneas L1, L2, L4, L6 y L8, 0% de avance');
+  assert.equal(await page.getAttribute('#s-mapa [data-station=apis]', 'aria-label'), 'APIs, línea L1, 0% de avance');
+  // Insignias «L#» al inicio de cada línea, ocultas para lectores de pantalla.
+  assert.deepEqual(await page.locator('#s-mapa svg [data-badge] text').allTextContents(), ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9']);
+  assert.equal(await page.getAttribute('#s-mapa svg g.badges', 'aria-hidden'), 'true');
+  const badgeFs = await page.evaluate(() => {
+    const svg = document.querySelector('#s-mapa svg.metro');
+    return svg.getBoundingClientRect().width / 360 * parseFloat(getComputedStyle(svg.querySelector('[data-badge] text')).fontSize);
+  });
+  assert.ok(badgeFs >= 10, 'letra de insignia de ' + badgeFs + ' px');
   assert.match(await page.getAttribute('#s-mapa [data-station=git]', 'aria-label'), /vas aquí/);
   assert.equal(await page.locator('#s-mapa [data-station].cur').count(), 1, 'una sola estación actual');
   assert.match(await page.textContent('#s-mapa .line-list [data-line=safe-soc]'), /L5[^]*Analista SOC[^]*SAFE[^]*0% listo/);
@@ -251,11 +282,17 @@ async function mapaScenarios(browser, setStep) {
   assert.equal(await page.isDisabled('#s-estacion .shortcut button.check'), true, 'Comprobar espera las dos respuestas');
   const whys = await page.evaluate(() => ESTACIONES.sql.extra.map((q) => q.why));
   assert.ok(!(await page.textContent('#s-estacion')).includes(whys[0]), 'sin explicación antes de comprobar');
+  // La región viva del atajo existe vacía desde antes y es la misma después de comprobar.
+  assert.equal(await page.getAttribute('#s-estacion [data-live=atajo]', 'role'), 'status');
+  assert.equal(await page.textContent('#s-estacion [data-live=atajo]'), '');
+  await page.evaluate(() => { window.__live = document.querySelector('#s-estacion [data-live=atajo]'); });
   await shortcutAnswer(page, 'sql', [true, true]);
   assert.equal(await page.isDisabled('#s-estacion .shortcut button.check'), false);
   await page.click('#s-estacion .shortcut button.check');
   await page.waitForSelector('#s-estacion .shortcut-result');
   assert.match(await page.textContent('#s-estacion .shortcut-result'), /Listo: la estación queda vista y la repasas en 7 días/);
+  assert.equal(await page.evaluate(() => document.querySelector('#s-estacion [data-live=atajo]') === window.__live && window.__live.isConnected), true, 'misma región viva');
+  assert.match(await page.textContent('#s-estacion [data-live=atajo]'), /^Listo: la estación queda vista y la repasas en 7 días\. Pregunta 1: correcto\. Pregunta 2: correcto\.$/);
   assert.ok((await page.textContent('#s-estacion')).includes(whys[0]), 'explicación después de comprobar');
   const afterSql = await localState(page);
   for (let n = 0; n < 6; n++) assert.equal(afterSql.items['sql.' + n].b, 3, 'sql.' + n + ' en caja 3');
@@ -267,7 +304,7 @@ async function mapaScenarios(browser, setStep) {
     const pct = +(await page.textContent('#s-mapa .line-list [data-line=' + lid + '] .pct')).match(/(\d+)%/)[1];
     assert.ok(pct > 0, lid + ' sube con SQL');
   }
-  assert.match(await page.getAttribute('#s-mapa [data-station=sql]', 'aria-label'), /SQL, 5 líneas, 80% de avance/);
+  assert.match(await page.getAttribute('#s-mapa [data-station=sql]', 'aria-label'), /SQL, líneas L1, L2, L4, L6 y L8, 80% de avance/);
   await page.click('#s-mapa [data-station=sql]');
   await page.waitForSelector('#s-estacion:not([hidden])');
   assert.equal(await page.locator('#s-estacion .shortcut').count(), 0, 'el atajo no se repite');
@@ -281,6 +318,7 @@ async function mapaScenarios(browser, setStep) {
   await page.click('#s-estacion .shortcut button.check');
   await page.waitForSelector('#s-estacion .shortcut-result');
   assert.match(await page.textContent('#s-estacion .shortcut-result'), /Vamos paso a paso: esta estación entra en tus sesiones/);
+  assert.match(await page.textContent('#s-estacion [data-live=atajo]'), /Vamos paso a paso[^]*Pregunta 2: casi; la correcta es/);
   const afterRedes = await localState(page);
   assert.equal(afterRedes.items['redes.4'].b, 1);
   assert.equal(afterRedes.items['redes.5'].b, 1);
@@ -292,6 +330,16 @@ async function mapaScenarios(browser, setStep) {
   await page.click('#s-hoy .lrow[data-line=sears-datos-jr]');
   await page.waitForSelector('#s-linea:not([hidden])');
   assert.match(await page.textContent('#s-linea h1'), /Analista de Datos Jr\./);
+  assert.equal(await page.textContent('#s-linea .topnav button'), '← Hoy');
+  await page.click('#s-linea .topnav button');
+  await page.waitForSelector('#s-hoy:not([hidden])');
+  // Desde el mapa, «Volver» regresa al mapa.
+  await page.click('#tabbar [data-tab=mapa]');
+  await page.click('#s-mapa .line-list [data-line=sears-datos-jr]');
+  await page.waitForSelector('#s-linea:not([hidden])');
+  assert.equal(await page.textContent('#s-linea .topnav button'), '← Mapa');
+  await page.click('#s-linea .topnav button');
+  await page.waitForSelector('#s-mapa:not([hidden])');
 
   setStep('línea: elegir como meta');
   await page.click('#tabbar [data-tab=mapa]');

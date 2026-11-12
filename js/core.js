@@ -399,7 +399,7 @@ function segmentOffsets(lines) {
 // Dibujo del mapa (unidades del viewBox de 360 de ancho; a 390 px de pantalla 1 unidad ≈ 1 px).
 // Etiquetas de 12 con interlineado 14. Una estación normal es un círculo de radio r; una compartida,
 // una píldora con un punto por línea. Lado de la etiqueta: 'l', 'r' (por defecto), 't' (arriba) o 'b' (abajo).
-var MAP_GEO = { width: 360, font: 12, lineH: 14, r: 7, dotGap: 8, pillH: 18, gap: 7, stroke: 7, wrapW: 120 };
+var MAP_GEO = { width: 360, font: 12, lineH: 14, r: 7, dotGap: 8, pillH: 18, gap: 7, stroke: 7, wrapW: 120, badgeW: 26, badgeH: 16 };
 
 // Ancho estimado de un texto a 12 px, holgado: el mayor entre IBM Plex Sans e Inter en negrita (la estación actual va en negrita).
 function mapTextW(t) {
@@ -480,7 +480,17 @@ function mapLayout(lines, stations) {
     }
     paths[ln.id] = segs;
   }
-  return { width: G.width, height: maxY + 40, nodes: nodes, byId: byId, paths: paths };
+  // Insignia «L#» junto a la estación donde empieza cada línea: en line.badge [x, y] (centro) o, si no hay, 24 arriba.
+  var badges = [];
+  for (i = 0; i < lines.length; i++) {
+    var bl = lines[i], first = byId[bl.stations[0]];
+    if (!first) continue;
+    var bc = bl.badge || [first.x, first.y - 24];
+    badges.push({ line: bl.id, n: bl.n, x: bc[0], y: bc[1],
+      box: { x0: bc[0] - G.badgeW / 2, x1: bc[0] + G.badgeW / 2, y0: bc[1] - G.badgeH / 2, y1: bc[1] + G.badgeH / 2 } });
+    if (bc[1] > maxY) maxY = bc[1];
+  }
+  return { width: G.width, height: maxY + 40, nodes: nodes, byId: byId, paths: paths, badges: badges };
 }
 
 // ¿El tramo (x1,y1)-(x2,y2) toca la caja (agrandada en pad)? Recorte de Liang-Barsky.
@@ -519,6 +529,23 @@ function mapIssues(layout, minDist) {
       segs = layout.paths[lid];
       for (k = 0; k < segs.length; k++) {
         if (coreSegHitsBox(segs[k], lb, half + 1)) { out.push('etiqueta sobre línea: ' + a.id + ' y ' + lid); break; }
+      }
+    }
+  }
+  // Insignias de línea: dentro del lienzo y sin tocar etiquetas, estaciones, tramos ni otras insignias.
+  var bs = layout.badges || [];
+  for (i = 0; i < bs.length; i++) {
+    var bx = bs[i].box, bn = 'insignia L' + bs[i].n;
+    if (bx.x0 < 2 || bx.x1 > layout.width - 2 || bx.y0 < 2) out.push(bn + ' fuera');
+    for (j = 0; j < ns.length; j++) {
+      if (coreBoxesHit(bx, ns[j].label.box, 2)) out.push(bn + ' sobre la etiqueta de ' + ns[j].id);
+      if (coreBoxesHit(bx, coreMarkerBox(ns[j]), 2)) out.push(bn + ' sobre la estación ' + ns[j].id);
+    }
+    for (j = i + 1; j < bs.length; j++) if (coreBoxesHit(bx, bs[j].box, 2)) out.push(bn + ' sobre insignia L' + bs[j].n);
+    for (lid in layout.paths) {
+      segs = layout.paths[lid];
+      for (k = 0; k < segs.length; k++) {
+        if (coreSegHitsBox(segs[k], bx, half + 1)) { out.push(bn + ' sobre línea: ' + lid); break; }
       }
     }
   }

@@ -339,3 +339,23 @@ test('mapIssues encuentra etiquetas encimadas, tramos sobre estaciones ajenas y 
   const fuera = mapLayout([{ id: 'p', stations: ['a'], map: { a: [350, 40] } }], ST);
   assert.ok(mapIssues(fuera, 0).some((x) => /etiqueta fuera: a/.test(x)));
 });
+
+test('mapLayout: insignia «L#» de cada línea junto a su primera estación (line.badge o 24 arriba) y mapIssues la revisa', () => {
+  const lines = [
+    { id: 'p', n: 1, stations: ['a', 'b'], map: { a: [100, 100], b: [100, 200] } },
+    { id: 'q', n: 2, stations: ['c', 'd'], map: { c: [250, 100], d: [250, 200] }, badge: [225, 100] }
+  ];
+  const L = mapLayout(lines, ST);
+  assert.deepEqual(L.badges.map((b) => [b.line, b.n, b.x, b.y]), [['p', 1, 100, 76], ['q', 2, 225, 100]]);
+  assert.equal(L.badges[0].box.x1 - L.badges[0].box.x0, MAP_GEO.badgeW);
+  assert.deepEqual(mapIssues(L, 44), []);
+  // Sobre la etiqueta de c (a la derecha de c), sobre un tramo y encima de otra insignia.
+  lines[1].badge = [282, 100];
+  assert.ok(mapIssues(mapLayout(lines, ST), 44).some((m) => /insignia L2 sobre la etiqueta de c/.test(m)));
+  lines[1].badge = [250, 150];
+  assert.ok(mapIssues(mapLayout(lines, ST), 44).some((m) => /insignia L2 sobre línea: q/.test(m)));
+  lines[1].badge = [110, 76];
+  assert.ok(mapIssues(mapLayout(lines, ST), 44).some((m) => /insignia L1 sobre insignia L2/.test(m)));
+  lines[1].badge = [350, 20];
+  assert.ok(mapIssues(mapLayout(lines, ST), 44).some((m) => /insignia L2 fuera/.test(m)));
+});
