@@ -354,6 +354,60 @@ var SETS = {
     { t: "Tener mi propio producto o negocio", p: {web: 3, bak: 1, con: 1} },
     { t: "Que las decisiones de mi trabajo se apoyen en lo que yo encontré", p: {dat: 3, rsk: 1, con: 1} }
   ]}
+] },
+  3: { name: 'Descubre', qs: [
+  { q: "Te encuentras con un problema que te deja pensando. ¿Qué parte te engancha más?", opts: [
+    { t: "Ordenar toda la información que hay hasta que por fin se entienda", p: {dat: 3} },
+    { t: "Descubrir un patrón que sirva para anticipar qué va a pasar", p: {ml: 3, rsk: 1} },
+    { t: "Que nadie conozca la respuesta todavía y haya que encontrarla", p: {inv: 3} },
+    { t: "Buscar el punto débil por donde alguien podría colarse", p: {sec: 3} },
+    { t: "Entender bien a la persona que lo tiene y qué necesita", p: {con: 3, web: 1} }
+  ]},
+  { q: "Un programa que hiciste deja de funcionar y un asistente de IA te propone un arreglo. ¿Qué haces primero?", opts: [
+    { t: "Reviso qué cambió en la conexión o la configuración antes de aceptarlo", p: {inf: 3} },
+    { t: "Leo el arreglo línea por línea para ver si la lógica cuadra", p: {bak: 3} },
+    { t: "Me fijo si el arreglo deja abierta una puerta que antes estaba cerrada", p: {sec: 3} },
+    { t: "Investigo por qué falló de fondo, aunque el arreglo ya funcione", p: {inv: 3} },
+    { t: "Lo pruebo como lo usaría cualquiera, para ver si ya se siente bien", p: {web: 3} }
+  ]},
+  { q: "Tu equipo va a hacer una app para pedir comida en la cafetería de la escuela. ¿Qué parte te gustaría tomar?", opts: [
+    { t: "Diseñar las pantallas para que pedir sea claro y rápido", p: {web: 3} },
+    { t: "Programar las reglas de precios, pedidos y lo que ya se acabó", p: {bak: 3} },
+    { t: "Vigilar que siga en pie a la hora de la comida, cuando todos piden", p: {inf: 3} },
+    { t: "Organizar los pedidos guardados para saber qué se vende y cuándo", p: {dat: 3} }
+  ]},
+  { q: "La cafetería ya tiene un año de pedidos guardados. ¿Qué te gustaría hacer con ellos?", opts: [
+    { t: "Explicar qué se vendió más cada mes y por qué fue así", p: {dat: 3} },
+    { t: "Calcular cuántas tortas habrá que preparar mañana", p: {ml: 3} },
+    { t: "Estimar cuánto se pierde un día de lluvia, cuando llegan pocos", p: {rsk: 3} },
+    { t: "Buscar si hay una regla general en cómo elige la gente", p: {inv: 3, ml: 1} },
+    { t: "Proponerle a la dueña un cambio que le haga ganar más", p: {con: 3, dat: 1} }
+  ]},
+  { q: "Te encargan el sistema de inscripciones de tu facultad en la semana de altas y bajas. ¿De qué te gustaría encargarte?", opts: [
+    { t: "Cuidar que nadie entre con la cuenta de otro ni cambie calificaciones", p: {sec: 3} },
+    { t: "Lograr que siga funcionando aunque miles entren a la misma hora", p: {inf: 3} },
+    { t: "Asegurar que las reglas de cupo y horarios se cumplan sin errores", p: {bak: 3} },
+    { t: "Estimar qué tan probable es una falla y cuánto afectaría", p: {rsk: 3, sec: 1} }
+  ]},
+  { q: "Una tiendita de tu colonia quiere empezar a vender en línea y te pide ayuda. ¿Qué haces tú?", opts: [
+    { t: "Platico con la dueña hasta entender cómo funciona su negocio", p: {con: 3} },
+    { t: "Calculo cuánto podría perder si las ventas tardan en llegar", p: {rsk: 3} },
+    { t: "Le armo una tienda en línea sencilla y la pruebo con sus clientes", p: {web: 3, bak: 1} },
+    { t: "Reviso sus ventas de este año para ver qué le conviene vender", p: {dat: 3} }
+  ]},
+  { q: "En tu próximo proyecto, un asistente de IA hace el primer borrador. ¿Qué parte del trabajo quieres hacer tú?", opts: [
+    { t: "Afinar cómo se ve y se siente hasta que sea cómodo de usar", p: {web: 3} },
+    { t: "Ordenar la lógica por dentro para que sea fácil de cambiar", p: {bak: 3, inf: 1} },
+    { t: "Probar con datos nuevos si sus predicciones aciertan", p: {ml: 3} },
+    { t: "Atacarlo por mi cuenta para encontrar sus huecos antes que otros", p: {sec: 3} },
+    { t: "Diseñar el experimento que muestre si la idea funciona", p: {inv: 3} }
+  ]},
+  { q: "Un asistente de IA hace propuestas y alguien debe decidir cuáles se aceptan. ¿Qué te gustaría revisar tú?", opts: [
+    { t: "Si sus predicciones siguen acertando con los datos de este mes", p: {ml: 3} },
+    { t: "Cuánto costaría equivocarse y si vale la pena el riesgo", p: {rsk: 3, con: 1} },
+    { t: "Si el cambio se puede aplicar sin interrumpir a nadie", p: {inf: 3} },
+    { t: "Si la propuesta resuelve lo que el cliente pidió", p: {con: 3} }
+  ]}
 ] }
 };
 
