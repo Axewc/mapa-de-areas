@@ -50,16 +50,15 @@ function getQuestion(stations, itemId) {
   return null;
 }
 
-// Un error deja el ítem en la caja 1 con ok:false: cuenta como visto, pero no suma al avance hasta que se acierte.
-// Un ítem sin el campo (estados guardados antes) se asume acertado.
+// Un error baja el ítem a la caja 1. Si el ítem nunca se había acertado (sin caja o ya marcado), queda con ok:false:
+// cuenta como visto, pero no suma al avance hasta que se acierte. Un error en un ítem que ya se había acertado
+// no lleva marca y pesa como la caja 1. Un ítem sin el campo (estados guardados antes) se asume acertado.
 function reviewItem(prev, correct, today, now) {
   var b = 1;
-  if (correct) {
-    var pb = prev && prev.b > 0 ? prev.b : 0;
-    b = Math.min(5, pb + 1);
-  }
+  var pb = prev && prev.b > 0 ? prev.b : 0;
+  if (correct) b = Math.min(5, pb + 1);
   var out = { b: b, due: addDays(today, BOX_DAYS[b]), t: now };
-  if (!correct) out.ok = false;
+  if (!correct && (pb === 0 || prev.ok === false)) out.ok = false;
   return out;
 }
 

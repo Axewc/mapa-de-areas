@@ -54,7 +54,8 @@ test('reviewItem: acierto sube de caja y programa', () => {
   assert.equal(reviewItem({ b: 5 }, true, '2026-11-10', 3).due, '2026-12-15');
 });
 test('reviewItem: error baja a la caja 1 y vuelve mañana', () => {
-  assert.deepEqual({ ...reviewItem({ b: 4 }, false, '2026-12-31', 9) }, { b: 1, due: '2027-01-01', t: 9, ok: false });
+  assert.deepEqual({ ...reviewItem({ b: 4 }, false, '2026-12-31', 9) }, { b: 1, due: '2027-01-01', t: 9 });
+  assert.deepEqual({ ...reviewItem(undefined, false, '2026-12-31', 9) }, { b: 1, due: '2027-01-01', t: 9, ok: false });
 });
 test('avance de estación y de línea con pesos por caja', () => {
   const s = { ...emptyState(), items: { 'a.0': { b: 1 }, 'a.1': { b: 5 } } };
@@ -619,4 +620,34 @@ test('enqueueRepeat conserva la marca de repaso adelantado', () => {
   const card = { kind: 'review', item: 'a.0', station: 'a', ahead: true };
   assert.equal(enqueueRepeat([card], card, false)[1].ahead, true);
   assert.equal(enqueueRepeat([rev], rev, false)[1].ahead, undefined);
+});
+
+test('ok:false solo si el ítem nunca se ha acertado: un error en un repaso pesa como antes', () => {
+  // Desde la caja 2 en adelante, el error baja a la caja 1 y pesa 0.4 (sin marca), no 0.
+  for (const b of [1, 2, 3, 4, 5]) {
+    const r = reviewItem({ b, due: '2026-11-01', t: 1 }, false, '2026-11-10', 5);
+    assert.deepEqual({ ...r }, { b: 1, due: '2026-11-11', t: 5 }, 'desde la caja ' + b);
+  }
+  // Sin ítem previo o de la caja 0, el error sí lleva la marca; si ya la traía, la conserva.
+  assert.equal(reviewItem(undefined, false, '2026-11-10', 5).ok, false);
+  assert.equal(reviewItem({ b: 0 }, false, '2026-11-10', 5).ok, false);
+  assert.equal(reviewItem({ b: 1, ok: false }, false, '2026-11-10', 5).ok, false);
+  // Un acierto posterior la limpia.
+  assert.equal(reviewItem({ b: 1, ok: false }, true, '2026-11-10', 5).ok, undefined);
+  // Estación con los 6 ítems en caja 5 y un error en un repaso: (5 x 1 + 0.4) / 6 = 0.9, como antes.
+  const full = { ...emptyState(), items: Object.fromEntries(itemIds(A).map(id => [id, { b: 5, due: '2026-11-01', t: 1 }])) };
+  assert.ok(Math.abs(stationProgress(full, A) - 1) < 1e-9);
+  const after = recordAnswer(full, 'a.0', false, '2026-11-10', 9);
+  assert.equal(after.items['a.0'].ok, undefined);
+  assert.ok(Math.abs(stationProgress(after, A) - (5 + 0.4) / 6) < 1e-9);
+  // Un ítem visto y acertado en la caja 2 que falla: baja a 0.4 (antes del cambio también), no a 0.
+  const two = recordAnswer({ ...emptyState(), items: { 'a.0': { b: 2, due: '2026-11-01', t: 1 } } }, 'a.0', false, '2026-11-10', 9);
+  assert.ok(Math.abs(stationProgress(two, A) - 0.4 / 6) < 1e-9);
+  // Y si un ítem sin acertar nunca (ok:false) vuelve a fallar, sigue en 0; al acertarlo pesa de nuevo.
+  const never = recordAnswer(recordAnswer(emptyState(), 'a.0', false, '2026-11-10', 1), 'a.0', false, '2026-11-11', 2);
+  assert.equal(never.items['a.0'].ok, false);
+  assert.equal(stationProgress(never, A), 0);
+  // mergeState y adminRow siguen coherentes: gana el más reciente y la marca viaja con él.
+  assert.equal(mergeState(never, full).items['a.0'].ok, false);
+  assert.equal(mergeState(full, after).items['a.0'].ok, undefined);
 });
