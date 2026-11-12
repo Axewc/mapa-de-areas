@@ -1,9 +1,33 @@
 // Arranque: cliente de Supabase, sesión, estado global, sincronización y pantalla inicial.
 var SUPABASE_URL = 'https://vhdrnrzerjysjzpyzgif.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_D6zlOACzmjEzb2_CdqupZQ_Vyj1ZbQz';
-var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' }
-});
+// El cliente real existe solo si la biblioteca de Supabase ya cargó (viene de un CDN, con `async`: no bloquea la página).
+function realClient() {
+  if (!window.supabase || !window.supabase.createClient) return null;
+  return window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' }
+  });
+}
+// Mientras no carga (o si el CDN está bloqueado) se usa este cliente sin conexión: nunca hay sesión y toda consulta
+// responde con error, así que el estudio sin cuenta funciona igual y las pantallas de cuenta avisan del fallo.
+function offlineClient() {
+  var err = { message: 'no hay conexión con el servicio de cuentas. Intenta más tarde' };
+  function Q() {}
+  ['select', 'insert', 'upsert', 'update', 'delete', 'eq', 'order', 'limit'].forEach(function (m) { Q.prototype[m] = function () { return this; }; });
+  Q.prototype.then = function (res, rej) { return Promise.resolve({ data: null, error: err }).then(res, rej); };
+  return {
+    auth: {
+      getSession: function () { return Promise.resolve({ data: { session: null }, error: null }); },
+      onAuthStateChange: function () { return { data: { subscription: { unsubscribe: function () {} } } }; },
+      signOut: function () { return Promise.resolve({ error: err }); },
+      signInWithOtp: function () { return Promise.resolve({ error: err }); }
+    },
+    from: function () { return new Q(); }
+  };
+}
+var sb = realClient();
+var sbReady = !!sb;
+if (!sb) sb = offlineClient();
 var session = null;
 var isAdmin = false;
 
@@ -133,24 +157,38 @@ if (bootLoad.warning === 'sin-almacenamiento') showNotice('Este navegador no dej
 else if (bootLoad.warning === 'estado-invalido') showNotice('Tu progreso guardado no se pudo leer, así que empezamos de cero.');
 if (lineById(state.goal)) renderHoy(); else renderPick();
 
-sb.auth.getSession().then(function (r) {
-  session = r.data.session;
-  checkAdmin();
-  if (session) syncAndRefresh();
-  else refreshScreen();
-});
-sb.auth.onAuthStateChange(function (ev, s) {
-  session = s;
-  if (ev === 'SIGNED_IN') {
-    if (window.location.hash.indexOf('access_token') !== -1) history.replaceState(null, '', window.location.pathname);
+// Sesión: se consulta cuando el cliente real está listo. Si la biblioteca llega después, se conecta entonces.
+function bootAuth() {
+  sb.auth.getSession().then(function (r) {
+    session = r.data.session;
     checkAdmin();
-    refreshScreen();
-    syncAndRefresh();
-  } else if (ev === 'SIGNED_OUT') {
-    isAdmin = false;
-    refreshScreen();
-  }
-});
+    if (session) syncAndRefresh();
+    else refreshScreen();
+  });
+  sb.auth.onAuthStateChange(function (ev, s) {
+    session = s;
+    if (ev === 'SIGNED_IN') {
+      if (window.location.hash.indexOf('access_token') !== -1) history.replaceState(null, '', window.location.pathname);
+      checkAdmin();
+      refreshScreen();
+      syncAndRefresh();
+    } else if (ev === 'SIGNED_OUT') {
+      isAdmin = false;
+      refreshScreen();
+    }
+  });
+}
+if (sbReady) bootAuth();
+else {
+  var sbLib = document.getElementById('sb-lib');
+  if (sbLib) sbLib.addEventListener('load', function () {
+    var c = realClient();
+    if (!c || sbReady) return;
+    sb = c;
+    sbReady = true;
+    bootAuth();
+  });
+}
 
 // «Borrar mis datos» (o limpiar los datos del sitio) en otra pestaña de este navegador: esta pestaña adopta el estado vacío
 // y se redibuja, sin volver a escribir lo que ya no está. Si tenía una sesión de estudio abierta, se cierra.

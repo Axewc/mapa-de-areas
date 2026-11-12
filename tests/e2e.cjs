@@ -873,11 +873,61 @@ async function sharedStateScenarios(browser, setStep) {
   await ctxE.close();
 }
 
+// El servicio de cuentas (supabase-js, desde un CDN) no debe bloquear el estudio: si no carga o tarda, el sitio funciona sin cuenta.
+async function cdnScenarios(browser, setStep) {
+  const open = async (mode, local) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+    let release = null;
+    const held = new Promise((res) => { release = res; });
+    await page.route(SB_URL, async (r) => {
+      if (mode === 'blocked') return r.abort();
+      await held;
+      return r.fulfill({ status: 200, contentType: 'application/javascript', body: FAKE });
+    });
+    await page.addInitScript((a) => {
+      window.__seed = a.seed;
+      if (a.local && !sessionStorage.getItem('e2e.seeded')) { localStorage.setItem(a.key, a.local); sessionStorage.setItem('e2e.seeded', '1'); }
+    }, { seed: mode === 'slow-session' ? { session: true, mapa_progreso: [{ user_id: 'u1', email: 'alumno@test.mx', state: { v: 2, goal: 'sears-datos-jr', goalT: 9, items: {}, days: {} } }] } : {}, local: local || null, key: KEY });
+    await page.goto(INDEX_URL, { waitUntil: 'commit' });
+    return { context, page, errors, release };
+  };
+
+  setStep('CDN de cuentas bloqueado: se puede elegir meta y estudiar');
+  let t = await open('blocked');
+  await t.page.waitForSelector('#s-pick:not([hidden])', { timeout: 5000 });
+  await t.page.click('#s-pick .line-card >> nth=0');
+  await t.page.waitForSelector('#s-hoy:not([hidden])');
+  await t.page.click('#s-hoy .session-cta');
+  await answerCard(t.page, true);
+  assert.equal(Object.keys((await localState(t.page)).items).length, 1, 'la respuesta se guarda sin el servicio de cuentas');
+  await t.page.evaluate(() => { sesExit(); renderYo(); });
+  await t.page.click('#account button[aria-controls="login"]');
+  await t.page.fill('#email', 'alumno@test.mx');
+  await t.page.click('#send-link');
+  await t.page.waitForFunction(() => /No se pudo enviar el enlace/.test(document.getElementById('auth-msg').textContent));
+  assert.deepEqual(t.errors, [], 'sin errores de script con el CDN bloqueado');
+  await t.context.close();
+
+  setStep('CDN de cuentas lento: la pantalla aparece antes y la sesión llega después');
+  t = await open('slow-session');
+  await t.page.waitForSelector('#s-pick:not([hidden])', { timeout: 5000 });
+  t.release();
+  await t.page.waitForSelector('#s-hoy:not([hidden])'); // la meta de la nube llega al cargar el servicio
+  assert.equal((await localState(t.page)).goal, 'sears-datos-jr');
+  assert.deepEqual(t.errors, []);
+  await t.context.close();
+}
+
 async function main() {
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   let step = '';
   try {
+    if (process.env.E2E_ONLY === 'cdn') { await cdnScenarios(browser, (t) => { step = t; }); console.log('e2e (solo cdn): OK'); return; }
     if (process.env.E2E_ONLY === 'shared') { await sharedStateScenarios(browser, (t) => { step = t; }); console.log('e2e (solo shared): OK'); return; }
     step = 'primera visita sin cuenta: elegir meta';
     const { page, errors } = await openHome(context, { clock: '2026-11-10T10:00:00' });
@@ -1365,6 +1415,7 @@ async function main() {
         await visualPass(browser, vp, cs);
       }
     }
+    await cdnScenarios(browser, (t) => { step = t; });
     console.log('e2e: OK');
   } catch (e) {
     console.error('e2e: FALLÓ en «' + step + '»');

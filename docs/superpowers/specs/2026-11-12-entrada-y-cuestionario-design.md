@@ -94,6 +94,7 @@ Orden y contenido:
 7. **Pie:** «Copiar mi resultado», «Volver a hacerlo», «Mis respuestas» (con sesión). Sin cuenta, una línea: «Tu resultado queda en este dispositivo. Con cuenta lo conservas en todos.»
 
 **Sin vacante:** si el área #1 es «Investigación», la línea sugerida es la de la siguiente área del ranking que tenga una, con la frase «Aún no tenemos una vacante de investigación; esta línea es la más cercana».
+**Encabezados:** la pantalla de preguntas tiene un `h1` (hoy no lo tiene) y el resultado no salta niveles de encabezado (hoy pasa de `h1` a `h3`); son los dos únicos fallos que encontró la auditoría automática (axe) del 12 nov.
 **Foco y lectores de pantalla:** al llegar al resultado, el foco va al `h1`; la región de «copiado» y el guardado son `aria-live`.
 
 ## Datos y estado
