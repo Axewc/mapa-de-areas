@@ -358,8 +358,9 @@ function sesTally(prev, next, xp, stationId) {
 function sesFinish() {
   var r = sesRun;
   r.finishedDay = todayYmd();
+  var already = coreDay(state, r.finishedDay).done; // el bono de +20 se da una vez por día
   commit(finishSession(state, r.finishedDay));
-  r.xp += XP.done;
+  if (!already) r.xp += XP.done;
   r.after = state;
   syncNow();
 }
@@ -373,7 +374,7 @@ function sesAnswer(i) {
   r.answer = i;
   // La fecha se toma al responder: una sesión que cruza la medianoche cuenta cada respuesta en su día.
   var prev = state;
-  commit(recordAnswer(state, card.item, right, todayYmd(), Date.now(), { repeat: !!card.repeat }));
+  commit(recordAnswer(state, card.item, right, todayYmd(), Date.now(), { repeat: !!card.repeat, ahead: !!card.ahead }));
   sesTally(prev, state, right ? XP.right : XP.wrong, card.station);
   r.queue = enqueueRepeat(r.queue, card, right);
   r.done++;
@@ -394,7 +395,8 @@ function sesAnswer(i) {
   });
 
   var when;
-  if (card.repeat) when = 'Vuelve mañana.';
+  if (card.ahead) when = 'Repaso adelantado: no cambia cuándo vuelve a salir.' + (!right && !card.repeat ? ' Se repite una vez al final de esta sesión.' : '');
+  else if (card.repeat) when = 'Vuelve mañana.';
   else if (!right) when = 'Vuelve mañana y una vez más al final de esta sesión.';
   else {
     var it = state.items[card.item];
@@ -430,8 +432,7 @@ function sesEnd() {
   r.step = 'end';
   var day = r.finishedDay;
   var line = r.goal;
-  // De sessionSummary solo se usan la racha y los repasos de mañana, que dependen del estado final.
-  var sum = sessionSummary(r.after, r.after, line || { stations: [] }, ESTACIONES, day);
+  var sum = sessionTail(r.after, ESTACIONES, day);
   var deltaPct = Math.round(100 * r.delta);
   var root = screens.sesion;
   root.textContent = '';

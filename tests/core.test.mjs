@@ -10,7 +10,7 @@ const {
   currentStation, getQuestion, validState, emptyState,
   buildSession, enqueueRepeat, describeSession, nextDue,
   recordAnswer, finishSession, setGoal, totalXp, level, weekKey, streak, mergeState,
-  applyShortcut, sessionSummary, segmentOffsets, lineasFor,
+  applyShortcut, sessionTail, segmentOffsets, lineasFor,
   mapLabelLines, mapMarkerW, mapLayout, mapIssues, MAP_GEO, mapTextW, adminRow, adminCompare, streakCurrent
 } = require('../js/core.js');
 const { LINEAS } = require('../js/data-lineas.js');
@@ -54,7 +54,7 @@ test('reviewItem: acierto sube de caja y programa', () => {
   assert.equal(reviewItem({ b: 5 }, true, '2026-11-10', 3).due, '2026-12-15');
 });
 test('reviewItem: error baja a la caja 1 y vuelve mañana', () => {
-  assert.deepEqual({ ...reviewItem({ b: 4 }, false, '2026-12-31', 9) }, { b: 1, due: '2027-01-01', t: 9 });
+  assert.deepEqual({ ...reviewItem({ b: 4 }, false, '2026-12-31', 9) }, { b: 1, due: '2027-01-01', t: 9, ok: false });
 });
 test('avance de estación y de línea con pesos por caja', () => {
   const s = { ...emptyState(), items: { 'a.0': { b: 1 }, 'a.1': { b: 5 } } };
@@ -234,17 +234,15 @@ test('atajo: un error estudia normal y cuenta esas dos respuestas', () => {
   assert.equal(r.passed, false);
   assert.equal(r.state.items['a.4'].b, 1); assert.equal(r.state.items['a.5'].b, 1); assert.equal(r.state.items['a.0'], undefined);
 });
-test('sessionSummary', () => {
-  const mk = (ids, due, xp) => {
-    const items = {};
-    for (const id of ids) items[id] = { b: 1, due, t: 0 };
-    return { ...emptyState(), items, days: { '2026-11-10': { xp, done: xp > 10 } } };
-  };
-  const before = mk(['a.0', 'a.1', 'a.2', 'a.3'], '2026-11-11', 10);
-  const after = mk(itemIds(A).concat(['zzz.0']), '2026-11-11', 30);
-  after.items['a.4'].due = '2026-11-12'; after.items['a.5'].due = '2026-11-12';
-  const r = sessionSummary(before, after, L, S, '2026-11-10');
-  assert.deepEqual({ ...r, visited: r.visited.slice() }, { xp: 20, streak: 1, deltaPct: 7, visited: ['a'], dueTomorrow: 4 });
+test('sessionTail: racha y repasos de mañana', () => {
+  const items = {};
+  for (const id of itemIds(A)) items[id] = { b: 1, due: '2026-11-11', t: 0 };
+  items['a.4'].due = '2026-11-12'; items['a.5'].due = '2026-11-12';
+  items['zzz.0'] = { b: 1, due: '2026-11-11', t: 0 };
+  items['b.0'] = { b: 0, due: '2026-11-11', t: 0 };
+  const s = { ...emptyState(), items, days: { '2026-11-10': { xp: 30, done: true } } };
+  assert.deepEqual({ ...sessionTail(s, S, '2026-11-10') }, { streak: 1, dueTomorrow: 4 });
+  assert.deepEqual({ ...sessionTail(emptyState(), S, '2026-11-10') }, { streak: 0, dueTomorrow: 0 });
 });
 test('las funciones no mutan sus argumentos', () => {
   const s = emptyState(); const frozen = JSON.stringify(s);
@@ -512,4 +510,113 @@ test('adminCompare: último día más reciente primero, sin día al final y empa
   ];
   assert.deepEqual(rows.sort(adminCompare).map((r) => r.email + ':' + r.row.lastDay),
     ['c@t.mx:2026-11-12', 'a@t.mx:2026-11-10', 'b@t.mx:2026-11-10', 'a@t.mx:null', 'z@t.mx:null']);
+});
+
+// ---- Revisión final: error desde la caja 0, días raros, XP como texto, repasos adelantados ----
+
+test('un error no suma peso al avance, pero el ítem cuenta como visto', () => {
+  const wrong = recordAnswer(emptyState(), 'a.0', false, '2026-11-10', 1);
+  assert.deepEqual({ ...wrong.items['a.0'] }, { b: 1, due: '2026-11-11', t: 1, ok: false });
+  const right = recordAnswer(emptyState(), 'a.0', true, '2026-11-10', 1);
+  assert.equal(right.items['a.0'].ok, undefined);
+  assert.equal(stationProgress(wrong, A), 0);
+  assert.ok(Math.abs(stationProgress(right, A) - 0.4 / 6) < 1e-9);
+  // Visto: los 6 ítems en caja 1 o más, aunque todos hayan fallado.
+  const all = { ...emptyState(), items: Object.fromEntries(itemIds(A).map(id => [id, { b: 1, due: 'x', t: 0, ok: false }])) };
+  assert.equal(isVisited(all, A), true);
+  assert.equal(stationProgress(all, A), 0);
+  assert.equal(lineProgress(all, L, S), 0);
+  // Un acierto posterior sube de caja y vuelve a pesar; un estado guardado sin el campo se asume acierto.
+  const later = recordAnswer(wrong, 'a.0', true, '2026-11-11', 2);
+  assert.deepEqual({ ...later.items['a.0'] }, { b: 2, due: '2026-11-14', t: 2 });
+  assert.ok(Math.abs(stationProgress(later, A) - 0.6 / 6) < 1e-9);
+  assert.ok(Math.abs(stationProgress({ ...emptyState(), items: { 'a.0': { b: 1 } } }, A) - 0.4 / 6) < 1e-9);
+});
+
+test('ok:false: mergeState lo respeta según el ítem más reciente y adminRow lo cuenta como cero', () => {
+  const old = { ...emptyState(), items: { 'a.0': { b: 3, due: '2026-11-17', t: 1 } } };
+  const failed = { ...emptyState(), items: { 'a.0': { b: 1, due: '2026-11-11', t: 5, ok: false } } };
+  assert.equal(mergeState(old, failed).items['a.0'].ok, false);
+  assert.equal(mergeState(failed, old).items['a.0'].ok, false);
+  const redone = { ...emptyState(), items: { 'a.0': { b: 2, due: '2026-11-14', t: 9 } } };
+  assert.equal(mergeState(failed, redone).items['a.0'].ok, undefined);
+  const real = LINEAS[0], st0 = ESTACIONES[real.stations[0]];
+  const items = {};
+  for (const id of itemIds(st0)) items[id] = { b: 1, due: '2026-11-11', t: 1, ok: false };
+  const row = adminRow({ v: 2, goal: real.id, goalT: 1, items, days: {} }, '2026-11-10', LINEAS, ESTACIONES);
+  assert.equal(row.pct, 0);
+  for (const id of itemIds(st0)) items[id] = { b: 1, due: '2026-11-11', t: 1 };
+  assert.ok(adminRow({ v: 2, goal: real.id, goalT: 1, items, days: {} }, '2026-11-10', LINEAS, ESTACIONES).pct > 0);
+});
+
+test('días con valores raros (null, número, texto, arreglo) no lanzan y se normalizan', () => {
+  const weird = { v: 2, goal: null, goalT: 0, items: {}, days: { '2026-11-01': null, '2026-11-02': 7, '2026-11-03': 'x', '2026-11-04': [1], '2026-11-05': { xp: 5, done: true } } };
+  const other = { ...emptyState(), days: { '2026-11-01': { xp: 30, done: true } } };
+  for (const m of [mergeState(weird, other), mergeState(other, weird), mergeState(weird, weird), mergeState(weird, emptyState())]) {
+    assert.deepEqual({ ...m.days['2026-11-02'] }, { xp: 0, done: false });
+    assert.deepEqual({ ...m.days['2026-11-05'] }, { xp: 5, done: true });
+  }
+  assert.deepEqual({ ...mergeState(weird, other).days['2026-11-01'] }, { xp: 30, done: true });
+  assert.equal(totalXp(weird), 5);
+  assert.equal(streak(weird, '2026-11-05').current, 1);
+  const s = recordAnswer(weird, 'a.0', true, '2026-11-01', 1);
+  assert.equal(s.days['2026-11-01'].xp, 10);
+  assert.equal(finishSession(weird, '2026-11-02').days['2026-11-02'].xp, 20);
+});
+
+test('xp como texto o inválido se trata como número válido o cero', () => {
+  const s = { ...emptyState(), days: { '2026-11-10': { xp: '50', done: false }, '2026-11-09': { xp: -4 }, '2026-11-08': { xp: 'mucho' }, '2026-11-07': { xp: null } } };
+  assert.equal(totalXp(s), 50);
+  assert.equal(recordAnswer(s, 'a.0', true, '2026-11-10', 1).days['2026-11-10'].xp, 60);
+  assert.equal(finishSession(s, '2026-11-10').days['2026-11-10'].xp, 70);
+  assert.equal(recordAnswer(s, 'a.0', true, '2026-11-09', 1).days['2026-11-09'].xp, 10);
+  assert.equal(mergeState(s, emptyState()).days['2026-11-10'].xp, 50);
+});
+
+test('repaso adelantado: no mueve la caja (ni con error), da XP y marca la tarjeta', () => {
+  const s = { ...emptyState(), items: { 'a.0': { b: 2, due: '2026-11-20', t: 1 } } };
+  const full = { ...s, items: { ...s.items } };
+  for (const st of [A, B]) for (const id of itemIds(st)) if (!full.items[id]) full.items[id] = { b: 1, due: '2026-12-31', t: 1 };
+  const reviews = buildSession(full, '2026-11-10', [L], S, { ahead: true });
+  assert.equal(reviews.length, 5);
+  assert.ok(reviews.every(c => c.kind === 'review' && c.ahead === true));
+  assert.equal(buildSession(stWith({ 'a.0': [2, '2026-11-10'] }), '2026-11-10', [L], S, { ahead: true }).find(c => c.kind === 'review').ahead, undefined);
+  const ok = recordAnswer(s, 'a.0', true, '2026-11-10', 5, { ahead: true });
+  assert.deepEqual({ ...ok.items['a.0'] }, { b: 2, due: '2026-11-20', t: 1 });
+  assert.equal(ok.days['2026-11-10'].xp, 10);
+  const bad = recordAnswer(s, 'a.0', false, '2026-11-10', 5, { ahead: true });
+  assert.deepEqual({ ...bad.items['a.0'] }, { b: 2, due: '2026-11-20', t: 1 });
+  assert.equal(bad.days['2026-11-10'].xp, 2);
+});
+
+test('el bono de fin de sesión se da una sola vez al día', () => {
+  const once = finishSession(emptyState(), '2026-11-10');
+  const twice = finishSession(once, '2026-11-10');
+  assert.deepEqual({ ...twice.days['2026-11-10'] }, { xp: 20, done: true });
+  assert.equal(finishSession(twice, '2026-11-11').days['2026-11-11'].xp, 20);
+});
+
+test('adelantar repasos todo un día no lleva L1 a 100 %', () => {
+  let s = { ...emptyState(), goal: LINEAS[0].id, goalT: 1 };
+  const today = '2026-11-10';
+  let answers = 0;
+  for (let i = 0; i < 80; i++) {
+    const cards = buildSession(s, today, LINEAS, ESTACIONES, { ahead: true });
+    if (!cards.length) break;
+    for (const c of cards) {
+      s = recordAnswer(s, c.item, true, today, i + 1, { repeat: !!c.repeat, ahead: !!c.ahead });
+      answers++;
+    }
+    s = finishSession(s, today);
+  }
+  assert.ok(answers > 5);
+  assert.ok(lineProgress(s, LINEAS[0], ESTACIONES) <= 0.4 + 1e-9, 'avance ' + lineProgress(s, LINEAS[0], ESTACIONES));
+  assert.equal(s.days[today].done, true);
+  assert.equal(s.days[today].xp, 10 * answers + 20, 'el bono de fin de sesión entra una sola vez');
+});
+
+test('enqueueRepeat conserva la marca de repaso adelantado', () => {
+  const card = { kind: 'review', item: 'a.0', station: 'a', ahead: true };
+  assert.equal(enqueueRepeat([card], card, false)[1].ahead, true);
+  assert.equal(enqueueRepeat([rev], rev, false)[1].ahead, undefined);
 });

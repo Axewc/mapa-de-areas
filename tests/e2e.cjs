@@ -926,7 +926,7 @@ async function main() {
     const end1 = await page.textContent('.session-end');
     assert.match(end1, /\+72 XP/); // 4×10 + 2 + 10 + 20
     assert.match(end1, /Racha · 1 día/);
-    assert.match(end1, /% listo \+7/);
+    assert.match(end1, /% listo \+5/); // el error de datos.0 no suma peso
     assert.match(end1, /Mañana tienes 5 repasos/);
     assert.doesNotMatch(end1, /Estación vista/);
     assert.equal(await page.locator('.session-end button:has-text("Listo")').count(), 1);

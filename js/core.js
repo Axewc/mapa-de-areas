@@ -50,13 +50,17 @@ function getQuestion(stations, itemId) {
   return null;
 }
 
+// Un error deja el ítem en la caja 1 con ok:false: cuenta como visto, pero no suma al avance hasta que se acierte.
+// Un ítem sin el campo (estados guardados antes) se asume acertado.
 function reviewItem(prev, correct, today, now) {
   var b = 1;
   if (correct) {
     var pb = prev && prev.b > 0 ? prev.b : 0;
     b = Math.min(5, pb + 1);
   }
-  return { b: b, due: addDays(today, BOX_DAYS[b]), t: now };
+  var out = { b: b, due: addDays(today, BOX_DAYS[b]), t: now };
+  if (!correct) out.ok = false;
+  return out;
 }
 
 function boxOf(state, id) {
@@ -65,9 +69,15 @@ function boxOf(state, id) {
   return b > 5 ? 5 : b;
 }
 
+// Peso de un ítem en el avance: el de su caja, o 0 si su último resultado fue un error.
+function coreWeight(state, id) {
+  var it = state.items[id];
+  return it && it.ok === false ? 0 : BOX_WEIGHT[boxOf(state, id)];
+}
+
 function stationProgress(state, station) {
   var ids = itemIds(station), sum = 0;
-  for (var i = 0; i < ids.length; i++) sum += BOX_WEIGHT[boxOf(state, ids[i])];
+  for (var i = 0; i < ids.length; i++) sum += coreWeight(state, ids[i]);
   return sum / ids.length;
 }
 
@@ -158,7 +168,7 @@ function buildSession(state, today, lines, stations, opts) {
   for (i = 3; i < due.length && cards.length < 5; i++) push(due[i].id, 'review');
   if (opts && opts.ahead && cards.length < 5) {
     var later = seen.filter(function (x) { return x.due > today && !used[x.id]; }).sort(coreByDue);
-    for (i = 0; i < later.length && cards.length < 5; i++) push(later[i].id, 'review');
+    for (i = 0; i < later.length && cards.length < 5; i++) { push(later[i].id, 'review'); cards[cards.length - 1].ahead = true; }
   }
   return cards;
 }
@@ -166,7 +176,9 @@ function buildSession(state, today, lines, stations, opts) {
 // Agrega al final una repetición del error; la repetición no se vuelve a repetir.
 function enqueueRepeat(queue, card, correct) {
   if (correct || card.repeat) return queue.slice();
-  return queue.concat([{ kind: card.kind, item: card.item, station: card.station, repeat: true }]);
+  var again = { kind: card.kind, item: card.item, station: card.station, repeat: true };
+  if (card.ahead) again.ahead = true;
+  return queue.concat([again]);
 }
 
 function coreCount(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
@@ -207,9 +219,13 @@ function nextDue(state, today) {
 
 var XP = { right: 10, wrong: 2, done: 20 };
 
+// Día normalizado: xp es un número finito y no negativo (acepta números en texto); cualquier otra cosa vale 0.
+// Un día que no es un objeto (null, número, texto) vale { xp: 0, done: false }.
 function coreDay(state, ymd) {
   var d = state.days[ymd];
-  return { xp: d && d.xp > 0 ? d.xp : 0, done: !!(d && d.done) };
+  if (!isPlainObj(d)) return { xp: 0, done: false };
+  var x = Number(d.xp);
+  return { xp: isFinite(x) && x > 0 ? x : 0, done: d.done === true };
 }
 
 function coreWithDay(state, ymd, day) {
@@ -219,20 +235,21 @@ function coreWithDay(state, ymd, day) {
   return { v: state.v, goal: state.goal, goalT: state.goalT, items: state.items, days: days };
 }
 
-// Registra una respuesta: mueve la caja (salvo en repeticiones) y suma XP al día.
+// Registra una respuesta: mueve la caja (salvo en repeticiones y en repasos adelantados) y suma XP al día.
 function recordAnswer(state, itemId, correct, today, now, opts) {
   var items = {}, k;
   for (k in state.items) if (Object.prototype.hasOwnProperty.call(state.items, k)) items[k] = state.items[k];
-  if (!(opts && opts.repeat)) items[itemId] = reviewItem(state.items[itemId], correct, today, now);
+  if (!(opts && (opts.repeat || opts.ahead))) items[itemId] = reviewItem(state.items[itemId], correct, today, now);
   var day = coreDay(state, today);
   var next = coreWithDay(state, today, { xp: day.xp + (correct ? XP.right : XP.wrong), done: day.done });
   next.items = items;
   return next;
 }
 
+// Marca el día como cumplido. El bono de XP se da una sola vez por día.
 function finishSession(state, today) {
   var day = coreDay(state, today);
-  return coreWithDay(state, today, { xp: day.xp + XP.done, done: true });
+  return coreWithDay(state, today, { xp: day.xp + (day.done ? 0 : XP.done), done: true });
 }
 
 function setGoal(state, lineId, now) {
@@ -242,7 +259,7 @@ function setGoal(state, lineId, now) {
 function totalXp(state) {
   var sum = 0;
   for (var k in state.days) {
-    if (Object.prototype.hasOwnProperty.call(state.days, k) && state.days[k] && state.days[k].xp > 0) sum += state.days[k].xp;
+    if (Object.prototype.hasOwnProperty.call(state.days, k)) sum += coreDay(state, k).xp;
   }
   return sum;
 }
@@ -257,8 +274,7 @@ function weekKey(ymd) {
 }
 
 function coreIsDone(state, ymd) {
-  var d = state.days[ymd];
-  return !!(d && d.done);
+  return coreDay(state, ymd).done;
 }
 
 // Racha que termina en E (o en el día anterior si E no está cumplido).
@@ -311,7 +327,7 @@ function streakCurrent(state, today) {
 function coreCopyState(s) {
   var items = {}, days = {}, k;
   for (k in s.items) if (Object.prototype.hasOwnProperty.call(s.items, k)) items[k] = s.items[k];
-  for (k in s.days) if (Object.prototype.hasOwnProperty.call(s.days, k)) days[k] = { xp: s.days[k].xp, done: s.days[k].done };
+  for (k in s.days) if (Object.prototype.hasOwnProperty.call(s.days, k)) days[k] = coreDay(s, k);
   return { v: 2, goal: s.goal === undefined ? null : s.goal, goalT: s.goalT > 0 ? s.goalT : 0, items: items, days: days };
 }
 
@@ -354,30 +370,16 @@ function applyShortcut(state, station, answers, today, now) {
   };
 }
 
-function sessionSummary(before, after, goalLine, stations, today) {
-  var order = [], seen = {}, i, id;
-  var lineIds = goalLine && goalLine.stations ? goalLine.stations : [];
-  for (i = 0; i < lineIds.length; i++) if (!seen[lineIds[i]]) { seen[lineIds[i]] = true; order.push(lineIds[i]); }
-  for (id in stations) if (Object.prototype.hasOwnProperty.call(stations, id) && !seen[id]) { seen[id] = true; order.push(id); }
-  var visited = [];
-  for (i = 0; i < order.length; i++) {
-    var st = stations[order[i]];
-    if (st && isVisited(after, st) && !isVisited(before, st)) visited.push(order[i]);
-  }
+// Lo que muestra el cierre de la sesión y depende del estado final: la racha y los repasos que tocan mañana.
+function sessionTail(state, stations, today) {
   var tomorrow = addDays(today, 1), due = 0;
-  for (id in after.items) {
-    if (!Object.prototype.hasOwnProperty.call(after.items, id)) continue;
-    var it = after.items[id];
+  for (var id in state.items) {
+    if (!Object.prototype.hasOwnProperty.call(state.items, id)) continue;
+    var it = state.items[id];
     if (!it || !(it.b >= 1) || typeof it.due !== 'string' || it.due > tomorrow) continue;
     if (stations[coreStationOf(id)]) due++;
   }
-  return {
-    xp: totalXp(after) - totalXp(before),
-    streak: streak(after, today).current,
-    deltaPct: Math.round(100 * lineProgress(after, goalLine, stations) - 100 * lineProgress(before, goalLine, stations)),
-    visited: visited,
-    dueTomorrow: due
-  };
+  return { streak: streak(state, today).current, dueTomorrow: due };
 }
 
 // Geometría del mapa: los tramos que comparten varias líneas (misma pareja de estaciones)
@@ -619,7 +621,7 @@ function adminRow(state, today, lines, stations) {
       for (j = 0; j < ids.length; j++) {
         if (!hasOwn(state.items, ids[j]) || !isPlainObj(state.items[ids[j]])) continue;
         var b = Math.floor(adminNum(state.items[ids[j]].b));
-        items[ids[j]] = { b: b < 0 ? 0 : b > 5 ? 5 : b };
+        items[ids[j]] = { b: b < 0 ? 0 : b > 5 ? 5 : b, ok: state.items[ids[j]].ok === false ? false : undefined };
       }
     }
     var p = Math.round(100 * lineProgress({ v: 2, items: items, days: {} }, line, stations));
@@ -667,7 +669,7 @@ if (typeof module !== 'undefined') module.exports = {
   nextDue: nextDue,
   XP: XP, recordAnswer: recordAnswer, finishSession: finishSession, setGoal: setGoal,
   totalXp: totalXp, level: level, weekKey: weekKey, streak: streak, streakCurrent: streakCurrent, mergeState: mergeState,
-  applyShortcut: applyShortcut, sessionSummary: sessionSummary,
+  applyShortcut: applyShortcut, sessionTail: sessionTail,
   segmentOffsets: segmentOffsets, lineasFor: lineasFor,
   MAP_GEO: MAP_GEO, mapTextW: mapTextW, coreSegHitsBox: coreSegHitsBox, mapLabelLines: mapLabelLines, mapMarkerW: mapMarkerW, mapLayout: mapLayout, mapIssues: mapIssues
 };
