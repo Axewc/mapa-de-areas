@@ -1,4 +1,4 @@
-// Pantalla Yo (avance, meta, cuenta opcional, cuestionario, borrar datos y acceso a la vista docente) y la vista docente (renderAdmin).
+// Pantalla Yo (avance, meta, cuenta opcional con Mis respuestas, borrar datos y acceso a la vista docente) y la vista docente (renderAdmin).
 // Script clásico (ES5). Usa las globales de app.js: sb, session, isAdmin, state y storage.
 
 var PRIVACIDAD = 'Sin cuenta, nada sale de tu dispositivo. Con cuenta se guardan tu correo, tus respuestas del cuestionario y tu progreso de estudio; el profesor puede verlos; puedes borrar tu progreso aquí y tus respuestas desde Mis respuestas. Si tienes la sesión abierta en otros dispositivos, pueden volver a subir su copia hasta que cierres sesión o borres allí también.';
@@ -76,9 +76,8 @@ function accountCard() {
         return invalidateData().then(function () { return sb.auth.signOut(); }).then(function (res) {
           // SIGNED_OUT (app.js) pone session en null y redibuja; si no llegó, no se cerró.
           if ((res && res.error) || session) { deleting = false; failOut(); return; }
-          if (wipe) { clearLocal(storage); state = emptyState(); }
+          if (wipe) { clearLocal(storage); state = emptyState(); forgetQuiz(); }
           deleting = false;
-          answers = [];
           if (wipe) {
             renderInicio();
             showNotice('Cerraste sesión. Tu avance quedó en tu cuenta y borramos la copia de este dispositivo.');
@@ -90,8 +89,11 @@ function accountCard() {
     };
     out.addEventListener('click', function () { logout(true); });
     noWipe.addEventListener('click', function () { logout(false); });
+    var hist = el('button', { class: 'btn ghost', id: 'to-history', type: 'button', text: 'Mis respuestas' });
+    hist.addEventListener('click', function () { withDir('forward', function () { renderHistory(); }); });
     card.append(el('p', null, 'Sesión: ', el('b', { text: session.user.email })),
       el('p', { class: 'small', text: 'Tu progreso se guarda en la nube y lo ves en cualquier dispositivo con este correo. Al cerrar sesión se guarda tu avance y se borra la copia de este dispositivo.' }),
+      el('div', { class: 'row' }, hist),
       el('div', { class: 'row' }, out, noWipe), msg);
   } else {
     card.append(el('p', { text: 'Es opcional. Con una cuenta, tu progreso se guarda en la nube y sigue contigo en cualquier dispositivo.' }),
@@ -134,6 +136,7 @@ function deleteCard() {
       if (uid && waited && waited.timedOut) waited.settled.then(function () { deleteRemote(sb, uid); });
       clearLocal(storage);
       state = emptyState();
+      forgetQuiz();
       renderInicio();
       showNotice('Listo. Borramos tu progreso.');
     }).then(done, function (e) { done(); throw e; });
@@ -165,19 +168,6 @@ function renderYo(keep) {
     el('div', null, change)));
 
   root.append(accountCard());
-
-  var quiz = el('button', { class: 'btn', type: 'button', text: 'Descubre tu área' });
-  quiz.addEventListener('click', function () { renderDescubre(); });
-  var actions = el('div', { class: 'actions' }, quiz);
-  if (session) {
-    var hist = el('button', { class: 'btn ghost', type: 'button', text: 'Mis respuestas' });
-    hist.addEventListener('click', renderHistory);
-    actions.append(hist);
-  }
-  root.append(el('section', { class: 'card stack', 'aria-labelledby': 'quiz-h' },
-    el('h2', { id: 'quiz-h', text: '¿Qué área va contigo?' }),
-    el('p', { text: 'Un cuestionario de 10 preguntas y 5 minutos que te sugiere tres áreas de computación para explorar.' }),
-    actions));
 
   if (isAdmin) {
     var adm = el('button', { class: 'btn ghost', id: 'to-admin', type: 'button', text: 'Vista docente' });

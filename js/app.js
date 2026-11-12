@@ -119,6 +119,7 @@ function refreshScreen() {
   else if (currentScreen === 'pick') renderPick(true);
   else if (currentScreen === 'entrada') renderEntrada(true);
   else if (currentScreen === 'descubre') renderDescubre(true);
+  else if (currentScreen === 'result' && resultShown) renderResult(resultShown, { fresh: false, keep: true });
   else if (currentScreen === 'mapa') renderMapa(true);
   else if (currentScreen === 'linea' && lineaShown) openLinea(lineaShown, true);
   else if (currentScreen === 'estacion' && estShown) openEstacion(estShown, null, true);
@@ -203,14 +204,22 @@ else {
 
 // «Borrar mis datos» (o limpiar los datos del sitio) en otra pestaña de este navegador: esta pestaña adopta el estado vacío
 // y se redibuja, sin volver a escribir lo que ya no está. Si tenía una sesión de estudio abierta, se cierra.
+// Si la otra pestaña solo borró el resultado del cuestionario (sin progreso que borrar, no llega el borrado de mapa.v2),
+// esta olvida el suyo y, en Descubre o en el resultado, vuelve a la invitación.
 window.addEventListener('storage', function (e) {
   if (!storage || deleting) return;
   if (e.storageArea && e.storageArea !== storage) return;
-  if (!isWipeEvent(e)) return;
+  var wipe = isWipeEvent(e);
+  if (!wipe && !(e.key === QUIZ_KEY && e.newValue === null)) return;
+  forgetQuiz();
+  if (!wipe) {
+    if (currentScreen === 'descubre' || currentScreen === 'result') renderDescubre(true);
+    return;
+  }
   dataEpoch++; // una sincronización en curso no devuelve el progreso borrado
   state = emptyState();
   sesRun = null;
-  if (currentScreen === 'descubre') renderDescubre(true);
-  else if (['quiz', 'result', 'history', 'admin'].indexOf(currentScreen) === -1) renderInicio();
+  if (currentScreen === 'descubre' || currentScreen === 'result') renderDescubre(true);
+  else if (['quiz', 'history', 'admin'].indexOf(currentScreen) === -1) renderInicio();
   showNotice('Se borró tu progreso de este dispositivo desde otra pestaña.');
 });

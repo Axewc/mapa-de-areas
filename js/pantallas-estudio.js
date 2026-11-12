@@ -32,7 +32,7 @@ function renderPick(keep) {
   back.addEventListener('click', function () {
     withDir('backward', function () {
       if (lineById(state.goal)) renderYo();
-      else if (loadQuiz(storage, SETS[3])) renderDescubre();
+      else if (savedQuiz()) renderDescubre();
       else renderEntrada();
     });
   });
@@ -216,7 +216,29 @@ function renderHoy(keep) {
     root.append(el('section', { class: 'card', 'aria-labelledby': 'others-h' },
       el('h2', { class: 'mono card-h', id: 'others-h', text: 'Otras líneas que ya avanzaste' }), list));
   }
+  var tip = quizTipCard();
+  if (tip) root.append(tip);
   show('hoy', keep);
+}
+
+// Tarjeta descartable de Hoy que invita al cuestionario. null si ya hay un resultado o si se cerró con «Ahora no».
+// No cuenta como tarea: no toca racha ni XP.
+function quizTipCard() {
+  if (savedQuiz() || tipHidden || tipDismissed(storage)) return null;
+  var go = el('button', { class: 'btn', id: 'tip-go', type: 'button', text: 'Descubrir mi área' });
+  go.addEventListener('click', function () { withDir('forward', function () { startQuiz(); }); });
+  var no = el('button', { class: 'btn ghost', id: 'tip-no', type: 'button', text: 'Ahora no' });
+  var card = el('section', { class: 'card stack quiz-tip', 'aria-labelledby': 'tip-h' },
+    el('h2', { id: 'tip-h', text: '¿Dudas si esta es tu área?' }),
+    el('p', { class: 'small', text: 'Son 5 minutos: 8 preguntas, sin cuenta. Te sugerimos un área y una vacante.' }),
+    el('div', { class: 'actions' }, go, no));
+  no.addEventListener('click', function () {
+    tipHidden = true;
+    dismissTip(storage);
+    card.remove();
+    focusHeading(screens.hoy);
+  });
+  return card;
 }
 
 // ---------- Sesión ----------

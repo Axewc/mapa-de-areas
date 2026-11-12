@@ -1,6 +1,5 @@
-// Entrada (primera visita, con dos puertas) y pestaña Descubre (invitación al cuestionario).
+// Entrada (primera visita, con dos puertas) y pestaña Descubre (invitación al cuestionario o el último resultado).
 // Script clásico (ES5). Usa las globales de app.js (storage, session), de ui.js y de las demás pantallas-*.js.
-// La Tarea 4 completa Descubre: con un resultado guardado (loadQuiz) mostrará ese resultado.
 
 // Botón-tarjeta de la entrada: título, subtítulo y flecha decorativa.
 function doorButton(id, title, sub, fn) {
@@ -21,7 +20,7 @@ function renderEntrada(keep) {
     el('p', { class: 'lede', text: 'Descubre qué área de computación va contigo o elige directo la vacante que quieres alcanzar.' })));
   root.append(el('div', { class: 'doors' },
     doorButton('door-quiz', 'No sé qué área me va', '8 preguntas · 5 minutos · sin cuenta', function () {
-      withDir('forward', function () { startQuiz(2); });
+      withDir('forward', function () { startQuiz(); });
     }),
     doorButton('door-goal', 'Ya sé qué quiero', 'Elige una vacante real como meta', function () {
       withDir('forward', function () { renderPick(); });
@@ -32,11 +31,15 @@ function renderEntrada(keep) {
 }
 
 // ---------- Descubre ----------
+// Con un resultado guardado (o de esta visita) muestra ese resultado (#s-result, sin volver a guardarlo);
+// si no, la invitación con «Empezar».
 function renderDescubre(keep) {
+  var saved = savedQuiz();
+  if (saved) { renderResult(saved, { fresh: false, keep: !!keep }); return; }
   var root = screens.descubre;
   root.textContent = '';
   var start = el('button', { class: 'btn', id: 'descubre-start', type: 'button', text: 'Empezar' });
-  start.addEventListener('click', function () { startQuiz(2); });
+  start.addEventListener('click', function () { withDir('forward', function () { startQuiz(); }); });
   root.append(hubHead(), el('div', { class: 'hub-title' },
     el('p', { class: 'mono', text: '8 preguntas · 5 minutos · sin cuenta' }),
     el('h1', { text: '¿Qué área de computación va contigo?' }),

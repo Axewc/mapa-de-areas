@@ -5,8 +5,9 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs');
 const { ESTACIONES } = require('../js/data-estaciones.js');
-const { todayYmd, addDays, weekKey } = require('../js/core.js');
-const { scoreAnswers } = require('../js/data-areas.js');
+const { todayYmd, addDays, weekKey, suggestLine, whyAnswers } = require('../js/core.js');
+const { scoreAnswers, SETS, AREAS } = require('../js/data-areas.js');
+const { LINEAS } = require('../js/data-lineas.js');
 
 const INDEX_URL = 'file://' + path.resolve(__dirname, '../index.html');
 const FAKE = fs.readFileSync(path.join(__dirname, 'fake-supabase.js'), 'utf8');
@@ -52,7 +53,7 @@ async function openHome(context, opts) {
   if (!o.motion) await page.emulateMedia({ reducedMotion: 'reduce' });
   if (o.clock) await page.clock.setFixedTime(new Date(o.clock));
   await page.goto(INDEX_URL);
-  await page.waitForSelector('#s-entrada:not([hidden]), #s-hoy:not([hidden]), #s-descubre:not([hidden])');
+  await page.waitForSelector('#s-entrada:not([hidden]), #s-hoy:not([hidden]), #s-descubre:not([hidden]), #s-result:not([hidden])');
   return { page, errors };
 }
 
@@ -116,6 +117,7 @@ async function finishAllRight(page) {
 async function visualPass(browser, viewport, colorScheme) {
   const tag = viewport.width + '-' + colorScheme;
   const shoot = async (page, name) => {
+    await page.waitForFunction(() => !document.documentElement.matches(':active-view-transition'));
     assert.ok(await page.evaluate(noHScroll), 'scroll horizontal en ' + name + ' (' + tag + ')');
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, tag + '-' + name + '.png'), fullPage: true, animations: 'disabled' });
   };
@@ -193,24 +195,21 @@ async function visualPass(browser, viewport, colorScheme) {
   await check('sesion-idea');
   await finishAllRight(page);
   await check('sesion-cierre');
-  // Cuestionario: introducción, una pregunta y el resultado sin cuenta.
+  // Cuestionario: Descubre vacío, una pregunta y el resultado sin cuenta (detalle cerrado y abierto).
   await page.click('.session-end button:has-text("Listo")');
   await page.waitForSelector('#s-hoy:not([hidden])');
-  await page.click('#tabbar [data-tab=yo]');
-  await page.click('#s-yo button:has-text("Descubre tu área")');
+  await page.click('#tabbar [data-tab=descubre]');
   await page.waitForSelector('#s-descubre:not([hidden])');
   await check('descubre');
   await page.click('#s-descubre #descubre-start');
   await page.waitForSelector('#s-quiz:not([hidden]) .opt');
   await check('cuestionario-pregunta');
-  for (let i = 0; i < 10; i++) {
-    await page.waitForFunction((n) => document.getElementById('counter').textContent === 'Pregunta ' + n + ' de 10', i + 1);
-    await page.keyboard.press('1');
-  }
-  await page.waitForSelector('#s-result:not([hidden]) .vacancy [data-line]');
+  await answerQuiz(page, '11111111');
   await check('cuestionario-resultado');
+  await page.click('#s-result details.result-more > summary');
+  await check('cuestionario-resultado-detalle');
   // Yo con cuenta: el correo, «Cerrar sesión» y Mis respuestas.
-  await page.click('#s-result button:has-text("Crear cuenta")');
+  await page.click('#s-result #device-note button');
   await page.waitForSelector('#s-yo:not([hidden])');
   await page.evaluate(() => window.__fakeLogin());
   await page.waitForSelector('#s-yo #logout');
@@ -501,100 +500,356 @@ async function mapaScenarios(browser, setStep) {
   await ctx.close();
 }
 
-// Cuestionario: Yo → Descubre tu área → Hacer el cuestionario → 10 respuestas con el teclado (keys: una tecla por pregunta).
-async function takeQuiz(page, keys) {
-  await page.click('#tabbar [data-tab=yo]');
-  await page.click('#s-yo button:has-text("Descubre tu área")');
-  await page.click('#s-descubre #descubre-start');
-  for (let i = 0; i < 10; i++) {
-    await page.waitForFunction((n) => document.getElementById('counter').textContent === 'Pregunta ' + n + ' de 10', i + 1);
-    await page.keyboard.press(keys ? keys[i] : '1');
+// Cuestionario v3 (8 preguntas). Lo esperado se calcula aquí con las mismas funciones del sitio: ninguna prueba fija puntajes de SETS[3].
+const keyAnswers = (keys) => keys.split('').map((k) => Number(k) - 1);
+// Lo que debe mostrar el resultado para unas teclas: área #1, las respuestas de «Por qué te salió» y la línea sugerida.
+function expectedResult(keys) {
+  const ans = keyAnswers(keys);
+  const ranked = scoreAnswers(ans, 3);
+  const sugg = suggestLine(ranked, LINEAS);
+  return {
+    ans, ranked, top: ranked[0].key, name: AREAS[ranked[0].key].name,
+    why: whyAnswers(SETS[3], ans, ranked[0].key).map((i) => SETS[3].qs[i].opts[ans[i]].t),
+    line: LINEAS.find((l) => l.id === sugg.line), exact: sugg.exact
+  };
+}
+// Teclas que llevan a «Investigación» primero: en cada pregunta, la opción con más puntos de inv (a igualdad, la que da menos a las demás).
+function invKeys() {
+  return SETS[3].qs.map((q) => {
+    let best = 0, bestKey = null;
+    q.opts.forEach((o, i) => {
+      const inv = o.p.inv || 0;
+      const rest = Object.keys(o.p).reduce((s, k) => s + (k === 'inv' ? 0 : o.p[k]), 0);
+      const key = [inv, -rest];
+      if (bestKey === null || key[0] > bestKey[0] || (key[0] === bestKey[0] && key[1] > bestKey[1])) { best = i; bestKey = key; }
+    });
+    return String(best + 1);
+  }).join('');
+}
+
+// Contesta con el teclado las preguntas from…keys.length-1 (una tecla por pregunta). Antes de cada tecla espera a que la
+// pregunta esté a la vista: con View Transitions, la pantalla aparece un cuadro después de show().
+async function pressAnswers(page, keys, from) {
+  for (let i = from || 0; i < keys.length; i++) {
+    await page.waitForFunction((n) => !document.getElementById('s-quiz').hidden && document.getElementById('counter').textContent === 'Pregunta ' + n + ' de 8', i + 1);
+    await page.keyboard.press(keys[i]);
   }
+}
+// Igual, hasta la última pregunta, y espera el resultado.
+async function answerQuiz(page, keys, from) {
+  await pressAnswers(page, keys, from);
   await page.waitForSelector('#s-result:not([hidden])');
 }
 
-async function cuestionarioScenarios(browser, setStep) {
-  // Sin cuenta: el intento no se guarda y el resultado enlaza con las líneas.
-  setStep('cuestionario sin cuenta');
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const { page, errors } = await openHome(ctx, { local: JSON.stringify(progressState()) });
-  await page.waitForSelector('#s-hoy:not([hidden])');
-  assert.deepEqual(await page.evaluate(() => Array.from(document.querySelectorAll('main > section'), (x) => x.id)),
-    ['s-entrada', 's-pick', 's-hoy', 's-mapa', 's-linea', 's-estacion', 's-sesion', 's-yo', 's-descubre', 's-quiz', 's-result', 's-history', 's-admin'], 'las pantallas de rutas ya no existen');
-  await takeQuiz(page);
-  const res = await page.textContent('#s-result');
-  assert.match(res, /No se guardó: no tienes cuenta\. Puedes crear una en Yo\./);
-  assert.doesNotMatch(res, /Guardando|Guardado\./);
-  assert.equal(await page.evaluate(() => window.__db.mapa_respuestas.length), 0, 'sin cuenta no se inserta nada');
+// Cuestionario desde la pestaña Descubre: «Empezar» si no hay resultado, «Volver a hacerlo» si lo hay. keys: 8 teclas.
+async function takeQuiz(page, keys) {
+  await page.click('#tabbar [data-tab=descubre]');
+  await page.waitForSelector('#s-descubre:not([hidden]) #descubre-start, #s-result:not([hidden]) #quiz-again');
+  if (await page.isVisible('#s-descubre #descubre-start')) await page.click('#s-descubre #descubre-start');
+  else await page.click('#s-result #quiz-again');
+  await answerQuiz(page, keys || '11111111');
+}
+
+// Problemas de forma del resultado: encabezados con saltos, controles visibles de menos de 44 px.
+const resultShape = () => {
+  const levels = Array.from(document.querySelectorAll('#s-result h1, #s-result h2, #s-result h3, #s-result h4, #s-result h5, #s-result h6'), (h) => Number(h.tagName[1]));
+  const jumps = levels.filter((l, i) => (i === 0 ? l !== 1 : l > levels[i - 1] + 1));
+  const small = Array.from(document.querySelectorAll('#s-result button, #s-result a, #s-result summary')).filter((n) => n.getClientRects().length)
+    .map((n) => { const r = n.getBoundingClientRect(); return { t: n.textContent.trim(), w: r.width, h: r.height }; })
+    .filter((r) => r.w < 44 || r.h < 44);
+  return { levels, jumps, h1: levels.filter((l) => l === 1).length, small, height: document.documentElement.scrollHeight };
+};
+const quizKey = (page) => page.evaluate(() => localStorage.getItem('mapa.quiz'));
+const tipKey = (page) => page.evaluate(() => localStorage.getItem('mapa.quizTip'));
+const textsOf = (page, sel) => page.locator(sel).allTextContents();
+
+async function descubreScenarios(browser, setStep) {
+  const exp = expectedResult('11111111');
+  assert.equal(exp.why.length, 2, 'la trayectoria de prueba tiene dos respuestas en «Por qué te salió»');
+
+  setStep('Descubre: la puerta 1 abre la pregunta 1; teclas y «← Atrás»');
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['clipboard-read', 'clipboard-write'] });
+  const { page, errors } = await openHome(ctx);
+  await page.click('#door-quiz');
+  await page.waitForSelector('#s-quiz:not([hidden]) .opt');
+  assert.equal(await page.textContent('#counter'), 'Pregunta 1 de 8');
+  assert.equal(await page.getAttribute('#ticks', 'aria-valuemax'), '8');
+  assert.equal(await page.locator('main h1:visible').count(), 1, 'un solo h1 visible');
+  assert.equal(await page.textContent('#s-quiz h1'), SETS[3].qs[0].q, 'la pregunta es el h1');
+  assert.equal(await page.locator('#s-quiz .gloss').count(), 0, 'sin glosario');
+  await page.click('#back');
+  await page.waitForSelector('#s-entrada:not([hidden])');
+  await page.click('#door-quiz');
+  await page.waitForSelector('#s-quiz:not([hidden]) .opt');
+  await page.keyboard.press(String(SETS[3].qs[0].opts.length)); // la última opción (la 5) también responde
+  await page.waitForFunction(() => document.getElementById('counter').textContent === 'Pregunta 2 de 8');
+  await page.waitForFunction(() => document.activeElement === document.querySelector('#s-quiz h1'));
+  await page.click('#back');
+  await page.waitForFunction(() => document.getElementById('counter').textContent === 'Pregunta 1 de 8');
+  assert.equal(await page.getAttribute('#s-quiz .opt >> nth=' + (SETS[3].qs[0].opts.length - 1), 'aria-pressed'), 'true', 'recuerda lo que contestaste');
+
+  setStep('Descubre: el resultado corto');
+  await answerQuiz(page, '11111111');
+  await page.waitForFunction(() => document.activeElement === document.querySelector('#s-result h1'));
+  assert.equal(await page.textContent('#s-result h1'), exp.name);
+  assert.equal(await page.title(), 'Tu resultado · Mapa de áreas');
+  assert.equal(await page.getAttribute('#tabbar [data-tab=descubre]', 'aria-current'), 'page');
+  const shape = await page.evaluate(resultShape);
+  assert.deepEqual(shape.jumps, [], 'encabezados sin saltos: ' + shape.levels.join(','));
+  assert.equal(shape.h1, 1);
+  assert.ok(shape.levels.includes(3), 'llega a h3');
+  assert.deepEqual(shape.small, [], 'controles de menos de 44 px');
+  assert.ok(shape.height <= 1300, 'el resultado mide ' + shape.height + ' px a 390');
+  assert.deepEqual(await textsOf(page, '#s-result .why-list li'), exp.why, '«Por qué te salió» coincide con whyAnswers');
+  assert.equal(await page.getAttribute('#s-result .line-card.sugg', 'data-line'), exp.line.id);
+  assert.equal(await page.textContent('#s-result .line-card.sugg .lvl'), exp.line.level, 'la tarjeta muestra el nivel');
+  assert.match(await page.textContent('#s-result .line-card.sugg'), new RegExp(exp.line.company));
+  assert.equal(await page.locator('#s-result .res-other').count(), 2);
+  assert.match(await page.textContent('#s-result'), /Es una afinidad para empezar a explorar, no un veredicto\./);
+  assert.match(await page.textContent('#s-result #device-note'), /Tu resultado queda en este dispositivo\. Con cuenta lo conservas en todos\./);
   assert.equal(await page.locator('#s-result button:has-text("Mis respuestas")').count(), 0, 'Mis respuestas solo con sesión');
-  assert.match(await page.textContent('#s-result .vacancy'), /Vacantes reales para tus áreas/);
-  const ids = await page.locator('#s-result .vacancy [data-line]').evaluateAll((n) => n.map((x) => x.getAttribute('data-line')));
-  assert.deepEqual(ids, ['edar-dev-jr', 'sears-datos-jr', 'mvs-tester-jr', 'banorte-ds-jr', 'getnet-ai-deploy'], 'líneas de ml, bak y dat en el orden de LINEAS');
-  const row = page.locator('#s-result .vacancy [data-line=banorte-ds-jr]');
-  assert.match(await row.locator('.lbadge').textContent(), /L6/);
-  const rt = await row.textContent();
-  assert.match(rt, /Científico de Datos Jr\./);
-  assert.match(rt, /Grupo Financiero Banorte/);
-  assert.match(rt, /Meta a 2 o 3 años/);
-  assert.equal(await page.evaluate(noHScroll), true, 'sin scroll horizontal en el resultado');
-  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'quiz-resultado-sin-cuenta.png'), fullPage: true, animations: 'disabled' });
-  // «Crear cuenta» lleva a Yo, donde está el acceso.
-  await page.click('#s-result button:has-text("Crear cuenta")');
-  await page.waitForSelector('#s-yo:not([hidden])');
-  assert.equal(await page.locator('#s-yo button:has-text("Guarda tu progreso en la nube")').count(), 1);
-  // «Ver la línea» abre la línea.
-  await takeQuiz(page);
-  await page.click('#s-result .vacancy [data-line=sears-datos-jr] button:has-text("Ver la línea")');
+  assert.equal(await page.evaluate(() => window.__db.mapa_respuestas.length), 0, 'sin cuenta no se inserta nada');
+  assert.deepEqual(JSON.parse(await quizKey(page)).answers, exp.ans, 'mapa.quiz guardado');
+  assert.equal(JSON.parse(await quizKey(page)).v, 3);
+  await page.setViewportSize({ width: 320, height: 640 });
+  assert.equal(await page.evaluate(noHScroll), true, 'sin scroll horizontal a 320 px');
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  setStep('Descubre: «Ver detalle» plegado');
+  assert.equal(await page.evaluate(() => document.querySelector('#s-result details.result-more').open), false, 'cerrado al llegar');
+  assert.equal(await page.isVisible('#s-result .bars'), false);
+  await page.click('#s-result details.result-more > summary');
+  assert.equal(await page.locator('#s-result .bar-row:visible').count(), 9, 'barras de las 9 áreas');
+  assert.ok(await page.locator('#s-result .projects li:visible').count() >= 3, 'proyectos');
+  assert.equal(await page.locator('#s-result .result-more .other:visible').count(), 6, 'las otras seis áreas');
+  assert.equal(await page.locator('#s-result .steps li:visible').count(), 3);
+  assert.deepEqual((await page.evaluate(resultShape)).small, [], 'controles de menos de 44 px con el detalle abierto');
+
+  setStep('Descubre: copiar mi resultado');
+  assert.equal(await page.locator('#s-result [role=status]').count(), 1, 'un solo role=status');
+  await page.click('#copy-result');
+  await page.waitForFunction(() => document.getElementById('copy-status').textContent === 'Copiado');
+  assert.match(await page.evaluate(() => navigator.clipboard.readText()), new RegExp('^Mi mapa de áreas: 1\\) ' + exp.name));
+  assert.equal(await page.isDisabled('#copy-result'), false, 'el botón no se deshabilita');
+  await page.waitForFunction(() => document.getElementById('copy-status').textContent === '', null, { timeout: 4000 });
+  await page.evaluate(() => { navigator.clipboard.writeText = () => Promise.reject(new Error('sin permiso')); });
+  await page.click('#copy-result');
+  await page.waitForFunction(() => /No se pudo copiar/.test(document.getElementById('copy-status').textContent));
+  assert.equal(await page.isVisible('#share-text'), true, 'aparece el texto seleccionable');
+  assert.match(await page.inputValue('#share-text'), /^Mi mapa de áreas: /);
+  assert.equal(await page.isDisabled('#copy-result'), false);
+  await page.waitForTimeout(1500);
+  await page.click('#copy-result'); // otro clic reinicia los 2 s
+  await page.waitForTimeout(1000);
+  assert.match(await page.textContent('#copy-status'), /No se pudo copiar/, 'el temporizador se reinició');
+  await page.waitForFunction(() => document.getElementById('copy-status').textContent === '', null, { timeout: 4000 });
+
+  setStep('Descubre: al recargar sin meta se entra en el resultado; «Volver a hacerlo»');
+  await page.reload();
+  await page.waitForSelector('#s-result:not([hidden])');
+  assert.equal(await page.textContent('#s-result h1'), exp.name);
+  assert.equal(await page.getAttribute('#tabbar [data-tab=descubre]', 'aria-current'), 'page');
+  assert.equal(await page.evaluate(() => document.querySelector('#s-result details.result-more').open), false);
+  await page.click('#s-result #quiz-again');
+  await page.waitForFunction(() => !document.getElementById('s-quiz').hidden && document.getElementById('counter').textContent === 'Pregunta 1 de 8');
+  await page.click('#back');
+  await page.waitForSelector('#s-result:not([hidden])');
+
+  setStep('Descubre: «Elegir como meta» y «Ver en el mapa»');
+  await page.click('#s-result #result-goal');
+  await page.waitForSelector('#s-hoy:not([hidden])');
+  await page.waitForFunction((t) => document.getElementById('notices').textContent.includes('Meta cambiada a ' + t + '.'), exp.line.title);
+  assert.equal((await localState(page)).goal, exp.line.id);
+  assert.equal(await page.locator('#s-hoy .quiz-tip').count(), 0, 'con resultado no hay tarjeta en Hoy');
+  await page.click('#tabbar [data-tab=descubre]');
+  await page.waitForSelector('#s-result:not([hidden])');
+  assert.equal(await page.textContent('#s-result #result-goal'), 'Ir a Hoy', 'la línea ya es la meta');
+  assert.match(await page.textContent('#s-result .line-card.sugg'), /Tu meta actual/);
+  await page.click('#s-result #result-goal');
+  await page.waitForSelector('#s-hoy:not([hidden])');
+  await page.click('#tabbar [data-tab=descubre]');
+  await page.click('#s-result .line-card.sugg .line-link');
   await page.waitForSelector('#s-linea:not([hidden])');
-  assert.match(await page.textContent('#s-linea h1'), /Analista de Datos Jr\./);
-  // «Elegir como meta» cambia la meta y entra a Hoy.
-  await takeQuiz(page);
-  await page.click('#s-result .vacancy [data-line=banorte-ds-jr] button:has-text("Elegir como meta")');
-  await page.waitForSelector('#s-hoy:not([hidden])');
-  assert.match(await page.textContent('#s-hoy'), /Científico de Datos Jr\./);
-  assert.equal((await localState(page)).goal, 'banorte-ds-jr');
-  await page.waitForFunction(() => /Meta cambiada a Científico de Datos Jr\./.test(document.getElementById('notices').textContent));
-  // La meta actual ya no ofrece «Elegir como meta»; «Ir a Hoy» y «Volver a empezar» funcionan.
-  await takeQuiz(page);
-  assert.equal(await page.locator('#s-result .vacancy [data-line=banorte-ds-jr] button:has-text("Elegir como meta")').count(), 0);
-  assert.equal(await page.locator('#s-result .vacancy [data-line=banorte-ds-jr] button[aria-current]').count(), 1);
-  await page.click('#s-result button:has-text("Ir a Hoy")');
-  await page.waitForSelector('#s-hoy:not([hidden])');
-  await takeQuiz(page);
-  await page.click('#s-result button:has-text("Volver a empezar")');
-  await page.waitForSelector('#s-descubre:not([hidden])');
-  // Sin líneas para esas áreas.
-  await takeQuiz(page);
-  await page.evaluate(() => { window.lineasFor = () => []; renderResult(); });
-  assert.match(await page.textContent('#s-result .vacancy'), /Por ahora no hay vacantes para esas áreas\. Las agregaremos pronto\./);
-  assert.equal(await page.locator('#s-result .vacancy [data-line]').count(), 0);
-  assert.deepEqual(errors, [], 'errores de JS en el cuestionario sin cuenta');
+  assert.equal(await page.textContent('#s-linea h1'), exp.line.title);
+
+  setStep('Descubre: Yo sin el cuestionario; «Borrar mis datos» limpia el resultado');
+  await page.click('#tabbar [data-tab=yo]');
+  await page.waitForSelector('#s-yo:not([hidden])');
+  assert.doesNotMatch(await page.textContent('#s-yo'), /¿Qué área va contigo\?/);
+  assert.equal(await page.locator('#s-yo button:has-text("Mis respuestas")').count(), 0);
+  await page.evaluate(() => localStorage.setItem('mapa.quizTip', '1'));
+  const del = page.locator('#s-yo button.danger');
+  await del.click();
+  await del.click();
+  await page.waitForSelector('#s-entrada:not([hidden])');
+  assert.equal(await quizKey(page), null);
+  assert.equal(await tipKey(page), null);
+  assert.equal(await page.evaluate(() => savedQuiz()), null, 'ni en memoria');
+  assert.deepEqual(errors, [], 'errores de JS en Descubre');
   await ctx.close();
 
-  // Con cuenta: se guarda el intento y aparece Mis respuestas.
-  setStep('cuestionario con cuenta guarda el intento');
-  const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const o = await openHome(ctx2, { session: true, local: JSON.stringify(progressState()) });
-  await o.page.waitForSelector('#s-hoy:not([hidden])');
-  await takeQuiz(o.page, ['2', '1', '3', '4', '1', '2', '1', '1', '3', '1']);
-  await o.page.waitForFunction(() => /Guardado\. Puedes volver a verlo en Mis respuestas\./.test(document.getElementById('s-result').textContent));
-  assert.equal(await o.page.evaluate(() => window.__db.mapa_respuestas.length), 1);
-  assert.equal(await o.page.evaluate(() => window.__db.mapa_respuestas[0].answers.length), 10);
-  assert.doesNotMatch(await o.page.textContent('#s-result'), /No se guardó/);
-  assert.equal(await o.page.locator('#s-result button:has-text("Crear cuenta")').count(), 0);
-  assert.ok(await o.page.locator('#s-result .vacancy [data-line]').count() >= 1);
-  if (SHOTS) await o.page.screenshot({ path: path.join(SHOTS, 'quiz-resultado-con-cuenta.png'), fullPage: true, animations: 'disabled' });
-  await o.page.click('#s-result button:has-text("Mis respuestas")');
-  await o.page.waitForSelector('#s-history:not([hidden]) table');
-  await o.page.click('#s-history .topnav button');
-  await o.page.waitForSelector('#s-yo:not([hidden])');
-  assert.deepEqual(o.errors, [], 'errores de JS en el cuestionario con cuenta');
-  // Falla al guardar: el aviso lo dice y el resultado sigue visible.
-  await o.page.evaluate(() => { window.__failInsert = true; });
-  await takeQuiz(o.page);
-  await o.page.waitForFunction(() => /No se pudo guardar tu resultado/.test(document.getElementById('s-result').textContent));
-  assert.equal(await o.page.evaluate(() => window.__db.mapa_respuestas.length), 1);
-  await ctx2.close();
+  setStep('Descubre: «Investigación» primero no tiene vacante');
+  const ik = invKeys();
+  const ie = expectedResult(ik);
+  assert.equal(ie.top, 'inv', 'la trayectoria de prueba deja Investigación primero');
+  const ctxI = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const I = await openHome(ctxI);
+  await I.page.click('#door-quiz');
+  await answerQuiz(I.page, ik);
+  assert.equal(await I.page.textContent('#s-result h1'), AREAS.inv.name);
+  assert.match(await I.page.textContent('#s-result #no-vacancy'), /Aún no tenemos una vacante de investigación/);
+  assert.equal(await I.page.getAttribute('#s-result .line-card.sugg', 'data-line'), ie.line.id, 'la línea es la de suggestLine');
+  assert.deepEqual(await textsOf(I.page, '#s-result .why-list li'), ie.why);
+  const ishape = await I.page.evaluate(resultShape);
+  assert.deepEqual(ishape.jumps, []);
+  assert.deepEqual(ishape.small, []);
+  assert.ok(ishape.height <= 1300, 'el resultado de investigación mide ' + ishape.height + ' px a 390');
+  assert.deepEqual(I.errors, []);
+  await ctxI.close();
+
+  setStep('Descubre: tarjeta de Hoy');
+  const ctxH = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const H = await openHome(ctxH, { local: JSON.stringify(progressState()) });
+  await H.page.waitForSelector('#s-hoy .quiz-tip');
+  assert.equal(await H.page.evaluate(() => document.querySelector('#s-hoy').lastElementChild.classList.contains('quiz-tip')), true, 'va debajo de la sesión y de las otras líneas');
+  assert.match(await H.page.textContent('#s-hoy .quiz-tip'), /¿Dudas si esta es tu área\?[^]*5 minutos/);
+  await H.page.click('#s-hoy #tip-go');
+  await H.page.waitForFunction(() => !document.getElementById('s-quiz').hidden && document.getElementById('counter').textContent === 'Pregunta 1 de 8');
+  await H.page.click('#back');
+  await H.page.waitForSelector('#s-hoy:not([hidden]) .quiz-tip');
+  await H.page.click('#s-hoy #tip-no');
+  assert.equal(await H.page.locator('#s-hoy .quiz-tip').count(), 0);
+  assert.equal(await tipKey(H.page), '1');
+  await H.page.reload();
+  await H.page.waitForSelector('#s-hoy:not([hidden])');
+  assert.equal(await H.page.locator('#s-hoy .quiz-tip').count(), 0, 'no vuelve tras recargar');
+  await H.page.click('#s-hoy .session-cta');
+  await H.page.waitForSelector('#s-sesion .ses-card');
+  assert.equal(await H.page.locator('.quiz-tip:visible').count(), 0, 'no hay tarjeta dentro de la sesión');
+  assert.deepEqual(H.errors, []);
+  await ctxH.close();
+
+  setStep('Descubre: con cuenta se guarda un intento v3; un intento v1 sigue legible');
+  const v1 = Array(SETS[1].qs.length).fill(0);
+  const oldRow = { id: 'v1old', user_id: 'u1', email: 'alumno@test.mx', created_at: '2026-10-01T12:00:00Z', answers: v1,
+    scores: Object.fromEntries(scoreAnswers(v1, 1).map((r) => [r.key, r.pct])), quiz_version: 1 };
+  const ctxS = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const S = await openHome(ctxS, { session: true, seed: { mapa_respuestas: [oldRow] }, local: JSON.stringify(progressState()) });
+  await S.page.waitForSelector('#s-hoy:not([hidden])');
+  await takeQuiz(S.page);
+  await S.page.waitForFunction(() => /Guardado en tu cuenta/.test(document.getElementById('save-note').textContent));
+  const rows = await S.page.evaluate(() => window.__db.mapa_respuestas);
+  assert.equal(rows.length, 2, 'un insert');
+  assert.equal(rows[1].quiz_version, 3);
+  assert.deepEqual(rows[1].answers, exp.ans);
+  assert.equal(await S.page.locator('#s-result #device-note').count(), 0);
+  await S.page.click('#tabbar [data-tab=hoy]');
+  await S.page.click('#tabbar [data-tab=descubre]');
+  await S.page.waitForSelector('#s-result:not([hidden])');
+  await S.page.waitForTimeout(300);
+  assert.equal(await S.page.evaluate(() => window.__db.mapa_respuestas.length), 2, 'reabrir Descubre no inserta otro');
+  await S.page.click('#s-result button:has-text("Mis respuestas")');
+  await S.page.waitForSelector('#s-history:not([hidden]) table');
+  assert.equal(await S.page.locator('#s-history details.attempt').count(), 2);
+  const oldAttempt = S.page.locator('#s-history details.attempt').nth(1);
+  assert.match(await oldAttempt.locator('summary').textContent(), new RegExp(SETS[1].name));
+  await oldAttempt.locator('summary').click();
+  assert.equal(await oldAttempt.locator('.qa li').count(), SETS[1].qs.length, 'el intento v1 se lee con sus preguntas');
+  assert.match(await oldAttempt.locator('.qa').textContent(), new RegExp(SETS[1].qs[0].q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  await S.page.click('#s-history .topnav button');
+  await S.page.waitForSelector('#s-yo:not([hidden])');
+  assert.doesNotMatch(await S.page.textContent('#s-yo'), /¿Qué área va contigo\?/);
+  assert.equal(await S.page.locator('#s-yo #account #to-history').count(), 1, 'Mis respuestas en la tarjeta de cuenta');
+  await S.page.evaluate(() => { window.__failInsert = true; });
+  await takeQuiz(S.page);
+  await S.page.waitForFunction(() => /No se pudo guardar en tu cuenta/.test(document.getElementById('save-note').textContent));
+  assert.equal(await S.page.isVisible('#s-result h1'), true, 'el resultado sigue visible');
+  assert.equal(await S.page.evaluate(() => window.__db.mapa_respuestas.length), 2);
+  await S.page.evaluate(() => { window.__failInsert = false; localStorage.setItem('mapa.quizTip', '1'); });
+  await S.page.click('#tabbar [data-tab=yo]');
+  await S.page.click('#s-yo #logout');
+  await S.page.waitForSelector('#s-entrada:not([hidden])');
+  assert.equal(await quizKey(S.page), null, 'cerrar sesión borra mapa.quiz');
+  assert.equal(await tipKey(S.page), null, 'y mapa.quizTip');
+  assert.equal(await S.page.evaluate(() => savedQuiz()), null);
+  assert.deepEqual(S.errors, []);
+  await ctxS.close();
+
+  setStep('Descubre: sin localStorage el resultado y «Elegir como meta» funcionan');
+  const ctxN = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const N = await openHome(ctxN, { noStorage: true });
+  await N.page.click('#door-quiz');
+  await answerQuiz(N.page, '11111111');
+  assert.equal(await N.page.textContent('#s-result h1'), exp.name);
+  assert.match(await N.page.textContent('#s-result #device-note'), /se pierde al cerrar/);
+  await N.page.click('#s-result #result-goal');
+  await N.page.waitForSelector('#s-hoy:not([hidden])');
+  assert.equal(await N.page.evaluate(() => state.goal), exp.line.id);
+  await N.page.click('#tabbar [data-tab=descubre]');
+  await N.page.waitForSelector('#s-result:not([hidden])'); // el resultado sigue en memoria durante la visita
+  assert.deepEqual(N.errors, []);
+  await ctxN.close();
+
+  setStep('Descubre: recargar a media pregunta no guarda un resultado parcial');
+  const ctxR = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const Rl = await openHome(ctxR);
+  await Rl.page.click('#door-quiz');
+  await pressAnswers(Rl.page, '111');
+  await Rl.page.waitForFunction(() => document.getElementById('counter').textContent === 'Pregunta 4 de 8');
+  await Rl.page.reload();
+  await Rl.page.waitForSelector('#s-entrada:not([hidden])');
+  assert.equal(await quizKey(Rl.page), null);
+  assert.deepEqual(Rl.errors, []);
+  await ctxR.close();
+
+  setStep('Descubre: iniciar sesión a media pregunta no saca del cuestionario y se inserta una vez');
+  const ctxL = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const L = await openHome(ctxL);
+  await L.page.click('#door-quiz');
+  await pressAnswers(L.page, '11');
+  await L.page.waitForFunction(() => document.getElementById('counter').textContent === 'Pregunta 3 de 8');
+  await L.page.evaluate(() => window.__fakeLogin());
+  await L.page.waitForFunction(() => window.__db.mapa_progreso.length === 1 && pendingSyncs.length === 0); // el SIGNED_IN ya sincronizó
+  assert.equal(await L.page.isVisible('#s-quiz'), true, 'sigue en el cuestionario');
+  assert.equal(await L.page.textContent('#counter'), 'Pregunta 3 de 8');
+  await answerQuiz(L.page, '11111111', 2);
+  await L.page.waitForFunction(() => /Guardado en tu cuenta/.test(document.getElementById('save-note').textContent));
+  assert.equal(await L.page.evaluate(() => window.__db.mapa_respuestas.length), 1, 'exactamente un insert');
+  // Otro SIGNED_IN con el resultado en pantalla: no cambia de pantalla ni inserta.
+  await L.page.evaluate(() => window.__fakeLogin());
+  await L.page.waitForTimeout(300);
+  assert.equal(await L.page.isVisible('#s-result h1'), true);
+  assert.equal(await L.page.evaluate(() => window.__db.mapa_respuestas.length), 1);
+  // Doble toque en la última pregunta: un solo resultado y un solo insert.
+  await L.page.click('#s-result #quiz-again');
+  await pressAnswers(L.page, '1111111');
+  await L.page.waitForFunction(() => document.getElementById('counter').textContent === 'Pregunta 8 de 8');
+  await L.page.evaluate(() => { const b = document.querySelector('#s-quiz .opt'); b.click(); b.click(); });
+  await L.page.keyboard.press('1');
+  await L.page.waitForSelector('#s-result:not([hidden])');
+  await L.page.keyboard.press('1');
+  await L.page.waitForTimeout(500);
+  assert.equal(await L.page.evaluate(() => window.__db.mapa_respuestas.length), 2, 'un insert por intento');
+  assert.deepEqual(L.errors, []);
+  await ctxL.close();
+
+  setStep('Descubre: borrar el resultado en otra pestaña (sin progreso) vuelve a la invitación');
+  const ctxW = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const A = await openHome(ctxW);
+  await A.page.click('#door-quiz');
+  await answerQuiz(A.page, '11111111');
+  const B = await openHome(ctxW);
+  await B.page.waitForSelector('#s-result:not([hidden])');
+  await B.page.click('#tabbar [data-tab=yo]');
+  const delB = B.page.locator('#s-yo button.danger');
+  await delB.click();
+  await delB.click();
+  await B.page.waitForSelector('#s-entrada:not([hidden])');
+  await A.page.waitForSelector('#s-descubre:not([hidden]) #descubre-start');
+  assert.equal(await A.page.evaluate(() => savedQuiz()), null);
+  assert.deepEqual(A.errors, []);
+  assert.deepEqual(B.errors, []);
+  await ctxW.close();
 }
 
 // Filas de mapa_progreso para la vista docente. Se arman como texto JSON para que «__proto__» sea una llave propia,
@@ -1018,22 +1273,18 @@ async function entradaScenarios(browser, setStep) {
   assert.deepEqual(await current(), ['descubre=page'], 'el cuestionario queda bajo Descubre');
   await n.page.click('#back');
   await n.page.waitForSelector('#s-descubre:not([hidden])');
-  // «Descubre tu área» de Yo abre la pestaña Descubre.
-  await n.page.click('#tabbar [data-tab=yo]');
-  await n.page.click('#s-yo button:has-text("Descubre tu área")');
-  await n.page.waitForSelector('#s-descubre:not([hidden])');
   assert.deepEqual(await current(), ['descubre=page']);
   assert.deepEqual(n.errors, []);
   await ctx3.close();
 
-  setStep('arranque: con mapa.quiz válido y sin meta se entra en Descubre');
+  setStep('arranque: con mapa.quiz válido y sin meta se entra en Descubre (el resultado)');
   const ctxQ = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const q = await openHome(ctxQ, { quiz: QUIZ_OK });
-  await q.page.waitForSelector('#s-descubre:not([hidden])');
+  await q.page.waitForSelector('#s-result:not([hidden])');
   assert.equal(await q.page.isVisible('#s-entrada'), false);
   assert.equal(await q.page.isVisible('#tabbar'), true);
   assert.equal(await q.page.getAttribute('#tabbar [data-tab=descubre]', 'aria-current'), 'page');
-  assert.equal(await q.page.title(), 'Descubre · Mapa de áreas');
+  assert.equal(await q.page.title(), 'Tu resultado · Mapa de áreas');
   assert.deepEqual(q.errors, []);
   await ctxQ.close();
   // Un intento de otra versión no cuenta: se entra por la entrada.
@@ -1046,14 +1297,14 @@ async function entradaScenarios(browser, setStep) {
   setStep('Descubre: la pestaña Hoy sin meta enfoca Elegir meta; «← Volver» regresa a Descubre');
   const ctxH = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const h = await openHome(ctxH, { quiz: QUIZ_OK });
-  await h.page.waitForSelector('#s-descubre:not([hidden])');
+  await h.page.waitForSelector('#s-result:not([hidden])');
   await h.page.focus('#tabbar button[data-tab="hoy"]');
   await h.page.keyboard.press('Enter');
   await h.page.waitForSelector('#s-pick:not([hidden])');
   await h.page.waitForFunction(() => document.activeElement === document.querySelector('#s-pick h1'), null, { timeout: 5000 });
   assert.equal(await h.page.isVisible('#tabbar'), false, 'sin barra inferior al elegir meta');
   await h.page.click('#s-pick .topnav button:has-text("← Volver")');
-  await h.page.waitForSelector('#s-descubre:not([hidden])');
+  await h.page.waitForSelector('#s-result:not([hidden])');
   assert.equal(await h.page.isVisible('#s-entrada'), false, 'con resultado guardado, «← Volver» no lleva a la entrada');
   assert.deepEqual(h.errors, [], 'errores de JS en Descubre');
   await ctxH.close();
@@ -1145,6 +1396,7 @@ async function main() {
     if (process.env.E2E_ONLY === 'cdn') { await cdnScenarios(browser, (t) => { step = t; }); console.log('e2e (solo cdn): OK'); return; }
     if (process.env.E2E_ONLY === 'shared') { await sharedStateScenarios(browser, (t) => { step = t; }); console.log('e2e (solo shared): OK'); return; }
     if (process.env.E2E_ONLY === 'entrada') { await entradaScenarios(browser, (t) => { step = t; }); console.log('e2e (solo entrada): OK'); return; }
+    if (process.env.E2E_ONLY === 'descubre') { await descubreScenarios(browser, (t) => { step = t; }); console.log('e2e (solo descubre): OK'); return; }
     step = 'primera visita sin cuenta: entrada y elegir meta';
     const { page, errors } = await openHome(context, { clock: '2026-11-10T10:00:00' });
     await page.waitForSelector('#s-entrada:not([hidden])');
@@ -1210,7 +1462,8 @@ async function main() {
     await page.waitForSelector('#s-pick:not([hidden])');
     await page.click('#s-pick button:has-text("Volver")');
     await page.waitForSelector('#s-yo:not([hidden])');
-    await page.click('#s-yo button:has-text("Descubre tu área")');
+    assert.doesNotMatch(await page.textContent('#s-yo'), /¿Qué área va contigo\?/);
+    await page.click('#tabbar [data-tab=descubre]');
     await page.waitForSelector('#s-descubre:not([hidden])');
     assert.equal(await page.locator('#s-descubre #login, #s-descubre #home').count(), 0);
     assert.equal(await page.getAttribute('#tabbar [data-tab=descubre]', 'aria-current'), 'page');
@@ -1623,7 +1876,7 @@ async function main() {
 
     await entradaScenarios(browser, (t) => { step = t; });
 
-    await cuestionarioScenarios(browser, (t) => { step = t; });
+    await descubreScenarios(browser, (t) => { step = t; });
 
     await teacherScenarios(browser, (t) => { step = t; });
 
