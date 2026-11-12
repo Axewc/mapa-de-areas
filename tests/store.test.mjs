@@ -148,3 +148,21 @@ test('deleteRemote: ok y con error, sin lanzar', async () => {
   assert.equal(a.calls.del, 1);
   assert.deepEqual(await deleteRemote(sbFalso(undefined, { delError: true }), 'u1'), { error: 'sin permiso' });
 });
+
+test('el upsert manda el correo en minúsculas (la política de update lo exige igual al del token)', async () => {
+  const sb = sbFalso(undefined);
+  await syncRemote(sb, 'u1', localSt(), 'Ana@Test.MX');
+  assert.equal(sb.calls.upsert[0][0].email, 'ana@test.mx');
+  assert.equal(sb.calls.upsert[0][0].user_id, 'u1');
+  // Sin correo en la sesión, no se manda el campo (lo llena el valor por defecto de la tabla).
+  const sb2 = sbFalso(undefined);
+  await syncRemote(sb2, 'u1', localSt());
+  assert.equal('email' in sb2.calls.upsert[0][0], false);
+});
+test('guardar con un día null guardado antes no lanza y lo normaliza', () => {
+  const st = fake({ 'mapa.v2': JSON.stringify({ v: 2, goal: null, goalT: 0, items: {}, days: { '2026-11-01': null, '2026-11-02': 5 } }) });
+  const r = saveLocal(st, localSt());
+  assert.equal(r.ok, true);
+  assert.deepEqual({ ...r.state.days['2026-11-01'] }, { xp: 0, done: false });
+  assert.ok(r.state.items['git.0']);
+});

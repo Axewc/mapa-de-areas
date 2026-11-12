@@ -60,7 +60,9 @@ function storeMsg(e) {
 }
 
 // Sincroniza con Supabase. Nunca lanza: -> Promise<{ state, error: null | string }>
-function syncRemote(sb, userId, state) {
+// `email` (el de la sesión) viaja en el upsert, en minúsculas: la política de update exige que la fila lleve el correo
+// del token, y sin él un cambio de correo dejaría de poder sincronizar.
+function syncRemote(sb, userId, state, email) {
   var fail = function (e) { return { state: state, error: storeMsg(e) }; };
   try {
     return Promise.resolve(sb.from('mapa_progreso').select('state').eq('user_id', userId)).then(function (res) {
@@ -72,7 +74,9 @@ function syncRemote(sb, userId, state) {
         if (!storeCore.validState(remote)) return { state: state, error: 'estado-remoto-invalido' };
         merged = storeCore.mergeState(state, remote);
       }
-      return Promise.resolve(sb.from('mapa_progreso').upsert({ user_id: userId, state: merged }, { onConflict: 'user_id' })).then(function (up) {
+      var row = { user_id: userId, state: merged };
+      if (typeof email === 'string' && email) row.email = email.toLowerCase();
+      return Promise.resolve(sb.from('mapa_progreso').upsert(row, { onConflict: 'user_id' })).then(function (up) {
         if (up && up.error) return fail(up.error);
         return { state: merged, error: null };
       });

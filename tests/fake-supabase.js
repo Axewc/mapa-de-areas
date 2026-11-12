@@ -4,7 +4,7 @@
 //   window.__failInsert → los insert devuelven error
 //   window.__failDelete → los delete devuelven error
 //   window.__seed.session → sesión iniciada al cargar (si no, desconectado)
-//   window.__fakeLogin() → inicia sesión y avisa SIGNED_IN a los listeners
+//   window.__fakeLogin(usuario?) → inicia sesión y avisa SIGNED_IN a los listeners; con { id, email } entra como otra persona
 //   window.__failSync   → el select de mapa_progreso devuelve error
 //   window.__failQuiz   → el select de mapa_respuestas devuelve error
 //   window.__selectCount → cuántos select se han hecho (para comprobar que un filtro no vuelve a consultar)
@@ -18,7 +18,8 @@
   };
   var session = seed.session ? { user: USER } : null;
   var listeners = [];
-  window.__fakeLogin = function () {
+  window.__fakeLogin = function (user) {
+    if (user) USER = user;
     session = { user: USER };
     listeners.forEach(function (fn) { fn('SIGNED_IN', session); });
   };
@@ -53,7 +54,12 @@
       var idx = -1;
       rows.forEach(function (r, i) { if (r[key] === pl[key]) idx = i; });
       clock += 1000;
-      var row = Object.assign({ id: 'r' + nextId++, email: USER.email, created_at: new Date(clock).toISOString() }, pl);
+      var row = Object.assign({ id: 'r' + nextId++, email: USER.email.toLowerCase(), created_at: new Date(clock).toISOString() }, pl);
+      // Política de update de mapa_progreso: la fila resultante debe llevar el correo del token y ser de quien escribe.
+      if (idx >= 0 && this.table === 'mapa_progreso') {
+        var merged = Object.assign({}, rows[idx], pl);
+        if (merged.user_id !== USER.id || merged.email !== USER.email.toLowerCase()) return { data: null, error: { message: 'new row violates row-level security policy' } };
+      }
       if (idx >= 0) { row.id = rows[idx].id; row.created_at = rows[idx].created_at; rows[idx] = row; } else rows.push(row);
       return { data: null, error: null };
     }

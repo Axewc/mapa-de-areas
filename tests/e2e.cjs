@@ -22,7 +22,7 @@ async function setupRoutes(page) {
 const noHScroll = () => document.documentElement.scrollWidth <= window.innerWidth;
 
 // Abre el sitio. Por defecto sin sesión (la primera visita normal).
-// opts: { seed, seedJson (texto JSON del seed, para llaves como «__proto__»), session, admin, failSync, failQuiz, slowSync (ms), failDelete, local, clock (fecha fija) }.
+// opts: { seed, seedJson (texto JSON del seed, para llaves como «__proto__»), session, admin, failSync, failQuiz, slowSync (ms), failDelete, noStorage, local, clock (fecha fija) }.
 // `local` es el texto que se guarda en localStorage antes de cargar (null: no se toca).
 async function openHome(context, opts) {
   const o = opts || {};
@@ -41,7 +41,8 @@ async function openHome(context, opts) {
     }
     if (a.slowSync) window.__slowSync = a.slowSync;
     if (a.failDelete) window.__failDelete = true;
-  }, { seed: o.seed, seedJson: o.seedJson || null, session: !!o.session, admin: !!o.admin, failSync: !!o.failSync, failQuiz: !!o.failQuiz, slowSync: o.slowSync || 0, failDelete: !!o.failDelete,
+    if (a.noStorage) Storage.prototype.setItem = function () { throw new Error('cuota'); }; // localStorage no disponible
+  }, { seed: o.seed, seedJson: o.seedJson || null, session: !!o.session, admin: !!o.admin, failSync: !!o.failSync, failQuiz: !!o.failQuiz, slowSync: o.slowSync || 0, failDelete: !!o.failDelete, noStorage: !!o.noStorage,
     local: o.local === undefined ? null : o.local, key: KEY });
   if (o.clock) await page.clock.setFixedTime(new Date(o.clock));
   await page.goto(INDEX_URL);
@@ -761,11 +762,75 @@ async function teacherScenarios(browser, setStep) {
   await ctxE.close();
 }
 
+// Revisión final: borrado desde otra pestaña, sincronización sin localStorage, espera acotada al borrar y correo en el upsert.
+async function sharedStateScenarios(browser, setStep) {
+  setStep('borrar mis datos en otra pestaña se refleja en esta');
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const A = await openHome(ctx, { local: JSON.stringify(progressState()) });
+  const B = await openHome(ctx, { local: JSON.stringify(progressState()) });
+  await A.page.waitForSelector('#s-hoy:not([hidden])');
+  await B.page.click('#tabbar [data-tab=yo]');
+  const delB = B.page.locator('#s-yo button.danger');
+  await delB.click();
+  await delB.click();
+  await B.page.waitForSelector('#s-pick:not([hidden])');
+  await A.page.waitForSelector('#s-pick:not([hidden])');
+  assert.equal(await localState(A.page), null, 'la pestaña vieja no reescribe lo borrado');
+  assert.equal(await A.page.evaluate(() => Object.keys(state.items).length + (state.goal ? 1 : 0)), 0, 'y adopta el estado vacío');
+  await A.page.waitForFunction(() => /desde otra pestaña/.test(document.getElementById('notices').textContent));
+  assert.deepEqual(A.errors, []);
+  assert.deepEqual(B.errors, []);
+  await ctx.close();
+
+  setStep('lo respondido durante una sincronización no se pierde sin localStorage');
+  const ctxN = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const N = await openHome(ctxN, { session: true, slowSync: 600, noStorage: true });
+  await N.page.waitForSelector('#s-pick:not([hidden])');
+  assert.equal(await N.page.evaluate(() => storage === null), true);
+  await N.page.locator('#s-pick .line-card', { hasText: 'Analista de Datos Jr.' }).click();
+  await N.page.waitForFunction(() => window.__db.mapa_progreso.some((r) => r.state.goal === 'sears-datos-jr'), null, { timeout: 10000 });
+  await N.page.waitForFunction(() => window.__db.mapa_progreso.length === 1 && pendingSyncs.length === 0);
+  await N.page.click('#s-hoy .session-cta');
+  await N.page.waitForSelector('#s-sesion .ses-card');
+  await N.page.evaluate(() => { window.__p = syncNow(); }); // sincronización en vuelo...
+  const during = await answerCard(N.page, true);          // ...y una respuesta mientras tanto (aún no hay otra sincronización)
+  await N.page.evaluate(() => window.__p);
+  assert.ok(await N.page.evaluate((id) => !!state.items[id], during.item), 'la respuesta dada durante la sincronización sigue en el estado');
+  assert.deepEqual(N.errors, []);
+  await ctxN.close();
+
+  setStep('borrar con una red colgada no queda trabado');
+  const ctxH = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const H = await openHome(ctxH, { session: true, slowSync: 30000, local: JSON.stringify(progressState()) });
+  await H.page.waitForSelector('#s-hoy:not([hidden])');
+  await H.page.evaluate(() => { INVALIDATE_WAIT_MS = 300; });
+  await H.page.click('#tabbar [data-tab=yo]');
+  const delH = H.page.locator('#s-yo button.danger');
+  await delH.click();
+  await delH.click();
+  await H.page.waitForSelector('#s-pick:not([hidden])', { timeout: 5000 });
+  assert.equal(await localState(H.page), null);
+  assert.equal(await H.page.evaluate(() => deleting), false, 'el borrado terminó y se pueden volver a sincronizar los datos');
+  assert.deepEqual(H.errors, []);
+  await ctxH.close();
+
+  setStep('el correo viaja en el upsert: una fila con otro correo se sincroniza');
+  const ctxE = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const old = { v: 2, goal: 'edar-dev-jr', goalT: 1, items: {}, days: {} };
+  const E = await openHome(ctxE, { session: true, seed: { mapa_progreso: [{ user_id: 'u1', email: 'viejo@test.mx', state: old }] }, local: JSON.stringify(progressState()) });
+  await E.page.waitForFunction(() => window.__db.mapa_progreso.length === 1 && window.__db.mapa_progreso[0].email === 'alumno@test.mx');
+  assert.equal(await E.page.locator('#notices .notice').count(), 0, 'sin aviso de falla');
+  assert.ok(Object.keys(await E.page.evaluate(() => window.__db.mapa_progreso[0].state.items)).length > 0);
+  assert.deepEqual(E.errors, []);
+  await ctxE.close();
+}
+
 async function main() {
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   let step = '';
   try {
+    if (process.env.E2E_ONLY === 'shared') { await sharedStateScenarios(browser, (t) => { step = t; }); console.log('e2e (solo shared): OK'); return; }
     step = 'primera visita sin cuenta: elegir meta';
     const { page, errors } = await openHome(context, { clock: '2026-11-10T10:00:00' });
     await page.waitForSelector('#s-pick:not([hidden])');
@@ -1027,7 +1092,7 @@ async function main() {
     await lg.page.evaluate(() => window.__fakeLogin());
     await lg.page.waitForFunction(() => window.__db.mapa_progreso.length === 1 && window.__db.mapa_progreso[0].state.goal === 'edar-dev-jr');
     await lg.page.waitForFunction(() => /alumno@test\.mx/.test(document.getElementById('s-yo').textContent));
-    assert.equal(await lg.page.locator('#s-yo button:has-text("Cerrar sesión")').count(), 1);
+    assert.equal(await lg.page.locator('#s-yo #logout').count(), 1);
     assert.equal(await lg.page.locator('#s-yo button:has-text("Mis respuestas")').count(), 1);
 
     step = 'borrar mis datos con sesión';
@@ -1044,19 +1109,69 @@ async function main() {
     assert.deepEqual(lg.errors, [], 'errores de JS al iniciar sesión');
     await ctxL.close();
 
-    step = 'cerrar sesión conserva el progreso local';
+    step = 'cerrar sesión: guarda el avance, borra la copia local y el siguiente no lo ve';
     const ctxO = await browser.newContext({ viewport: { width: 390, height: 844 } });
-    const lo = await openHome(ctxO, { local: JSON.stringify(progressState()) });
+    const lo = await openHome(ctxO, { session: true, local: JSON.stringify(progressState()) });
+    await lo.page.waitForSelector('#s-hoy:not([hidden])');
+    await lo.page.click('#s-hoy .session-cta');
+    const anaAns = await answerCard(lo.page, true);
+    await lo.page.click('#s-sesion button:has-text("Salir")');
+    await lo.page.waitForSelector('#s-hoy:not([hidden])');
     await lo.page.click('#tabbar [data-tab=yo]');
-    await lo.page.evaluate(() => window.__fakeLogin());
-    await lo.page.waitForSelector('#s-yo #logout');
     await lo.page.click('#s-yo #logout');
-    await lo.page.waitForSelector('#s-yo button:has-text("Guarda tu progreso en la nube")');
-    assert.equal(await lo.page.locator('#s-yo #logout').count(), 0);
-    assert.equal((await localState(lo.page)).goal, 'edar-dev-jr');
-    assert.match(await lo.page.textContent('#s-yo'), /Desarrollador de Software Jr\./);
+    await lo.page.waitForSelector('#s-pick:not([hidden])');
+    await lo.page.waitForFunction(() => /Tu avance quedó en tu cuenta/.test(document.getElementById('notices').textContent));
+    assert.equal(await localState(lo.page), null, 'la copia de este dispositivo se borró');
+    assert.equal(await lo.page.evaluate(() => Object.keys(state.items).length + (state.goal ? 1 : 0)), 0, 'y el estado en memoria quedó vacío');
+    const ana = await lo.page.evaluate(() => window.__db.mapa_progreso.find((r) => r.user_id === 'u1'));
+    assert.equal(ana.state.goal, 'edar-dev-jr', 'el avance quedó en la cuenta');
+    assert.ok(ana.state.items[anaAns.item], 'con lo que respondió Ana');
+    assert.equal(ana.email, 'alumno@test.mx');
+    const anaItems = Object.keys(ana.state.items).length;
+    await lo.page.evaluate(() => window.__fakeLogin({ id: 'u2', email: 'Beto@Test.mx' }));
+    await lo.page.waitForFunction(() => window.__db.mapa_progreso.some((r) => r.user_id === 'u2'));
+    const beto = await lo.page.evaluate(() => window.__db.mapa_progreso.find((r) => r.user_id === 'u2'));
+    assert.deepEqual(beto.state, { v: 2, goal: null, goalT: 0, items: {}, days: {} }, 'Beto no sube nada de Ana');
+    assert.equal(beto.email, 'beto@test.mx', 'el correo viaja en minúsculas');
+    assert.equal(await lo.page.isVisible('#s-pick'), true, 'Beto empieza desde Elegir meta');
+    assert.equal(Object.keys((await localState(lo.page) || { items: {} }).items).length, 0);
+    assert.equal(Object.keys((await lo.page.evaluate(() => window.__db.mapa_progreso.find((r) => r.user_id === 'u1'))).state.items).length, anaItems, 'la fila de Ana no cambió');
     assert.deepEqual(lo.errors, [], 'errores de JS al cerrar sesión');
     await ctxO.close();
+
+    step = 'cerrar sesión con la sincronización fallida: no borra y ofrece reintentar o cerrar sin borrar';
+    const ctxU = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const fo = await openHome(ctxU, { session: true, failSync: true, local: JSON.stringify(progressState()) });
+    await fo.page.waitForSelector('#s-hoy:not([hidden])');
+    await fo.page.click('#tabbar [data-tab=yo]');
+    await fo.page.click('#s-yo #logout');
+    await fo.page.waitForFunction(() => /No se pudo guardar tu avance en tu cuenta/.test(document.getElementById('logout-msg').textContent));
+    assert.equal((await localState(fo.page)).goal, 'edar-dev-jr', 'no se borró nada');
+    assert.equal(await fo.page.isVisible('#s-yo #logout-keep'), true);
+    assert.equal((await fo.page.textContent('#s-yo #logout')).trim(), 'Reintentar');
+    assert.equal(await fo.page.evaluate(() => !!session), true, 'la sesión sigue abierta');
+    // Reintentar con la red de vuelta: guarda, cierra y borra.
+    await fo.page.evaluate(() => { window.__failSync = false; });
+    await fo.page.click('#s-yo #logout');
+    await fo.page.waitForSelector('#s-pick:not([hidden])');
+    assert.equal(await localState(fo.page), null);
+    assert.equal(await fo.page.evaluate(() => window.__db.mapa_progreso.find((r) => r.user_id === 'u1').state.goal), 'edar-dev-jr');
+    assert.deepEqual(fo.errors, []);
+    await ctxU.close();
+    // Cerrar sin borrar: el avance se queda en el dispositivo.
+    const ctxK2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const ko = await openHome(ctxK2, { session: true, failSync: true, local: JSON.stringify(progressState()) });
+    await ko.page.waitForSelector('#s-hoy:not([hidden])');
+    await ko.page.click('#tabbar [data-tab=yo]');
+    await ko.page.click('#s-yo #logout');
+    await ko.page.waitForSelector('#s-yo #logout-keep:not([hidden])');
+    await ko.page.click('#s-yo #logout-keep');
+    await ko.page.waitForSelector('#s-yo button:has-text("Guarda tu progreso en la nube")');
+    assert.equal(await ko.page.evaluate(() => !!session), false);
+    assert.equal((await localState(ko.page)).goal, 'edar-dev-jr', 'sin borrar: el avance sigue en el dispositivo');
+    assert.match(await ko.page.textContent('#s-yo'), /Desarrollador de Software Jr\./);
+    assert.deepEqual(ko.errors, []);
+    await ctxK2.close();
 
     step = 'borrar mis datos mientras una sincronización sigue en curso';
     const ctxS = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -1191,6 +1306,8 @@ async function main() {
     await cuestionarioScenarios(browser, (t) => { step = t; });
 
     await teacherScenarios(browser, (t) => { step = t; });
+
+    await sharedStateScenarios(browser, (t) => { step = t; });
 
     await miniLineScenarios(browser, (t) => { step = t; });
 

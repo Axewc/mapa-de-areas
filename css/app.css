@@ -57,6 +57,7 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 body {
   margin: 0;
   background: var(--paper);

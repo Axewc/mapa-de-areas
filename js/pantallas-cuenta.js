@@ -1,7 +1,7 @@
 // Pantalla Yo (avance, meta, cuenta opcional, cuestionario, borrar datos y acceso a la vista docente) y la vista docente (renderAdmin).
 // Script clásico (ES5). Usa las globales de app.js: sb, session, isAdmin, state y storage.
 
-var PRIVACIDAD = 'Sin cuenta, nada sale de tu dispositivo. Con cuenta se guardan tu correo, tus respuestas del cuestionario y tu progreso de estudio; el profesor puede verlos; puedes borrar tu progreso aquí y tus respuestas desde Mis respuestas.';
+var PRIVACIDAD = 'Sin cuenta, nada sale de tu dispositivo. Con cuenta se guardan tu correo, tus respuestas del cuestionario y tu progreso de estudio; el profesor puede verlos; puedes borrar tu progreso aquí y tus respuestas desde Mis respuestas. Si tienes la sesión abierta en otros dispositivos, pueden volver a subir su copia hasta que cierres sesión o borres allí también.';
 
 function statTile(value, label) {
   return el('div', { class: 'stat' }, el('b', { text: value }), el('span', { class: 'small', text: label }));
@@ -45,21 +45,49 @@ function accountCard() {
     el('h2', { id: 'account-h', text: 'Tu cuenta' }));
   if (session) {
     var out = el('button', { class: 'btn ghost', id: 'logout', type: 'button', text: 'Cerrar sesión' });
+    var noWipe = el('button', { class: 'btn ghost', id: 'logout-keep', type: 'button', text: 'Cerrar sesión sin borrar', hidden: 'hidden' });
+    var msg = el('p', { class: 'small', id: 'logout-msg', 'aria-live': 'polite' });
     var failOut = function () {
       out.disabled = false;
+      noWipe.disabled = false;
       showNotice('No se pudo cerrar la sesión. Intenta de nuevo.');
     };
-    out.addEventListener('click', function () {
+    // Cierra la sesión. Con wipe (lo normal, para que el siguiente en este equipo no mezcle su avance con el tuyo) primero
+    // intenta una última sincronización y, si salió bien, borra la copia de este dispositivo. Si falla, no borra nada.
+    var logout = function (wipe) {
       out.disabled = true;
-      // SIGNED_OUT (app.js) pone session en null y redibuja; si no llegó, no se cerró.
-      Promise.resolve().then(function () { return sb.auth.signOut(); }).then(function (r) {
-        if ((r && r.error) || session) failOut();
-        else answers = [];
-      }, failOut);
-    });
+      noWipe.disabled = true;
+      msg.textContent = wipe ? 'Guardando tu avance en tu cuenta…' : '';
+      (wipe ? runSync() : Promise.resolve({ ok: true, discarded: false })).then(function (r) {
+        if (!r.ok) {
+          out.disabled = false;
+          noWipe.disabled = false;
+          out.textContent = 'Reintentar';
+          noWipe.hidden = false;
+          msg.textContent = r.discarded
+            ? 'Se está borrando tu progreso. Espera un momento e intenta de nuevo.'
+            : 'No se pudo guardar tu avance en tu cuenta, así que no lo borramos de este dispositivo. Puedes reintentar o cerrar sesión sin borrar; en ese caso el avance se queda aquí.';
+          return;
+        }
+        deleting = true; // ninguna sincronización empieza mientras se cierra la sesión y se borra la copia local
+        return invalidateData().then(function () { return sb.auth.signOut(); }).then(function (res) {
+          // SIGNED_OUT (app.js) pone session en null y redibuja; si no llegó, no se cerró.
+          if ((res && res.error) || session) { deleting = false; failOut(); return; }
+          if (wipe) { clearLocal(storage); state = emptyState(); }
+          deleting = false;
+          answers = [];
+          if (wipe) {
+            renderPick();
+            showNotice('Cerraste sesión. Tu avance quedó en tu cuenta y borramos la copia de este dispositivo.');
+          }
+        });
+      }).then(null, function () { deleting = false; failOut(); });
+    };
+    out.addEventListener('click', function () { logout(true); });
+    noWipe.addEventListener('click', function () { logout(false); });
     card.append(el('p', null, 'Sesión: ', el('b', { text: session.user.email })),
-      el('p', { class: 'small', text: 'Tu progreso se guarda en la nube y lo ves en cualquier dispositivo con este correo.' }),
-      el('div', null, out));
+      el('p', { class: 'small', text: 'Tu progreso se guarda en la nube y lo ves en cualquier dispositivo con este correo. Al cerrar sesión se guarda tu avance y se borra la copia de este dispositivo.' }),
+      el('div', { class: 'row' }, out, noWipe), msg);
   } else {
     card.append(el('p', { text: 'Es opcional. Con una cuenta, tu progreso se guarda en la nube y sigue contigo en cualquier dispositivo.' }),
       signInBlock('', 'Guarda tu progreso en la nube', false));
@@ -69,7 +97,7 @@ function accountCard() {
 }
 
 function deleteCard() {
-  var hint = el('p', { class: 'small', 'aria-live': 'polite', text: 'Borra tu progreso de estudio de este dispositivo' + (session ? ' y de la nube' : '') + '.' });
+  var hint = el('p', { class: 'small', 'aria-live': 'polite', text: 'Borra tu progreso de estudio de este dispositivo' + (session ? ' y de la nube. Otros dispositivos con tu sesión abierta pueden volver a subir su copia hasta que cierren sesión o borren allí también' : '') + '.' });
   var del = el('button', { class: 'btn ghost danger', type: 'button', text: 'Borrar mis datos' });
   var armed = false;
   del.addEventListener('click', function () {
@@ -85,7 +113,9 @@ function deleteCard() {
     var uid = session ? session.user.id : null;
     deleting = true; // bloquea sincronizaciones nuevas (p. ej. un SIGNED_IN) hasta terminar, con éxito o no
     var done = function () { deleting = false; };
-    invalidateData().then(function () {
+    var waited = null;
+    invalidateData().then(function (w) {
+      waited = w;
       return uid ? deleteRemote(sb, uid) : { error: null };
     }).then(function (r) {
       if (r.error) {
@@ -95,6 +125,8 @@ function deleteCard() {
         showNotice('No se pudo borrar tu progreso de la nube. Intenta de nuevo.');
         return;
       }
+      // Si la espera tuvo que rendirse, una sincronización tardía aún podría recrear la fila: se borra otra vez cuando termine.
+      if (uid && waited && waited.timedOut) waited.settled.then(function () { deleteRemote(sb, uid); });
       clearLocal(storage);
       state = emptyState();
       renderPick();
