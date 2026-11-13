@@ -598,6 +598,33 @@ async function checkLines(page, e) {
 const tipKey = (page) => page.evaluate(() => localStorage.getItem('mapa.quizTip'));
 const textsOf = (page, sel) => page.locator(sel).allTextContents();
 
+// Dos pestañas abren a la vez, con sesión, el mismo «mapa.quiz» sin marca. Cada página tiene su Supabase falso:
+// se suman las filas de las dos. noLocks: sin Web Locks (camino del reclamo con ficha). -> filas insertadas.
+// «mapa.quiz» se siembra antes, desde una página aparte: si las dos pestañas lo escribieran a la vez al cargar, Chromium
+// puede dejar a una con su copia vieja durante segundos (comprobado), y eso ya no prueba la app sino la siembra.
+const TWO_TABS_RUNS = 10; // con el fallo de antes (2 de cada 5 corridas), no verlo en 10 seguidas: 0.6^10 ≈ 0.6 %
+async function twoTabsOnce(browser, quiz, noLocks) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const seed = await ctx.newPage();
+  await seed.goto(INDEX_URL.replace(/index\.html$/, 'README.md')); // mismo origen file://, sin correr la app
+  await seed.evaluate((q) => localStorage.setItem('mapa.quiz', q), quiz);
+  await seed.close();
+  if (noLocks) await ctx.addInitScript(() => { Object.defineProperty(Navigator.prototype, 'locks', { configurable: true, get: () => undefined }); });
+  const tabs = await Promise.all([openHome(ctx, { session: true }), openHome(ctx, { session: true })]);
+  for (const t of tabs) {
+    assert.equal(await t.page.evaluate(() => !!navigator.locks), !noLocks, 'camino ' + (noLocks ? 'sin' : 'con') + ' Web Locks');
+    await t.page.waitForFunction(() => !!session && uploadingT === null && JSON.parse(localStorage.getItem('mapa.quiz')).up === 1);
+  }
+  await tabs[0].page.waitForTimeout(200);
+  let rows = 0;
+  for (const t of tabs) {
+    rows += (await answerRows(t.page)).length;
+    assert.deepEqual(t.errors, []);
+  }
+  await ctx.close();
+  return rows;
+}
+
 async function descubreScenarios(browser, setStep) {
   const exp = expectedResult('11111111');
   assert.equal(exp.why.length, 2, 'la trayectoria de prueba tiene dos respuestas en «Por qué te salió»');
@@ -790,7 +817,7 @@ async function descubreScenarios(browser, setStep) {
   await ctxML.close();
 
   setStep('Descubre: el peor caso de altura (Investigación primero, con sesión y aviso de fallo)');
-  for (const keys of ['11141151', ik]) {
+  for (const keys of ['14441211', '11141151', ik]) { // 14441211: el máximo de la enumeración completa (respuestas 03330100)
     const ctxP = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await ctxP.addInitScript(() => { window.__failInsert = true; });
     const P = await openHome(ctxP, { session: true });
@@ -949,6 +976,43 @@ async function descubreScenarios(browser, setStep) {
   assert.equal((await quizRec(F.page)).up, 1);
   assert.deepEqual(F.errors, []);
   await ctxF.close();
+
+  for (const noLocks of [false, true]) {
+    setStep('Descubre: dos pestañas que abren a la vez suben el resultado una sola vez (' + (noLocks ? 'sin' : 'con') + ' Web Locks)');
+    for (let run = 0; run < TWO_TABS_RUNS; run++) {
+      assert.equal(await twoTabsOnce(browser, unmarked, noLocks), 1, 'corrida ' + (run + 1) + ': exactamente una fila');
+    }
+  }
+
+  setStep('Descubre: sin localStorage, rehacer con una subida en vuelo no duplica el segundo intento');
+  const ctxD = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const Dp = await openHome(ctxD, { noStorage: true, session: true });
+  await Dp.page.waitForFunction(() => !!session);
+  // Cada insert espera a que la prueba lo suelte (__rel[k]()).
+  await Dp.page.evaluate(() => {
+    const orig = saveAttempt;
+    window.__rel = [];
+    window.saveAttempt = function () { const a = arguments; return new Promise((r) => { window.__rel.push(r); }).then(() => orig.apply(null, a)); };
+  });
+  await Dp.page.click('#door-quiz');
+  await answerQuiz(Dp.page, '11111111');
+  await Dp.page.click('#s-result #quiz-again');
+  await answerQuiz(Dp.page, '11111111'); // mismas respuestas, otro intento
+  await Dp.page.waitForFunction(() => window.__rel.length === 2);
+  await Dp.page.evaluate(() => window.__rel[0]()); // termina el primero; el segundo sigue en vuelo
+  await Dp.page.waitForFunction(() => window.__db.mapa_respuestas.length === 1);
+  assert.equal(await Dp.page.textContent('#save-note'), 'Guardando tu resultado en tu cuenta…', 'el aviso es el del intento en pantalla');
+  await Dp.page.evaluate(() => refreshScreen());
+  await Dp.page.waitForTimeout(300);
+  assert.equal(await Dp.page.evaluate(() => window.__rel.length), 2, 'redibujar no empieza otra subida del segundo intento');
+  await Dp.page.evaluate(() => window.__rel[1]());
+  await Dp.page.waitForFunction(() => /Guardado en tu cuenta/.test(document.getElementById('save-note').textContent));
+  await Dp.page.evaluate(() => refreshScreen());
+  await Dp.page.waitForTimeout(300);
+  assert.equal(await Dp.page.evaluate(() => window.__rel.length), 2);
+  assert.equal((await answerRows(Dp.page)).length, 2, 'dos intentos, dos filas');
+  assert.deepEqual(Dp.errors, []);
+  await ctxD.close();
 
   setStep('Descubre: sin localStorage el resultado y «Elegir como meta» funcionan');
   const ctxN = await browser.newContext({ viewport: { width: 390, height: 844 } });

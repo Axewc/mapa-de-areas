@@ -241,18 +241,18 @@ test('claimQuizUpload y finishQuizUpload: marca up sin que loadQuiz lo rechace',
   const { claimQuizUpload, finishQuizUpload, QUIZ_CLAIM_MS } = require('../js/store.js');
   const st = fakeQ({});
   saveQuiz(st, ANS, T);
-  assert.equal(claimQuizUpload(st, T, T + 10), true);
+  assert.equal(claimQuizUpload(st, T, T + 10, 'a'), true);
   assert.equal(JSON.parse(st.getItem('mapa.quiz')).c, T + 10);
-  assert.deepEqual(loadQuiz(st, Q8), { v: 3, t: T, answers: ANS, c: T + 10 }, 'el reclamo no invalida el intento');
-  assert.equal(claimQuizUpload(st, T, T + 20), false, 'otra pestaña no lo reclama mientras tanto');
-  assert.equal(claimQuizUpload(st, T, T + 10 + QUIZ_CLAIM_MS), true, 'un reclamo viejo se considera abandonado');
-  assert.equal(claimQuizUpload(st, T, T), true, 'un reclamo con el reloj al revés también');
+  assert.deepEqual(loadQuiz(st, Q8), { v: 3, t: T, answers: ANS, c: T + 10, cid: 'a' }, 'el reclamo no invalida el intento');
+  assert.equal(claimQuizUpload(st, T, T + 20, 'b'), false, 'otra pestaña no lo reclama mientras tanto');
+  assert.equal(claimQuizUpload(st, T, T + 10 + QUIZ_CLAIM_MS, 'b'), true, 'un reclamo viejo se considera abandonado');
+  assert.equal(claimQuizUpload(st, T, T, 'c'), true, 'un reclamo con el reloj al revés también');
   assert.equal(finishQuizUpload(st, T, false), true);
   assert.deepEqual(JSON.parse(st.getItem('mapa.quiz')), { v: 3, t: T, answers: ANS }, 'si falla, sin reclamo ni marca');
-  assert.equal(claimQuizUpload(st, T, T + 30), true);
+  assert.equal(claimQuizUpload(st, T, T + 30, 'd'), true);
   assert.equal(finishQuizUpload(st, T, true), true);
   assert.deepEqual(loadQuiz(st, Q8), { v: 3, t: T, answers: ANS, up: 1 });
-  assert.equal(claimQuizUpload(st, T, T + 40), false, 'ya subido');
+  assert.equal(claimQuizUpload(st, T, T + 40, 'e'), false, 'ya subido');
 });
 test('claimQuizUpload y finishQuizUpload: otro intento, sin storage, roto o si setItem lanza', () => {
   const { claimQuizUpload, finishQuizUpload } = require('../js/store.js');
@@ -269,6 +269,24 @@ test('claimQuizUpload y finishQuizUpload: otro intento, sin storage, roto o si s
   const lleno = fakeQ({ 'mapa.quiz': JSON.stringify({ v: 3, t: T, answers: ANS }) }, { set: true });
   assert.equal(claimQuizUpload(lleno, T, T), false);
   assert.equal(claimQuizUpload(fakeQ({ 'mapa.quiz': JSON.stringify({ v: 3, t: T, answers: ANS }) }, { get: true }), T, T), false);
+});
+test('ownsQuizClaim: solo la ficha del último reclamo, del mismo intento y sin subir', () => {
+  const { claimQuizUpload, ownsQuizClaim, finishQuizUpload, QUIZ_CLAIM_MS } = require('../js/store.js');
+  const st = fakeQ({});
+  saveQuiz(st, ANS, T);
+  assert.equal(ownsQuizClaim(st, T, 'a'), false, 'sin reclamo');
+  claimQuizUpload(st, T, T, 'a');
+  assert.equal(ownsQuizClaim(st, T, 'a'), true);
+  assert.equal(ownsQuizClaim(st, T, 'b'), false, 'otra ficha');
+  assert.equal(ownsQuizClaim(st, T + 1, 'a'), false, 'otro intento');
+  claimQuizUpload(st, T, T + QUIZ_CLAIM_MS, 'b'); // la otra pestaña lo reclamó después (el de a ya era viejo)
+  assert.equal(ownsQuizClaim(st, T, 'a'), false, 'quien reclamó antes ya no lo sube');
+  assert.equal(ownsQuizClaim(st, T, 'b'), true);
+  finishQuizUpload(st, T, true);
+  assert.equal(ownsQuizClaim(st, T, 'b'), false, 'ya subido');
+  assert.equal(ownsQuizClaim(null, T, 'b'), false);
+  assert.equal(ownsQuizClaim(fakeQ({ 'mapa.quiz': '{no' }), T, 'b'), false);
+  assert.equal(ownsQuizClaim(fakeQ({ 'mapa.quiz': JSON.stringify({ v: 3, t: T, answers: ANS, c: T, cid: 'b' }) }, { get: true }), T, 'b'), false);
 });
 test('tipDismissed y dismissTip', () => {
   const st = fakeQ({});

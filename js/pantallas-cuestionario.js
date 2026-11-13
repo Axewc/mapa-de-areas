@@ -16,14 +16,19 @@ var quizMem = null;
 // «Ahora no» de la tarjeta de Hoy, en memoria (sin localStorage no se puede recordar entre visitas).
 var tipHidden = false;
 
-// Resultado en pantalla, avisos del guardado en la cuenta por intento (llave: respuestas unidas por comas) y el
-// párrafo del aviso en pantalla.
+// Resultado en pantalla (respuestas y t de su intento, si lo hay), avisos del guardado en la cuenta por intento
+// (llave: su t) y el párrafo del aviso en pantalla.
 var resultShown = null;
+var resultT = null;
 var saveNotes = {};
 var saveNode = null;
 var uploadingT = null; // t del intento que esta pestaña está subiendo
 var copyTimer = null;
 var SAVED_NOTE = 'Guardado en tu cuenta.';
+var QUIZ_LOCK = 'mapa.quiz.upload'; // Web Lock que hace exclusiva la subida entre pestañas
+// Tras marcar el intento, el lock se suelta QUIZ_SETTLE_MS después: un cambio de localStorage tarda unos milisegundos
+// en llegar a las otras pestañas (procesos distintos), y la siguiente en tomar el lock debe ya ver la marca.
+var QUIZ_SETTLE_MS = 300;
 
 // Respuestas del último resultado: las del dispositivo si son válidas; si no, las de esta visita; si no, null.
 function savedQuiz() {
@@ -43,6 +48,7 @@ function forgetQuiz() {
   quizMem = null;
   tipHidden = false;
   resultShown = null;
+  resultT = null;
   saveNotes = {};
   saveNode = null;
 }
@@ -222,7 +228,7 @@ function resultFooter(summary) {
     // Con sesión: el aviso del guardado y, en el mismo renglón, «Mis respuestas» como enlace (ahorra una fila de botones).
     var hist = el('button', { class: 'linkbtn', id: 'result-history', type: 'button', text: 'Mis respuestas' });
     hist.addEventListener('click', function () { withDir('forward', function () { renderHistory(); }); });
-    saveNode = el('span', { id: 'save-note', 'aria-live': 'polite', text: saveNoteFor(resultShown) });
+    saveNode = el('span', { id: 'save-note', 'aria-live': 'polite', text: saveNoteFor(resultT) });
     foot.append(el('p', { class: 'small save-row' }, saveNode, ' ', hist));
   } else {
     saveNode = null;
@@ -242,38 +248,60 @@ function saveResult(ans) {
   saveQuiz(storage, ans, t);
 }
 
-// Aviso del guardado en la cuenta para unas respuestas: el de su última subida en esta visita o, si ya está en la cuenta, «Guardado…».
-function saveNoteFor(ans) {
-  var key = ans ? ans.join(',') : '';
-  if (saveNotes[key]) return saveNotes[key];
+// Aviso del guardado en la cuenta del intento t: el de su última subida en esta visita o, si ya está en la cuenta, «Guardado…».
+function saveNoteFor(t) {
+  if (t === null) return '';
+  if (saveNotes[t]) return saveNotes[t];
   var q = loadQuiz(storage, SETS[3]) || quizMem;
-  return q && q.up === 1 && sameAnswers(q.answers, ans) ? SAVED_NOTE : '';
+  return q && q.t === t && q.up === 1 ? SAVED_NOTE : '';
 }
 
-function putSaveNote(ans, text) {
-  saveNotes[ans.join(',')] = text;
-  if (saveNode && sameAnswers(resultShown, ans)) saveNode.textContent = text;
+function putSaveNote(t, text) {
+  saveNotes[t] = text;
+  if (saveNode && resultT === t) saveNode.textContent = text;
 }
 
 // Sube a mapa_respuestas, una sola vez, el último intento que aún no está en la cuenta (hecho con o sin sesión).
-// Se llama al mostrar un resultado, al iniciar sesión y al arrancar con sesión. Con localStorage, el reclamo en
-// «mapa.quiz» evita que otra pestaña lo suba a la vez; uploadingT, que esta misma pestaña lo suba dos veces.
-// Si el insert falla no se marca: se reintenta en la siguiente ocasión.
+// Se llama al mostrar un resultado, al iniciar sesión y al arrancar con sesión. uploadingT evita que esta pestaña lo
+// suba dos veces. Entre pestañas (solo si está en localStorage): con Web Locks, el tramo «releer la marca → insertar
+// → marcar» es exclusivo; sin ellos, reclamo con ficha propia, espera aleatoria y relectura. Si el insert falla no
+// se marca: se reintenta en la siguiente ocasión.
 function uploadQuiz() {
   var q = pendingQuiz();
   if (!session || deleting || !q || uploadingT === q.t) return;
   var t = q.t, ans = q.answers.slice();
-  var stored = !!loadQuiz(storage, SETS[3]);
-  if (stored && !claimQuizUpload(storage, t, Date.now())) return;
   uploadingT = t;
-  putSaveNote(ans, 'Guardando tu resultado en tu cuenta…');
-  var done = function (ok, e) {
-    uploadingT = null;
-    if (stored) finishQuizUpload(storage, t, ok);
-    if (ok && quizMem && quizMem.t === t) quizMem.up = 1;
-    putSaveNote(ans, ok ? SAVED_NOTE : 'No se pudo guardar en tu cuenta (' + (e && e.message ? e.message : 'error') + '). Se reintentará; tu resultado sigue aquí.');
-  };
-  saveAttempt(ans, scoreAnswers(ans, 3), 3).then(function () { done(true); }, function (e) { done(false, e); });
+  var end = function () { if (uploadingT === t) uploadingT = null; }; // otro intento pudo empezar a subirse mientras tanto
+  if (!loadQuiz(storage, SETS[3])) { uploadInsert(t, ans, false).then(end, end); return; } // solo en memoria: una pestaña
+  if (typeof navigator !== 'undefined' && navigator.locks && typeof navigator.locks.request === 'function') {
+    navigator.locks.request(QUIZ_LOCK, function () {
+      var cur = loadQuiz(storage, SETS[3]);
+      if (!cur || cur.t !== t || cur.up === 1) return null; // otra pestaña ya lo subió (o ya hay otro intento)
+      return uploadInsert(t, ans, true).then(function (ok) {
+        if (ok) return new Promise(function (resolve) { setTimeout(resolve, QUIZ_SETTLE_MS); });
+        return null;
+      });
+    }).then(end, end);
+    return;
+  }
+  var cid = String(Math.random()).slice(2) + '-' + Date.now();
+  if (!claimQuizUpload(storage, t, Date.now(), cid)) { end(); return; }
+  setTimeout(function () {
+    if (!ownsQuizClaim(storage, t, cid)) { end(); return; } // otra pestaña reclamó después: sube ella
+    uploadInsert(t, ans, true).then(end, end);
+  }, 50 + Math.floor(Math.random() * 101));
+}
+
+// Inserta el intento t, lo marca (en localStorage si stored y en memoria) y deja el aviso. Resuelve true si se subió;
+// nunca rechaza.
+function uploadInsert(t, ans, stored) {
+  putSaveNote(t, 'Guardando tu resultado en tu cuenta…');
+  return saveAttempt(ans, scoreAnswers(ans, 3), 3).then(function () { return { ok: true }; }, function (e) { return { ok: false, e: e }; }).then(function (r) {
+    if (stored) finishQuizUpload(storage, t, r.ok);
+    if (r.ok && quizMem && quizMem.t === t) quizMem.up = 1;
+    putSaveNote(t, r.ok ? SAVED_NOTE : 'No se pudo guardar en tu cuenta (' + (r.e && r.e.message ? r.e.message : 'error') + '). Se reintentará; tu resultado sigue aquí.');
+    return r.ok;
+  });
 }
 
 // Resultado corto. opts.fresh: recién terminado (guarda e inserta una vez); si no, reabierto desde Descubre (no inserta).
@@ -287,6 +315,8 @@ function renderResult(ans, opts) {
   resultShown = ans.slice();
   var ranked = scoreAnswers(ans, 3);
   if (o.fresh) saveResult(ans);
+  var rec = loadQuiz(storage, SETS[3]) || quizMem;
+  resultT = rec && sameAnswers(rec.answers, ans) ? rec.t : null;
   uploadQuiz();
   var top = AREAS[ranked[0].key];
   var sugg = suggestLine(ranked, LINEAS);
