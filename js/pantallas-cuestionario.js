@@ -23,12 +23,16 @@ var resultT = null;
 var saveNotes = {};
 var saveNode = null;
 var uploadingT = null; // t del intento que esta pestaña está subiendo
+var uploadingP = null; // promesa de esa subida (la devuelve uploadQuiz() si se pide otra vez el mismo intento)
 var copyTimer = null;
 var SAVED_NOTE = 'Guardado en tu cuenta.';
 var QUIZ_LOCK = 'mapa.quiz.upload'; // Web Lock que hace exclusiva la subida entre pestañas
 // Tras marcar el intento, el lock se suelta QUIZ_SETTLE_MS después: un cambio de localStorage tarda unos milisegundos
 // en llegar a las otras pestañas (procesos distintos), y la siguiente en tomar el lock debe ya ver la marca.
 var QUIZ_SETTLE_MS = 300;
+// Un insert que no responde en QUIZ_UPLOAD_TIMEOUT_MS cuenta como fallo: se suelta el lock (o el reclamo), no se marca
+// y se avisa; si después responde bien, se marca entonces (ver uploadInsert).
+var QUIZ_UPLOAD_TIMEOUT_MS = 20000;
 
 // Respuestas del último resultado: las del dispositivo si son válidas; si no, las de esta visita; si no, null.
 function savedQuiz() {
@@ -266,37 +270,68 @@ function putSaveNote(t, text) {
 // suba dos veces. Entre pestañas (solo si está en localStorage): con Web Locks, el tramo «releer la marca → insertar
 // → marcar» es exclusivo; sin ellos, reclamo con ficha propia, espera aleatoria y relectura. Si el insert falla no
 // se marca: se reintenta en la siguiente ocasión.
+// Devuelve una promesa que se cumple (nunca se rechaza) cuando termina este intento de subida, o enseguida si no hay
+// nada que hacer; quien necesite saber si quedó subido mira pendingQuiz() después («Cerrar sesión»).
 function uploadQuiz() {
   var q = pendingQuiz();
-  if (!session || deleting || !q || uploadingT === q.t) return;
+  if (!session || deleting || !q) return Promise.resolve();
+  if (uploadingT === q.t) return uploadingP;
   var t = q.t, ans = q.answers.slice();
-  uploadingT = t;
-  var end = function () { if (uploadingT === t) uploadingT = null; }; // otro intento pudo empezar a subirse mientras tanto
-  if (!loadQuiz(storage, SETS[3])) { uploadInsert(t, ans, false).then(end, end); return; } // solo en memoria: una pestaña
-  if (typeof navigator !== 'undefined' && navigator.locks && typeof navigator.locks.request === 'function') {
-    navigator.locks.request(QUIZ_LOCK, function () {
-      var cur = loadQuiz(storage, SETS[3]);
-      if (!cur || cur.t !== t || cur.up === 1) return null; // otra pestaña ya lo subió (o ya hay otro intento)
-      return uploadInsert(t, ans, true).then(function (ok) {
-        if (ok) return new Promise(function (resolve) { setTimeout(resolve, QUIZ_SETTLE_MS); });
-        return null;
-      });
-    }).then(end, end);
-    return;
+  var p;
+  if (!loadQuiz(storage, SETS[3])) {
+    p = uploadInsert(t, ans, false); // solo en memoria: una pestaña
+  } else if (typeof navigator !== 'undefined' && navigator.locks && typeof navigator.locks.request === 'function') {
+    // Si request lanza o su promesa se rechaza (p. ej. SecurityError en un origen opaco), sigue por el reclamo con ficha.
+    var viaClaim = function () { return uploadByClaim(t, ans); };
+    try {
+      p = navigator.locks.request(QUIZ_LOCK, function () {
+        var cur = loadQuiz(storage, SETS[3]);
+        if (!cur || cur.t !== t || cur.up === 1) return null; // otra pestaña ya lo subió (o ya hay otro intento)
+        return uploadInsert(t, ans, true).then(function (ok) {
+          if (ok) return new Promise(function (resolve) { setTimeout(resolve, QUIZ_SETTLE_MS); });
+          return null;
+        });
+      }).then(null, viaClaim);
+    } catch (e) {
+      p = viaClaim();
+    }
+  } else {
+    p = uploadByClaim(t, ans);
   }
+  var end = function () { if (uploadingT === t) { uploadingT = null; uploadingP = null; } }; // otro intento pudo empezar mientras tanto
+  uploadingT = t;
+  uploadingP = p.then(end, end);
+  return uploadingP;
+}
+
+// Sin Web Locks (o si fallan): reclamo con ficha propia, espera aleatoria y relectura. Nunca rechaza.
+function uploadByClaim(t, ans) {
   var cid = String(Math.random()).slice(2) + '-' + Date.now();
-  if (!claimQuizUpload(storage, t, Date.now(), cid)) { end(); return; }
-  setTimeout(function () {
-    if (!ownsQuizClaim(storage, t, cid)) { end(); return; } // otra pestaña reclamó después: sube ella
-    uploadInsert(t, ans, true).then(end, end);
-  }, 50 + Math.floor(Math.random() * 101));
+  if (!claimQuizUpload(storage, t, Date.now(), cid)) return Promise.resolve(); // otra pestaña lo está subiendo
+  return new Promise(function (resolve) { setTimeout(resolve, 50 + Math.floor(Math.random() * 101)); }).then(function () {
+    if (!ownsQuizClaim(storage, t, cid)) return null; // otra pestaña reclamó después: sube ella
+    return uploadInsert(t, ans, true);
+  });
 }
 
 // Inserta el intento t, lo marca (en localStorage si stored y en memoria) y deja el aviso. Resuelve true si se subió;
-// nunca rechaza.
+// nunca rechaza. Si el insert no responde en QUIZ_UPLOAD_TIMEOUT_MS, resuelve como fallo (sin marca); si más tarde
+// responde bien, marca el intento entonces, para que el siguiente reintento no lo vuelva a subir.
 function uploadInsert(t, ans, stored) {
   putSaveNote(t, 'Guardando tu resultado en tu cuenta…');
-  return saveAttempt(ans, scoreAnswers(ans, 3), 3).then(function () { return { ok: true }; }, function (e) { return { ok: false, e: e }; }).then(function (r) {
+  var insert = saveAttempt(ans, scoreAnswers(ans, 3), 3).then(function () { return { ok: true }; }, function (e) { return { ok: false, e: e }; });
+  var timer = null;
+  var limit = new Promise(function (resolve) {
+    timer = setTimeout(function () { resolve({ ok: false, late: true, e: { message: 'no respondió a tiempo' } }); }, QUIZ_UPLOAD_TIMEOUT_MS);
+  });
+  insert.then(function () { clearTimeout(timer); });
+  return Promise.race([insert, limit]).then(function (r) {
+    if (r.late) insert.then(function (r2) {
+      if (!r2.ok) return;
+      if (stored) finishQuizUpload(storage, t, true);
+      if (quizMem && quizMem.t === t) quizMem.up = 1;
+      putSaveNote(t, SAVED_NOTE);
+    });
     if (stored) finishQuizUpload(storage, t, r.ok);
     if (r.ok && quizMem && quizMem.t === t) quizMem.up = 1;
     putSaveNote(t, r.ok ? SAVED_NOTE : 'No se pudo guardar en tu cuenta (' + (r.e && r.e.message ? r.e.message : 'error') + '). Se reintentará; tu resultado sigue aquí.');

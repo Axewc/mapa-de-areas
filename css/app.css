@@ -73,7 +73,7 @@ body {
 body.has-tabbar { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
 /* Con la barra inferior fija, el navegador deja ese espacio libre al llevar a la vista lo que recibe el foco con Tab
    (WCAG 2.4.11: el foco no queda tapado por la barra). */
-html:has(> body.has-tabbar) { scroll-padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+html.has-tabbar { scroll-padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
 .wrap { max-width: 560px; margin-inline: auto; }
 h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.1; letter-spacing: -0.01em; }
 p { margin: 0; }
@@ -146,7 +146,7 @@ h1[tabindex="-1"]:focus, h2[tabindex="-1"]:focus { outline: none; }
 .big { font-family: var(--f-display); font-size: 3rem; font-weight: 700; letter-spacing: -0.03em; line-height: 0.95; font-variant-numeric: tabular-nums; }
 .pct-note { text-align: right; }
 .pbar { height: 14px; border-radius: 999px; background: var(--track); border: 1.5px solid var(--ink); overflow: hidden; }
-.pbar b { display: block; height: 100%; background: var(--lc, var(--ink)); transition: width 0.4s ease-out; }
+.pbar b { display: block; height: 100%; background: var(--lc, var(--ink)); }
 .mini { margin-top: 16px; }
 .mini-nodes, .mini-labels { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); }
 .mini .node { position: relative; height: 26px; display: flex; align-items: center; justify-content: center; }
@@ -171,7 +171,7 @@ h1[tabindex="-1"]:focus, h2[tabindex="-1"]:focus { outline: none; }
 /* Botón grande de la sesión */
 .session-cta { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 14px; text-align: left;
   background: var(--cta); color: var(--cta-ink); border: 0; border-radius: 14px; padding: 18px; margin-bottom: 5px;
-  box-shadow: 0 5px 0 var(--cta-shadow); transition: transform 0.08s, box-shadow 0.08s; }
+  box-shadow: 0 5px 0 var(--cta-shadow); transition: box-shadow 0.08s; }
 .session-cta:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--cta-shadow); }
 .session-cta .cta-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .session-cta b { font-family: var(--f-display); font-size: 1.4rem; font-weight: 700; line-height: 1.1; }
@@ -191,7 +191,7 @@ h1[tabindex="-1"]:focus, h2[tabindex="-1"]:focus { outline: none; }
 .pick-group h2 { font-size: 1.25rem; margin-top: 6px; }
 .line-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .line-card { width: 100%; text-align: left; background: var(--panel); border: 1.5px solid var(--line); border-left: 6px solid var(--lc); border-radius: 12px;
-  padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; transition: border-color 0.12s, transform 0.08s; }
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; transition: border-color 0.12s; }
 .line-card:hover { border-color: var(--ink); border-left-color: var(--lc); }
 .line-card:active { transform: translateY(1px); }
 .line-card[aria-current="true"] { box-shadow: 0 0 0 3px var(--mark); }
@@ -235,7 +235,7 @@ h1[tabindex="-1"]:focus, h2[tabindex="-1"]:focus { outline: none; }
 /* Avisos */
 #notices { position: fixed; z-index: 20; left: 50%; transform: translateX(-50%); bottom: calc(88px + env(safe-area-inset-bottom)); width: calc(100% - 32px); max-width: 528px; pointer-events: none; }
 body:not(.has-tabbar) #notices { bottom: 16px; }
-.notice { pointer-events: auto; display: flex; align-items: center; gap: 8px; background: var(--ink); color: var(--paper); border-radius: 12px; padding: 4px 4px 4px 14px; font-size: 0.9rem; line-height: 1.4; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22); animation: notice-in 0.18s ease-out; }
+.notice { pointer-events: auto; display: flex; align-items: center; gap: 8px; background: var(--ink); color: var(--paper); border-radius: 12px; padding: 4px 4px 4px 14px; font-size: 0.9rem; line-height: 1.4; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22); }
 .notice p { flex: 1; padding: 8px 0; }
 .notice button { flex: none; width: 44px; height: 44px; background: none; border: 0; color: inherit; font-size: 1rem; border-radius: 8px; }
 .notice button:focus-visible { outline-color: var(--paper); outline-offset: -4px; }
@@ -246,7 +246,7 @@ body:not(.has-tabbar) #notices { bottom: 16px; }
 .ticks { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-bottom: 2rem; }
 .tick { height: 6px; background: var(--line); border-radius: 1px; }
 .tick.done { background: var(--accent); }
-.quiz h1 { font-size: clamp(1.45rem, 4.5vw, 2rem); font-weight: 700; margin-bottom: 1.5rem; text-wrap: pretty; } /* balance dejaba la pregunta angosta */
+.quiz h1 { font-size: clamp(1.45rem, 4.5vw, 2rem); font-weight: 700; margin-bottom: 1.5rem; text-wrap: wrap; text-wrap: pretty; } /* balance dejaba la pregunta angosta */
 .opts { display: flex; flex-direction: column; gap: 10px; }
 .opt {
   text-align: left; width: 100%;
@@ -403,7 +403,7 @@ table.prog th.num { text-align: right; }
 #s-sesion .opt.right, #s-sesion .opt.right:hover { border: 2.5px solid var(--ok); background: var(--okbg); padding: 13px 15px; }
 #s-sesion .opt.wrong, #s-sesion .opt.wrong:hover { border: 2px dashed var(--bad); background: var(--panel); padding: 13.5px 15.5px; }
 #s-sesion .opt .tag-r { margin-top: 2px; }
-.fb { display: flex; flex-direction: column; gap: 8px; border: 2px solid var(--ok); background: var(--okbg); border-radius: 12px; padding: 16px; animation: fb-in 0.2s ease-out; }
+.fb { display: flex; flex-direction: column; gap: 8px; border: 2px solid var(--ok); background: var(--okbg); border-radius: 12px; padding: 16px; }
 .fb:empty { display: block; padding: 0; border: 0; animation: none; }
 .fb.casi { border-color: var(--ink); background: var(--tint); }
 .fb-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -411,7 +411,7 @@ table.prog th.num { text-align: right; }
 .fb.casi .fb-top b { color: var(--ink); }
 .fb .why { font-size: 0.98rem; line-height: 1.5; }
 .ses-next { width: 100%; min-height: 56px; margin-bottom: 5px; background: var(--cta); color: var(--cta-ink); border: 0; border-radius: 12px; padding: 12px 18px;
-  font-family: var(--f-display); font-size: 1.15rem; font-weight: 700; box-shadow: 0 5px 0 var(--cta-shadow); transition: transform 0.08s, box-shadow 0.08s; }
+  font-family: var(--f-display); font-size: 1.15rem; font-weight: 700; box-shadow: 0 5px 0 var(--cta-shadow); transition: box-shadow 0.08s; }
 .ses-next:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--cta-shadow); }
 .ses-keys { display: none; }
 @media (hover: hover) and (pointer: fine) { .ses-keys:not([hidden]) { display: block; } }
@@ -422,8 +422,7 @@ table.prog th.num { text-align: right; }
 .session-end h2 { font-size: clamp(1.9rem, 7vw, 2.4rem); font-weight: 700; letter-spacing: -0.02em; }
 .ses-xp { align-self: flex-start; }
 .ses-xp span { display: inline-block; font-family: var(--f-display); font-size: 3.2rem; font-weight: 700; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums;
-  background: var(--mark); color: var(--mark-ink); border: 2px solid var(--ink); border-radius: 14px; padding: 8px 16px 10px; transform-origin: left center;
-  animation: xp-pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+  background: var(--mark); color: var(--mark-ink); border: 2px solid var(--ink); border-radius: 14px; padding: 8px 16px 10px; transform-origin: left center; }
 :root[data-theme="dark"] .ses-xp span { border-color: var(--mark); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ses-xp span { border-color: var(--mark); } }
 @keyframes xp-pop { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: none; } }
@@ -436,7 +435,10 @@ table.prog th.num { text-align: right; }
 .ses-dot { flex: none; width: 16px; height: 16px; border-radius: 50%; background: var(--lc, var(--ink)); margin: 0 2px; }
 .ses-actions { display: flex; flex-direction: column; gap: 12px; }
 .ses-actions .btn { width: 100%; }
-/* Cambio de pantalla. Todo el movimiento es opcional: solo con prefers-reduced-motion: no-preference.
+/* Movimiento. Todas las animaciones y las transiciones de posición, escala o tamaño son opcionales: solo con
+   prefers-reduced-motion: no-preference (el aviso, la retroalimentación y el XP de la sesión, el hundimiento de los botones
+   grandes y de las tarjetas de línea, el relleno de la barra de avance, «Ver detalle» y el cambio de pantalla).
+   Cambio de pantalla:
    - Con View Transitions y dirección (show(name, keep, dir)): la página se desliza 24 px hacia delante o hacia atrás.
    - Sin ellas (o sin dirección): la pantalla que entra aparece con un fundido corto (solo opacidad).
    Durante una transición el fundido se apaga (duración 0) para no sumarse al deslizamiento; con duración 0 y no con
@@ -444,6 +446,12 @@ table.prog th.num { text-align: right; }
 .tabbar { view-transition-name: tabbar; }
 ::view-transition-group(tabbar) { animation: none; } /* la barra no cambia entre pantallas: sin fundido de 250 ms por defecto */
 @media (prefers-reduced-motion: no-preference) {
+  .notice { animation: notice-in 0.18s ease-out; }
+  .fb { animation: fb-in 0.2s ease-out; }
+  .ses-xp span { animation: xp-pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+  .session-cta, .ses-next { transition: transform 0.08s, box-shadow 0.08s; }
+  .line-card { transition: border-color 0.12s, transform 0.08s; }
+  .pbar b { transition: width 0.4s ease-out; }
   .wrap > section:not([hidden]) { animation: screen-in 0.16s ease-out both; }
   html:active-view-transition .wrap > section:not([hidden]) { animation-duration: 0s; }
   html:active-view-transition-type(forward)::view-transition-old(root) { animation: vt-out-left 0.22s ease-out both; }

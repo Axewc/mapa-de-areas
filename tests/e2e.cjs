@@ -681,6 +681,7 @@ async function descubreScenarios(browser, setStep) {
 
   setStep('Descubre: con Tab, el foco no queda tapado por la barra inferior');
   await page.focus('#s-result #result-goal');
+  const focused = [];
   for (let i = 0; i < 8; i++) {
     await page.keyboard.press('Tab');
     const f = await page.evaluate(() => {
@@ -689,8 +690,12 @@ async function descubreScenarios(browser, setStep) {
       return { bottom: e.getBoundingClientRect().bottom, bar: document.getElementById('tabbar').getBoundingClientRect().top, t: e.textContent.trim() };
     });
     if (!f) break;
+    focused.push(f.t);
     assert.ok(f.bottom <= f.bar, '«' + f.t + '» queda bajo la barra inferior (' + f.bottom + ' > ' + f.bar + ')');
   }
+  // Que no pase sin medir: recorre al menos 5 controles y llega hasta el último del resultado.
+  assert.ok(focused.length >= 5, 'controles revisados: ' + focused.join(' | '));
+  assert.equal(focused[focused.length - 1], 'Crear una cuenta en Yo', 'el último es el botón de #device-note');
 
   setStep('Descubre: «Ver detalle» plegado');
   assert.equal(await page.evaluate(() => document.querySelector('#s-result details.result-more').open), false, 'cerrado al llegar');
@@ -739,6 +744,8 @@ async function descubreScenarios(browser, setStep) {
   await page.click('#s-result #result-goal');
   await page.waitForSelector('#s-hoy:not([hidden])');
   await page.waitForFunction((t) => document.getElementById('notices').textContent.includes('Meta cambiada a ' + t + '.'), exp.line.title);
+  // Con movimiento reducido el aviso no se anima y se ve entero desde el principio.
+  assert.equal(await page.evaluate(() => { const cs = getComputedStyle(document.querySelector('#notices .notice')); return cs.animationName + ' ' + cs.opacity; }), 'none 1');
   assert.equal((await localState(page)).goal, exp.line.id);
   assert.equal(await page.locator('#s-hoy .quiz-tip').count(), 0, 'con resultado no hay tarjeta en Hoy');
   await page.click('#tabbar [data-tab=descubre]');
@@ -957,6 +964,89 @@ async function descubreScenarios(browser, setStep) {
   assert.deepEqual(G.errors, []);
   assert.deepEqual(G2.errors, []);
   await ctxG.close();
+
+  setStep('Descubre: cerrar sesión no borra un resultado que no se pudo subir');
+  const ctxO = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const O = await openHome(ctxO, { session: true });
+  await O.page.waitForFunction(() => !!session);
+  // Solo falla el insert del cuestionario (__failInsert también haría fallar la sincronización del progreso).
+  await O.page.evaluate(() => { window.__realSave = saveAttempt; window.saveAttempt = () => Promise.reject(new Error('sin red')); });
+  await O.page.click('#door-quiz');
+  await answerQuiz(O.page, '11111111');
+  await O.page.waitForFunction(() => /No se pudo guardar en tu cuenta/.test(document.getElementById('save-note').textContent));
+  await O.page.click('#tabbar [data-tab=yo]');
+  await O.page.click('#s-yo #logout');
+  await O.page.waitForFunction(() => /No se pudo guardar tu último resultado del cuestionario/.test(document.getElementById('logout-msg').textContent));
+  assert.notEqual(await quizKey(O.page), null, 'no se borra mapa.quiz');
+  assert.equal((await quizRec(O.page)).up, undefined);
+  assert.equal(await O.page.evaluate(() => !!session), true, 'la sesión sigue abierta');
+  assert.equal((await O.page.textContent('#s-yo #logout')).trim(), 'Reintentar');
+  assert.equal(await O.page.isVisible('#s-yo #logout-keep'), true, 'ofrece cerrar sin borrar');
+  assert.equal((await answerRows(O.page)).length, 0);
+  await O.page.evaluate(() => { window.saveAttempt = window.__realSave; });
+  await O.page.click('#s-yo #logout');
+  await O.page.waitForSelector('#s-entrada:not([hidden])');
+  assert.equal((await answerRows(O.page)).length, 1, 'al reintentar se sube una vez');
+  assert.equal(await quizKey(O.page), null, 'y se borra lo local');
+  assert.equal(await O.page.evaluate(() => !!session), false);
+  assert.deepEqual(O.errors, []);
+  await ctxO.close();
+
+  // Web Locks que fallan (p. ej. SecurityError en un origen opaco): se sigue por el reclamo con ficha.
+  for (const mode of ['lanza', 'rechaza']) {
+    setStep('Descubre: si navigator.locks.request ' + mode + ', el resultado se dibuja y se sube una vez');
+    const ctxK = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await ctxK.addInitScript((m) => {
+      navigator.locks.request = m === 'lanza'
+        ? function () { throw new DOMException('no se permite', 'SecurityError'); }
+        : function () { return Promise.reject(new DOMException('no se permite', 'SecurityError')); };
+    }, mode);
+    const K = await openHome(ctxK, { session: true });
+    await K.page.waitForFunction(() => !!session);
+    await K.page.click('#door-quiz');
+    await answerQuiz(K.page, '11111111');
+    assert.equal(await K.page.textContent('#s-result h1'), exp.name);
+    assert.equal(await K.page.locator('#s-result #result-goal').count(), 1, 'el resultado se dibujó completo');
+    await K.page.waitForFunction(() => /Guardado en tu cuenta/.test(document.getElementById('save-note').textContent));
+    await K.page.click('#tabbar [data-tab=mapa]');
+    await K.page.click('#tabbar [data-tab=descubre]');
+    await K.page.waitForSelector('#s-result:not([hidden])');
+    await K.page.waitForTimeout(300);
+    assert.equal((await answerRows(K.page)).length, 1, 'exactamente una fila');
+    assert.equal((await quizRec(K.page)).up, 1);
+    assert.deepEqual(K.errors, []);
+    await ctxK.close();
+  }
+
+  setStep('Descubre: un insert colgado cuenta como fallo a tiempo y, si responde después, se marca sin repetir');
+  const ctxL2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const L2 = await openHome(ctxL2, { session: true });
+  await L2.page.waitForFunction(() => !!session);
+  await L2.page.evaluate(() => {
+    QUIZ_UPLOAD_TIMEOUT_MS = 400; // en vez de 20 s
+    const orig = saveAttempt;
+    window.__rel = [];
+    window.saveAttempt = function () { const a = arguments; return new Promise((r) => { window.__rel.push(r); }).then(() => orig.apply(null, a)); };
+  });
+  await L2.page.click('#door-quiz');
+  await answerQuiz(L2.page, '11111111');
+  await L2.page.waitForFunction(() => /No se pudo guardar en tu cuenta \(no respondió a tiempo\)/.test(document.getElementById('save-note').textContent));
+  const lrec = await quizRec(L2.page);
+  assert.equal(lrec.up, undefined, 'sin marca');
+  assert.deepEqual(await L2.page.evaluate(() => navigator.locks.query().then((q) => q.held.length)), 0, 'el lock quedó libre');
+  assert.equal((await answerRows(L2.page)).length, 0);
+  await L2.page.evaluate(() => window.__rel[0]()); // el insert colgado responde tarde, y bien
+  await L2.page.waitForFunction(() => window.__db.mapa_respuestas.length === 1);
+  await L2.page.waitForFunction(() => /Guardado en tu cuenta/.test(document.getElementById('save-note').textContent));
+  assert.equal((await quizRec(L2.page)).up, 1, 'se marca al responder tarde');
+  await L2.page.click('#tabbar [data-tab=mapa]');
+  await L2.page.click('#tabbar [data-tab=descubre]');
+  await L2.page.waitForSelector('#s-result:not([hidden])');
+  await L2.page.waitForTimeout(300);
+  assert.equal(await L2.page.evaluate(() => window.__rel.length), 1, 'reabrir no vuelve a subirlo');
+  assert.equal((await answerRows(L2.page)).length, 1);
+  assert.deepEqual(L2.errors, []);
+  await ctxL2.close();
 
   setStep('Descubre: si la subida falla no se marca y se reintenta');
   const ctxF = await browser.newContext({ viewport: { width: 390, height: 844 } });

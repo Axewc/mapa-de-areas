@@ -92,6 +92,7 @@ function paintScreen(name, keep, first, fromTab) {
   if (bar) {
     bar.hidden = !!NO_TABBAR[name];
     document.body.classList.toggle('has-tabbar', !bar.hidden);
+    document.documentElement.classList.toggle('has-tabbar', !bar.hidden); // scroll-padding-bottom (css/app.css), sin :has()
     Array.prototype.forEach.call(bar.querySelectorAll('button[data-tab]'), function (b) {
       if (b.getAttribute('data-tab') === TAB_OF[name]) b.setAttribute('aria-current', 'page');
       else b.removeAttribute('aria-current');

@@ -54,13 +54,18 @@ function accountCard() {
     };
     // Cierra la sesión. Con wipe (lo normal, para que el siguiente en este equipo no mezcle su avance con el tuyo) primero
     // espera (con tope) a las sincronizaciones en curso, para que ninguna con un estado más viejo pise la fila después,
-    // intenta una última sincronización y, si salió bien, borra la copia de este dispositivo. Si algo falla, no borra nada.
+    // intenta una última sincronización y una última subida del resultado del cuestionario que falte y, si las dos
+    // salieron bien, borra la copia de este dispositivo. Si algo falla, no borra nada.
     var logout = function (wipe) {
       out.disabled = true;
       noWipe.disabled = true;
       msg.textContent = wipe ? 'Guardando tu avance en tu cuenta…' : '';
       (wipe
-        ? settlePending().then(function (w) { return w.timedOut ? { ok: false, discarded: false } : runSync(); })
+        ? settlePending().then(function (w) { return w.timedOut ? { ok: false, discarded: false } : runSync(); }).then(function (r) {
+          if (!r.ok) return r;
+          // El resultado del cuestionario que aún no está en la cuenta (falló o lo tiene reclamado otra pestaña) tampoco se borra.
+          return uploadQuiz().then(function () { return pendingQuiz() ? { ok: false, discarded: false, quiz: true } : r; });
+        })
         : Promise.resolve({ ok: true, discarded: false })).then(function (r) {
         if (!r.ok) {
           out.disabled = false;
@@ -69,7 +74,9 @@ function accountCard() {
           noWipe.hidden = false;
           msg.textContent = r.discarded
             ? 'Se está borrando tu progreso. Espera un momento e intenta de nuevo.'
-            : 'No se pudo guardar tu avance en tu cuenta, así que no lo borramos de este dispositivo. Puedes reintentar o cerrar sesión sin borrar: el avance se queda en este navegador y quien entre después en él lo combinará con su cuenta.';
+            : r.quiz
+              ? 'No se pudo guardar tu último resultado del cuestionario en tu cuenta, así que no borramos nada de este dispositivo. Puedes reintentar o cerrar sesión sin borrar: el resultado y el avance se quedan en este navegador y quien entre después en él los subirá a su cuenta.'
+              : 'No se pudo guardar tu avance en tu cuenta, así que no lo borramos de este dispositivo. Puedes reintentar o cerrar sesión sin borrar: el avance se queda en este navegador y quien entre después en él lo combinará con su cuenta.';
           return;
         }
         deleting = true; // ninguna sincronización empieza mientras se cierra la sesión y se borra la copia local
