@@ -117,7 +117,7 @@ backBtn.addEventListener('click', function () {
 // ---------- Resultado corto ----------
 // Línea del mapa como botón-enlace (con su insignia si badge). Abre la pantalla Línea; «← Mapa» vuelve al mapa.
 function lineLink(line, label, badge) {
-  var b = el('button', { class: 'linkbtn line-link', type: 'button', 'data-line': line.id }, badge ? lineBadge(line) : null, label);
+  var b = el('button', { class: 'linkbtn line-link', type: 'button', 'data-line': line.id }, badge ? lineBadge(line) : null, el('span', { class: 'll-t', text: label }));
   b.addEventListener('click', function () { withDir('forward', function () { openLinea(line.id, false, 'mapa'); }); });
   return b;
 }

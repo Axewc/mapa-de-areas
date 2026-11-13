@@ -110,10 +110,11 @@ async function finishAllRight(page) {
   return seen;
 }
 
-// Revisión visual de todas las pantallas a un tamaño y un tema: Elegir meta (primera visita), Hoy (con avance), Yo (sin
-// cuenta y con cuenta), Elegir meta (cambiar de meta), Mapa, Línea, Estación (con el atajo y después de él), Sesión (idea,
-// pregunta, acierto, error), Cierre, Cuestionario (intro, pregunta, resultado) y Vista docente. En cada una verifica que no haya scroll
-// horizontal y, con SHOTS_DIR, guarda {ancho}-{tema}-{pantalla}.png. Los errores de JS de cada página fallan la prueba.
+// Revisión visual de todas las pantallas a un tamaño y un tema: entrada, Elegir meta (primera visita), Hoy (con avance y la
+// tarjeta del cuestionario), Yo (sin cuenta y con cuenta), Elegir meta (cambiar de meta), Mapa, Línea, Estación (con el atajo y
+// después de él), Sesión (idea, pregunta, acierto, error), Cierre, Descubre vacío, pregunta 1, resultado (cerrado, abierto, con
+// cuenta, con Investigación primero y con una línea «Meta a …»), Mis respuestas y Vista docente. En cada una verifica que no
+// haya scroll horizontal y, con SHOTS_DIR, guarda {ancho}-{tema}-{pantalla}.png. Los errores de JS de cada página fallan la prueba.
 async function visualPass(browser, viewport, colorScheme) {
   const tag = viewport.width + '-' + colorScheme;
   const shoot = async (page, name) => {
@@ -213,9 +214,31 @@ async function visualPass(browser, viewport, colorScheme) {
   await page.waitForSelector('#s-yo:not([hidden])');
   await page.evaluate(() => window.__fakeLogin());
   await page.waitForSelector('#s-yo #logout');
+  await page.waitForSelector('#s-yo #account #to-history');
   await check('yo-con-cuenta');
+  // El resultado con sesión (aviso del guardado y «Mis respuestas» en el mismo renglón) y Mis respuestas.
+  await page.click('#tabbar [data-tab=descubre]');
+  await page.waitForFunction(() => /Guardado en tu cuenta/.test((document.getElementById('save-note') || {}).textContent || ''));
+  await check('cuestionario-resultado-cuenta');
+  await page.click('#s-result #result-history');
+  await page.waitForSelector('#s-history:not([hidden]) details.attempt');
+  await check('mis-respuestas');
   assert.deepEqual(errors, [], 'errores de JS (' + tag + ')');
   await ctx.close();
+
+  // Resultados con Investigación primero (sin vacante propia) y con Ciencia de datos primero (línea «Meta a …»).
+  const ctxQ = await browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1 });
+  const q = await openHome(ctxQ);
+  await q.page.click('#door-quiz');
+  await answerQuiz(q.page, keysFor('inv'));
+  await q.page.waitForSelector('#s-result #no-vacancy');
+  await shoot(q.page, 'cuestionario-resultado-inv');
+  await q.page.click('#s-result #quiz-again');
+  await answerQuiz(q.page, keysFor('ml'));
+  await q.page.waitForSelector('#s-result #sugg-level');
+  await shoot(q.page, 'cuestionario-resultado-ml');
+  assert.deepEqual(q.errors, [], 'errores de JS en los resultados (' + tag + ')');
+  await ctxQ.close();
 
   // Vista docente con filas sembradas (incluida una con correo largo y otra de otra versión).
   const ctxT = await browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1 });
@@ -628,6 +651,19 @@ async function descubreScenarios(browser, setStep) {
   await page.setViewportSize({ width: 320, height: 640 });
   assert.equal(await page.evaluate(noHScroll), true, 'sin scroll horizontal a 320 px');
   await page.setViewportSize({ width: 390, height: 844 });
+
+  setStep('Descubre: con Tab, el foco no queda tapado por la barra inferior');
+  await page.focus('#s-result #result-goal');
+  for (let i = 0; i < 8; i++) {
+    await page.keyboard.press('Tab');
+    const f = await page.evaluate(() => {
+      const e = document.activeElement;
+      if (!e || !e.closest('#s-result')) return null;
+      return { bottom: e.getBoundingClientRect().bottom, bar: document.getElementById('tabbar').getBoundingClientRect().top, t: e.textContent.trim() };
+    });
+    if (!f) break;
+    assert.ok(f.bottom <= f.bar, '«' + f.t + '» queda bajo la barra inferior (' + f.bottom + ' > ' + f.bar + ')');
+  }
 
   setStep('Descubre: «Ver detalle» plegado');
   assert.equal(await page.evaluate(() => document.querySelector('#s-result details.result-more').open), false, 'cerrado al llegar');
@@ -1543,6 +1579,10 @@ async function main() {
     if (process.env.E2E_ONLY === 'shared') { await sharedStateScenarios(browser, (t) => { step = t; }); console.log('e2e (solo shared): OK'); return; }
     if (process.env.E2E_ONLY === 'entrada') { await entradaScenarios(browser, (t) => { step = t; }); console.log('e2e (solo entrada): OK'); return; }
     if (process.env.E2E_ONLY === 'descubre') { await descubreScenarios(browser, (t) => { step = t; }); console.log('e2e (solo descubre): OK'); return; }
+    if (process.env.E2E_ONLY === 'visual') {
+      for (const vp of [{ width: 360, height: 780 }, { width: 390, height: 844 }]) for (const cs of ['light', 'dark']) { step = 'revisión visual ' + vp.width + ' px, tema ' + cs; await visualPass(browser, vp, cs); }
+      console.log('e2e (solo visual): OK'); return;
+    }
     step = 'primera visita sin cuenta: entrada y elegir meta';
     const { page, errors } = await openHome(context, { clock: '2026-11-10T10:00:00' });
     await page.waitForSelector('#s-entrada:not([hidden])');
@@ -2030,7 +2070,7 @@ async function main() {
 
     await miniLineScenarios(browser, (t) => { step = t; });
 
-    for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    for (const vp of [{ width: 360, height: 780 }, { width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       for (const cs of ['light', 'dark']) {
         step = 'revisión visual ' + vp.width + ' px, tema ' + cs;
         await visualPass(browser, vp, cs);
