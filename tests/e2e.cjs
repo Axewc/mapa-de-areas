@@ -1164,7 +1164,7 @@ async function descubreScenarios(browser, setStep) {
   assert.deepEqual(Fo.errors, []);
   await ctxFo.close();
 
-  setStep('Descubre: «Guardado en tu cuenta.» solo para la cuenta que lo subió');
+  setStep('Descubre: un resultado ya subido no cruza a otra cuenta; «Guardado en tu cuenta.» solo para la suya');
   const ctxAB = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const AB = await openHome(ctxAB, { session: true });
   await AB.page.waitForFunction(() => !!session);
@@ -1182,18 +1182,31 @@ async function descubreScenarios(browser, setStep) {
   await AB.page.waitForSelector('#s-result:not([hidden]) #device-note');
   await AB.page.evaluate(() => {
     const orig = saveAttempt;
-    window.__rel = [];
-    window.saveAttempt = function () { const a = arguments; return new Promise((r) => { window.__rel.push(r); }).then(() => orig.apply(null, a)); };
+    window.__calls = 0;
+    window.saveAttempt = function () { window.__calls++; return orig.apply(null, arguments); };
   });
+  // Entra Beto en el mismo navegador: el resultado de Ana ya está subido y no cruza a su cuenta.
   await AB.page.evaluate(() => window.__fakeLogin({ id: 'u2', email: 'beto@test.mx' }));
   await AB.page.waitForSelector('#s-result #save-note');
-  await AB.page.waitForFunction(() => window.__rel.length === 1, null, { timeout: 5000 });
-  assert.equal(await AB.page.textContent('#save-note'), 'Guardando tu resultado en tu cuenta…', 'para Beto no está guardado todavía');
-  assert.equal((await answerRows(AB.page)).filter((r) => r.user_id === 'u2').length, 0);
-  await AB.page.evaluate(() => window.__rel[0]());
-  await AB.page.waitForFunction(() => /Guardado en tu cuenta/.test(document.getElementById('save-note').textContent));
-  assert.equal((await answerRows(AB.page)).filter((r) => r.user_id === 'u2').length, 1, 'ahora sí hay una fila de Beto');
-  assert.equal((await quizRec(AB.page)).uid, 'u2');
+  await AB.page.waitForFunction(() => pendingSyncs.length === 0);
+  await AB.page.waitForTimeout(400);
+  assert.equal(await AB.page.evaluate(() => window.__calls), 0, 'no se intenta subir');
+  assert.equal((await answerRows(AB.page)).filter((r) => r.user_id === 'u2').length, 0, 'Beto no tiene filas');
+  assert.equal(await AB.page.textContent('#save-note'), 'Este resultado se guardó en otra cuenta; no se sube a la tuya.', 'sin «Guardado en tu cuenta.»');
+  assert.deepEqual(await quizRec(AB.page), { v: 3, t: (await quizRec(AB.page)).t, answers: exp.ans, up: 1, uid: 'u1' }, 'la marca sigue siendo de Ana');
+  assert.equal(await AB.page.evaluate(() => pendingQuiz()), null, 'nada pendiente: «Cerrar sesión» no se bloquea');
+  // Beto sale sin borrar y vuelve Ana: sigue con su única fila y recupera su aviso.
+  await AB.page.click('#tabbar [data-tab=yo]');
+  await AB.page.evaluate(() => document.getElementById('logout-keep').click());
+  await AB.page.waitForSelector('#s-yo button:has-text("Guarda tu progreso en la nube")');
+  await AB.page.click('#tabbar [data-tab=descubre]');
+  await AB.page.waitForSelector('#s-result:not([hidden]) #device-note');
+  await AB.page.evaluate(() => window.__fakeLogin({ id: 'u1', email: 'alumno@test.mx' }));
+  await AB.page.waitForFunction(() => /^Guardado en tu cuenta\.$/.test((document.getElementById('save-note') || {}).textContent || ''));
+  await AB.page.waitForTimeout(400);
+  assert.equal(await AB.page.evaluate(() => window.__calls), 0);
+  assert.equal((await answerRows(AB.page)).filter((r) => r.user_id === 'u1').length, 1, 'Ana sigue con una fila');
+  assert.equal((await answerRows(AB.page)).length, 1);
   assert.deepEqual(AB.errors, []);
   await ctxAB.close();
 

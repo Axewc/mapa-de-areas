@@ -29,6 +29,7 @@ var uploadingUid = null; // y a qué cuenta (otra cuenta lo sube aparte, aunque 
 var uploadingP = null; // promesa de esa subida (la devuelve uploadQuiz() si se pide otra vez el mismo intento y cuenta)
 var copyTimer = null;
 var SAVED_NOTE = 'Guardado en tu cuenta.';
+var OTHER_NOTE = 'Este resultado se guardó en otra cuenta; no se sube a la tuya.';
 var QUIZ_LOCK = 'mapa.quiz.upload'; // Web Lock que hace exclusiva la subida entre pestañas
 // Tras marcar el intento, el lock se suelta QUIZ_SETTLE_MS después: un cambio de localStorage tarda unos milisegundos
 // en llegar a las otras pestañas (procesos distintos), y la siguiente en tomar el lock debe ya ver la marca.
@@ -47,15 +48,20 @@ function savedQuiz() {
 // Cuenta de la sesión actual (o null).
 function sessionUid() { return session && session.user ? session.user.id : null; }
 
-// ¿El intento q ya está en la cuenta de la sesión actual? Por su marca (up y uid; una marca sin uid, de antes, no
-// cuenta) o porque esta pestaña lo subió aunque no pudo escribir la marca (upMem).
+// ¿El intento q ya se subió a alguna cuenta? Por su marca (up: 1, sea cual sea su uid o aunque no tenga) o porque
+// esta pestaña lo subió aunque no pudo escribir la marca (upMem). Un intento subido no se vuelve a subir a otra cuenta.
 function isUploaded(q) {
-  var uid = sessionUid();
-  if (!q || uid === null) return false;
-  return (q.up === 1 && q.uid === uid) || upMem[q.t] === uid;
+  return !!q && (q.up === 1 || upMem.hasOwnProperty(String(q.t)));
 }
 
-// Intento guardado (dispositivo o memoria) que aún no está en la cuenta de la sesión; si no hay: null.
+// Cuenta a la que se subió el intento q (su uid o el de upMem), o null si no se sabe o no se subió.
+function uploadedUid(q) {
+  if (!q) return null;
+  if (upMem.hasOwnProperty(String(q.t))) return upMem[q.t];
+  return q.up === 1 && typeof q.uid === 'string' ? q.uid : null;
+}
+
+// Intento guardado (dispositivo o memoria) que aún no está en ninguna cuenta; si no hay: null.
 function pendingQuiz() {
   var q = loadQuiz(storage, SETS[3]) || quizMem;
   return q && !isUploaded(q) ? q : null;
@@ -267,13 +273,17 @@ function saveResult(ans) {
   saveQuiz(storage, ans, t);
 }
 
-// Aviso del guardado en la cuenta del intento t: el de su última subida en esta visita o, si ya está en la cuenta, «Guardado…».
+// Aviso del guardado en la cuenta del intento t: el de su última subida en esta visita; si ya está en la cuenta de la
+// sesión, «Guardado…»; si se subió a otra cuenta conocida, que se guardó en otra cuenta; si la cuenta no se sabe, nada.
 function saveNoteFor(t) {
   if (t === null) return '';
   var key = sessionUid() + ':' + t;
   if (saveNotes[key]) return saveNotes[key];
   var q = loadQuiz(storage, SETS[3]) || quizMem;
-  return q && q.t === t && isUploaded(q) ? SAVED_NOTE : '';
+  if (!q || q.t !== t || !isUploaded(q)) return '';
+  var owner = uploadedUid(q);
+  if (owner === null) return '';
+  return owner === sessionUid() ? SAVED_NOTE : OTHER_NOTE;
 }
 
 // Aviso de la subida del intento t a la cuenta uid; se muestra solo si es el intento en pantalla y la cuenta actual.
@@ -327,9 +337,9 @@ function uploadQuiz() {
 // Sin Web Locks (o si fallan): reclamo con ficha propia, espera aleatoria y relectura. Nunca rechaza.
 function uploadByClaim(t, ans, uid) {
   var cid = String(Math.random()).slice(2) + '-' + Date.now();
-  if (!claimQuizUpload(storage, t, Date.now(), cid, uid)) return Promise.resolve(); // otra pestaña lo está subiendo
+  if (!claimQuizUpload(storage, t, Date.now(), cid)) return Promise.resolve(); // otra pestaña lo está subiendo
   return new Promise(function (resolve) { setTimeout(resolve, 50 + Math.floor(Math.random() * 101)); }).then(function () {
-    if (!ownsQuizClaim(storage, t, cid, uid)) return null; // otra pestaña reclamó después: sube ella
+    if (!ownsQuizClaim(storage, t, cid)) return null; // otra pestaña reclamó después: sube ella
     return uploadInsert(t, ans, true, uid);
   });
 }
