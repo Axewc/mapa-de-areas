@@ -538,6 +538,19 @@ function expectedResult(keys) {
   };
 }
 // Teclas que llevan a un área primero: en cada pregunta, la opción con más puntos de esa área (a igualdad, la que da menos a las demás).
+// Primeras teclas (en orden) con las que «Por qué te salió» tiene una sola respuesta; null si no hay ninguna.
+function oneWhyKeys() {
+  const qs = SETS[3].qs, a = [];
+  const rec = (i) => {
+    if (i === qs.length) {
+      const r = scoreAnswers(a, 3);
+      return whyAnswers(SETS[3], a, r[0].key).length === 1 ? a.map((x) => x + 1).join('') : null;
+    }
+    for (let o = 0; o < qs[i].opts.length; o++) { a.push(o); const k = rec(i + 1); a.pop(); if (k) return k; }
+    return null;
+  };
+  return rec(0);
+}
 function keysFor(area) {
   return SETS[3].qs.map((q) => {
     let best = 0, bestKey = null;
@@ -1103,6 +1116,140 @@ async function descubreScenarios(browser, setStep) {
   assert.equal((await answerRows(Dp.page)).length, 2, 'dos intentos, dos filas');
   assert.deepEqual(Dp.errors, []);
   await ctxD.close();
+
+  setStep('Descubre: «Por qué te salió» con una sola respuesta');
+  const k1 = oneWhyKeys();
+  assert.ok(k1, 'hay combinaciones con una sola respuesta');
+  const e1 = expectedResult(k1);
+  assert.equal(e1.why.length, 1);
+  const ctxW1 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const W1 = await openHome(ctxW1);
+  await W1.page.click('#door-quiz');
+  await answerQuiz(W1.page, k1);
+  assert.equal(await W1.page.textContent('#s-result #why-intro'), 'La respuesta que más te acercó a esta área:');
+  assert.deepEqual(await textsOf(W1.page, '#s-result .why-list .why-a'), e1.why);
+  // «Borrar mis datos» sin sesión: menciona el resultado y no la cuenta.
+  await W1.page.click('#tabbar [data-tab=yo]');
+  const hint0 = await W1.page.locator('#s-yo button.danger').locator('xpath=../preceding-sibling::p[1]').textContent();
+  assert.equal(hint0, 'Borra de este dispositivo tu progreso de estudio y tu último resultado del cuestionario.');
+  assert.deepEqual(W1.errors, []);
+  await ctxW1.close();
+
+  setStep('Descubre: al redibujar el resultado (inicio de sesión) el foco se queda en su botón');
+  const ctxFo = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const Fo = await openHome(ctxFo);
+  await Fo.page.click('#door-quiz');
+  await answerQuiz(Fo.page, '11111111');
+  await Fo.page.focus('#s-result #quiz-again');
+  const y0 = await Fo.page.evaluate(() => window.scrollY);
+  assert.ok(y0 > 0, 'el botón está más abajo del primer pantallazo');
+  await Fo.page.evaluate(() => window.__fakeLogin());
+  await Fo.page.waitForSelector('#s-result #save-note');
+  assert.equal(await Fo.page.evaluate(() => document.activeElement.id), 'quiz-again', 'el foco sigue en «Volver a hacerlo»');
+  // El pie con sesión es un poco más bajo, así que el navegador puede subir la página lo que se acortó; no salta arriba.
+  const vis = await Fo.page.evaluate(() => { const r = document.activeElement.getBoundingClientRect(); return { y: window.scrollY, top: r.top, bottom: r.bottom, bar: document.getElementById('tabbar').getBoundingClientRect().top }; });
+  assert.ok(vis.y > 0 && vis.top >= 0 && vis.bottom <= vis.bar, 'el botón sigue a la vista: ' + JSON.stringify(vis));
+  // Un redibujo que no cambia la altura no mueve la página.
+  const y1 = await Fo.page.evaluate(() => window.scrollY);
+  await Fo.page.evaluate(() => refreshScreen());
+  assert.equal(await Fo.page.evaluate(() => document.activeElement.id), 'quiz-again');
+  assert.equal(await Fo.page.evaluate(() => window.scrollY), y1, 'y la página no se movió');
+  await Fo.page.focus('#s-result #result-more-sum');
+  await Fo.page.evaluate(() => refreshScreen());
+  assert.equal(await Fo.page.evaluate(() => document.activeElement.id), 'result-more-sum', 'también en «Ver detalle»');
+  await Fo.page.focus('#s-result .res-others .line-link');
+  const linkLine = await Fo.page.evaluate(() => document.activeElement.getAttribute('data-line'));
+  await Fo.page.evaluate(() => refreshScreen());
+  assert.equal(await Fo.page.evaluate(() => document.activeElement.getAttribute('data-line')), linkLine, 'y en un enlace de línea');
+  assert.deepEqual(Fo.errors, []);
+  await ctxFo.close();
+
+  setStep('Descubre: «Guardado en tu cuenta.» solo para la cuenta que lo subió');
+  const ctxAB = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const AB = await openHome(ctxAB, { session: true });
+  await AB.page.waitForFunction(() => !!session);
+  await AB.page.click('#door-quiz');
+  await answerQuiz(AB.page, '11111111');
+  await AB.page.waitForFunction(() => /Guardado en tu cuenta/.test(document.getElementById('save-note').textContent));
+  assert.equal((await quizRec(AB.page)).uid, 'u1', 'la marca dice de quién es');
+  // «Borrar mis datos» con sesión: también dice dónde se borran los intentos de la cuenta.
+  await AB.page.click('#tabbar [data-tab=yo]');
+  assert.match(await AB.page.locator('#s-yo button.danger').locator('xpath=../preceding-sibling::p[1]').textContent(), /tu último resultado del cuestionario[^]*se borran desde Mis respuestas\.$/);
+  await AB.page.evaluate(() => document.getElementById('logout-keep').click()); // «Cerrar sesión sin borrar» (oculto hasta que falla algo)
+  await AB.page.waitForSelector('#s-yo button:has-text("Guarda tu progreso en la nube")');
+  assert.equal((await quizRec(AB.page)).up, 1, 'sin borrar, la marca de Ana se queda');
+  await AB.page.click('#tabbar [data-tab=descubre]');
+  await AB.page.waitForSelector('#s-result:not([hidden]) #device-note');
+  await AB.page.evaluate(() => {
+    const orig = saveAttempt;
+    window.__rel = [];
+    window.saveAttempt = function () { const a = arguments; return new Promise((r) => { window.__rel.push(r); }).then(() => orig.apply(null, a)); };
+  });
+  await AB.page.evaluate(() => window.__fakeLogin({ id: 'u2', email: 'beto@test.mx' }));
+  await AB.page.waitForSelector('#s-result #save-note');
+  await AB.page.waitForFunction(() => window.__rel.length === 1, null, { timeout: 5000 });
+  assert.equal(await AB.page.textContent('#save-note'), 'Guardando tu resultado en tu cuenta…', 'para Beto no está guardado todavía');
+  assert.equal((await answerRows(AB.page)).filter((r) => r.user_id === 'u2').length, 0);
+  await AB.page.evaluate(() => window.__rel[0]());
+  await AB.page.waitForFunction(() => /Guardado en tu cuenta/.test(document.getElementById('save-note').textContent));
+  assert.equal((await answerRows(AB.page)).filter((r) => r.user_id === 'u2').length, 1, 'ahora sí hay una fila de Beto');
+  assert.equal((await quizRec(AB.page)).uid, 'u2');
+  assert.deepEqual(AB.errors, []);
+  await ctxAB.close();
+
+  setStep('Descubre: si el almacenamiento no deja escribir la marca, la subida cuenta igual');
+  const ctxQ6 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  // Después de sembrar «mapa.quiz», escribir esa llave lanza (cuota llena); lo demás sí se puede escribir.
+  await ctxQ6.addInitScript(() => {
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) {
+      if (this === window.localStorage && k === 'mapa.quiz' && window.sessionStorage.getItem('e2e.quiz')) throw new Error('cuota');
+      return orig.call(this, k, v);
+    };
+  });
+  const Q6 = await openHome(ctxQ6, { session: true, quiz: unmarked });
+  await Q6.page.waitForSelector('#s-result:not([hidden])');
+  await Q6.page.waitForFunction(() => /Guardado en tu cuenta/.test((document.getElementById('save-note') || {}).textContent || ''));
+  assert.equal((await quizRec(Q6.page)).up, undefined, 'la marca no se pudo escribir');
+  await Q6.page.click('#tabbar [data-tab=mapa]');
+  await Q6.page.click('#tabbar [data-tab=descubre]');
+  await Q6.page.waitForSelector('#s-result:not([hidden])');
+  await Q6.page.waitForTimeout(300);
+  assert.equal((await answerRows(Q6.page)).length, 1, 'reabrir no vuelve a subirlo');
+  assert.match(await Q6.page.textContent('#save-note'), /Guardado en tu cuenta/);
+  await Q6.page.click('#tabbar [data-tab=yo]');
+  await Q6.page.click('#s-yo #logout');
+  await Q6.page.waitForSelector('#s-entrada:not([hidden])', { timeout: 10000 });
+  assert.equal((await answerRows(Q6.page)).length, 1, 'cerrar sesión no queda bloqueado ni inserta otra fila');
+  assert.deepEqual(Q6.errors, []);
+  await ctxQ6.close();
+
+  for (const which of ['history', 'admin']) {
+    setStep('Descubre: ' + which + ' se deja al cerrar sesión o borrar en otra pestaña');
+    const ctxP2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const PA = await openHome(ctxP2, { session: true, admin: which === 'admin', local: JSON.stringify(progressState()) });
+    const PB = await openHome(ctxP2, { session: true, admin: which === 'admin' });
+    const openPrivate = async () => {
+      await PB.page.evaluate((w) => { if (w === 'history') renderHistory(); else renderAdmin(); }, which);
+      await PB.page.waitForSelector('#s-' + which + ':not([hidden])');
+    };
+    await openPrivate();
+    // La otra pestaña cierra sesión (borra lo local): esta recibe el evento storage y deja la pantalla.
+    await PA.page.click('#tabbar [data-tab=yo]');
+    if (which === 'history') await PA.page.click('#s-yo #logout');
+    else { const d = PA.page.locator('#s-yo button.danger'); await d.click(); await d.click(); }
+    await PA.page.waitForSelector('#s-entrada:not([hidden])', { timeout: 10000 });
+    await PB.page.waitForSelector('#s-' + which, { state: 'hidden' });
+    assert.equal(await PB.page.evaluate(() => currentScreen === 'entrada' || currentScreen === 'hoy'), true);
+    // Cierre de sesión sin borrado local: el falso de esta página no se entera de otra pestaña, así que se simula el
+    // SIGNED_OUT que supabase-js emite en las demás pestañas (__fakeLogout).
+    await openPrivate();
+    await PB.page.evaluate(() => window.__fakeLogout());
+    await PB.page.waitForSelector('#s-' + which, { state: 'hidden' });
+    assert.deepEqual(PA.errors, []);
+    assert.deepEqual(PB.errors, []);
+    await ctxP2.close();
+  }
 
   setStep('Descubre: sin localStorage el resultado y «Elegir como meta» funcionan');
   const ctxN = await browser.newContext({ viewport: { width: 390, height: 844 } });

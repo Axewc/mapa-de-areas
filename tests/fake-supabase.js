@@ -5,6 +5,7 @@
 //   window.__failDelete → los delete devuelven error
 //   window.__seed.session → sesión iniciada al cargar (si no, desconectado)
 //   window.__fakeLogin(usuario?) → inicia sesión y avisa SIGNED_IN a los listeners; con { id, email } entra como otra persona
+//   window.__fakeLogout() → cierra la sesión y avisa SIGNED_OUT, como cuando se cierra la sesión en otra pestaña
 //   window.__failSync   → el select de mapa_progreso devuelve error
 //   window.__failQuiz   → el select de mapa_respuestas devuelve error
 //   window.__selectCount → cuántos select se han hecho (para comprobar que un filtro no vuelve a consultar)
@@ -22,6 +23,10 @@
     if (user) USER = user;
     session = { user: USER };
     listeners.forEach(function (fn) { fn('SIGNED_IN', session); });
+  };
+  window.__fakeLogout = function () {
+    session = null;
+    listeners.forEach(function (fn) { fn('SIGNED_OUT', null); });
   };
   var clock = Date.parse('2026-11-10T12:00:00Z');
   var nextId = 1;

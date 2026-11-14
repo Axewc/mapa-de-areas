@@ -87,7 +87,8 @@ function saveQuiz(storage, answers, now) {
 }
 
 // Subida del último intento a la cuenta. En «mapa.quiz» se agregan campos que validQuiz tolera:
-// up: 1 cuando ya está en mapa_respuestas. Solo donde no hay Web Locks, un reclamo para que otra pestaña no lo suba
+// up: 1 y uid (id de la cuenta) cuando ya está en mapa_respuestas de esa cuenta; para otra cuenta sigue pendiente.
+// Solo donde no hay Web Locks, un reclamo para que otra pestaña no lo suba
 // a la vez: c (ms en que una pestaña lo reclamó) y cid (ficha aleatoria de esa pestaña).
 // Un reclamo de más de QUIZ_CLAIM_MS (o con reloj al revés) se considera abandonado.
 var QUIZ_CLAIM_MS = 60000;
@@ -110,32 +111,32 @@ function quizUpdate(storage, t, fn) {
 // Reclama la subida del intento t con la ficha cid: false si ya está en la cuenta, si otra pestaña lo reclamó hace
 // menos de QUIZ_CLAIM_MS, si ya no es el intento guardado o si no se pudo escribir. Leer y escribir no es atómico
 // entre pestañas: quien reclama espera un poco y confirma con ownsQuizClaim antes de subir.
-function claimQuizUpload(storage, t, now, cid) {
+function claimQuizUpload(storage, t, now, cid, uid) {
   return quizUpdate(storage, t, function (q) {
-    if (q.up === 1) return false;
+    if (q.up === 1 && q.uid === uid) return false;
     if (typeof q.c === 'number' && now >= q.c && now - q.c < QUIZ_CLAIM_MS) return false;
     q.c = now;
     q.cid = cid;
   });
 }
 
-// ¿El reclamo del intento t (aún sin subir) sigue siendo el de la ficha cid? Nunca lanza.
-function ownsQuizClaim(storage, t, cid) {
+// ¿El reclamo del intento t (aún sin subir a la cuenta uid) sigue siendo el de la ficha cid? Nunca lanza.
+function ownsQuizClaim(storage, t, cid, uid) {
   if (!storage) return false;
   try {
     var q = JSON.parse(storage.getItem(QUIZ_KEY));
-    return !!q && typeof q === 'object' && q.t === t && q.up !== 1 && q.cid === cid;
+    return !!q && typeof q === 'object' && q.t === t && !(q.up === 1 && q.uid === uid) && q.cid === cid;
   } catch (e) {
     return false;
   }
 }
 
-// Termina la subida del intento t: quita el reclamo y, si ok, lo marca como subido (up: 1).
-function finishQuizUpload(storage, t, ok) {
+// Termina la subida del intento t: quita el reclamo y, si ok, lo marca como subido a la cuenta uid (up: 1, uid).
+function finishQuizUpload(storage, t, ok, uid) {
   return quizUpdate(storage, t, function (q) {
     delete q.c;
     delete q.cid;
-    if (ok) q.up = 1;
+    if (ok) { q.up = 1; q.uid = uid; }
   });
 }
 

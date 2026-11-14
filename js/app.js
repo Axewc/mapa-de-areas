@@ -189,7 +189,9 @@ function bootAuth() {
       syncAndRefresh();
     } else if (ev === 'SIGNED_OUT') {
       isAdmin = false;
-      refreshScreen();
+      // Mis respuestas y la vista docente muestran datos de la cuenta: al cerrarse la sesión (también desde otra pestaña) se dejan.
+      if (currentScreen === 'history' || currentScreen === 'admin') renderInicio();
+      else refreshScreen();
     }
   });
 }
@@ -215,14 +217,17 @@ window.addEventListener('storage', function (e) {
   var wipe = isWipeEvent(e);
   if (!wipe && !(e.key === QUIZ_KEY && e.newValue === null)) return;
   forgetQuiz();
+  // Mis respuestas y la vista docente tampoco se quedan a la vista tras un borrado (o un cierre de sesión) en otra pestaña.
+  var privateScreen = currentScreen === 'history' || currentScreen === 'admin';
   if (!wipe) {
     if (currentScreen === 'descubre' || currentScreen === 'result') renderDescubre(true);
+    else if (privateScreen) renderInicio();
     return;
   }
   dataEpoch++; // una sincronización en curso no devuelve el progreso borrado
   state = emptyState();
   sesRun = null;
   if (currentScreen === 'descubre' || currentScreen === 'result') renderDescubre(true);
-  else if (['quiz', 'history', 'admin'].indexOf(currentScreen) === -1) renderInicio();
+  else if (currentScreen !== 'quiz') renderInicio(); // también desde Mis respuestas y la vista docente
   showNotice('Se borró tu progreso de este dispositivo desde otra pestaña.');
 });

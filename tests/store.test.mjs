@@ -270,6 +270,21 @@ test('claimQuizUpload y finishQuizUpload: otro intento, sin storage, roto o si s
   assert.equal(claimQuizUpload(lleno, T, T), false);
   assert.equal(claimQuizUpload(fakeQ({ 'mapa.quiz': JSON.stringify({ v: 3, t: T, answers: ANS }) }, { get: true }), T, T), false);
 });
+test('marca de subida por cuenta (uid): subido para una cuenta sigue pendiente para otra', () => {
+  const { claimQuizUpload, ownsQuizClaim, finishQuizUpload } = require('../js/store.js');
+  const st = fakeQ({});
+  saveQuiz(st, ANS, T);
+  assert.equal(claimQuizUpload(st, T, T, 'a', 'ana'), true);
+  assert.equal(finishQuizUpload(st, T, true, 'ana'), true);
+  assert.deepEqual(loadQuiz(st, Q8), { v: 3, t: T, answers: ANS, up: 1, uid: 'ana' }, 'uid no invalida el intento');
+  assert.equal(claimQuizUpload(st, T, T + 1, 'b', 'ana'), false, 'ya está en la cuenta de Ana');
+  assert.equal(claimQuizUpload(st, T, T + 1, 'b', 'beto'), true, 'para Beto sigue pendiente');
+  assert.equal(ownsQuizClaim(st, T, 'b', 'beto'), true);
+  assert.equal(ownsQuizClaim(st, T, 'b', 'ana'), false, 'para Ana ya estaba subido');
+  assert.equal(finishQuizUpload(st, T, true, 'beto'), true);
+  assert.deepEqual(JSON.parse(st.getItem('mapa.quiz')), { v: 3, t: T, answers: ANS, up: 1, uid: 'beto' });
+  assert.equal(claimQuizUpload(st, T, T + 2, 'c', 'beto'), false);
+});
 test('ownsQuizClaim: solo la ficha del último reclamo, del mismo intento y sin subir', () => {
   const { claimQuizUpload, ownsQuizClaim, finishQuizUpload, QUIZ_CLAIM_MS } = require('../js/store.js');
   const st = fakeQ({});

@@ -111,7 +111,7 @@ function accountCard() {
 }
 
 function deleteCard() {
-  var hint = el('p', { class: 'small', 'aria-live': 'polite', text: 'Borra tu progreso de estudio de este dispositivo' + (session ? ' y de la nube. Otros dispositivos con tu sesión abierta pueden volver a subir su copia hasta que cierren sesión o borren allí también' : '') + '.' });
+  var hint = el('p', { class: 'small', 'aria-live': 'polite', text: 'Borra de este dispositivo tu progreso de estudio y tu último resultado del cuestionario' + (session ? '. El progreso también se borra de la nube; otros dispositivos con tu sesión abierta pueden volver a subir su copia hasta que cierren sesión o borren allí también. Tus intentos del cuestionario guardados en la cuenta se borran desde Mis respuestas' : '') + '.' });
   var del = el('button', { class: 'btn ghost danger', type: 'button', text: 'Borrar mis datos' });
   var armed = false;
   del.addEventListener('click', function () {

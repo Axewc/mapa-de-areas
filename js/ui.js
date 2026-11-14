@@ -41,12 +41,32 @@ var SCREEN_TITLE = { pick: 'Elige tu meta', hoy: 'Hoy', mapa: 'Mapa', linea: 'L�
 var tabNav = false; // true mientras se atiende un clic en la barra inferior (app.js)
 // Dirección de la navegación en curso ('forward' | 'backward' | null), para show(). La pone withDir().
 var navDir = null;
-// Pantalla donde estuvo el último foco (null: fuera de las pantallas o aún sin foco).
+// Pantalla donde estuvo el último foco (null: fuera de las pantallas o aún sin foco) y una llave estable del control
+// enfocado (focusKey), para devolverle el foco si un redibujo con keep lo reemplaza.
 var lastFocusScreen = null;
+var lastFocusKey = null;
 if (typeof document !== 'undefined') document.addEventListener('focusin', function (e) {
   var sec = e.target && e.target.closest ? e.target.closest('main > section[id^="s-"]') : null;
   lastFocusScreen = sec ? sec.id.slice(2) : null;
+  lastFocusKey = sec ? focusKey(e.target) : null;
 });
+
+// Llave de un control que sobrevive a un redibujo: su id; si no, su data-line (enlaces y filas de línea); si no, su
+// etiqueta y su texto. Los títulos enfocados por programa (tabindex="-1") no cuentan.
+function focusKey(n) {
+  if (!n || !n.tagName || n.getAttribute('tabindex') === '-1') return null;
+  if (n.id) return '#' + n.id;
+  if (n.getAttribute('data-line')) return n.tagName + '|' + n.className + '|' + n.getAttribute('data-line');
+  return n.tagName + '|' + n.textContent.trim();
+}
+
+// Control de la pantalla con esa llave (el primero), o null.
+function findByFocusKey(screen, key) {
+  if (!screen || !key) return null;
+  var all = screen.querySelectorAll('button, a[href], summary, input, select, textarea, [tabindex="0"]');
+  for (var i = 0; i < all.length; i++) if (focusKey(all[i]) === key && all[i].getClientRects().length) return all[i];
+  return null;
+}
 
 // Foco al título principal de la pantalla (h1 o, si no hay, h2), sin mover la página.
 function focusHeading(screen) {
@@ -102,7 +122,14 @@ function paintScreen(name, keep, first, fromTab) {
   if (!keep) window.scrollTo(0, 0);
   // Al arrancar (sin interacción todavía) no se toma el foco.
   var lost = !document.activeElement || document.activeElement === document.body;
-  if (keep ? (lost && lastFocusScreen === name) : (!first && (!fromTab || NO_TABBAR[name]))) focusHeading(screens[name]);
+  if (keep) {
+    // Redibujo de la misma pantalla (sesión, sincronización…): si el control enfocado se reemplazó, el foco vuelve a su
+    // equivalente nuevo sin mover la página; si ya no existe, al título.
+    if (!lost || lastFocusScreen !== name) return;
+    var again = findByFocusKey(screens[name], lastFocusKey);
+    if (again) again.focus({ preventScroll: true });
+    else focusHeading(screens[name]);
+  } else if (!first && (!fromTab || NO_TABBAR[name])) focusHeading(screens[name]);
 }
 
 // Aviso discreto: uno a la vez, se cierra solo a los 6 s o con su botón. #notices es role="status".

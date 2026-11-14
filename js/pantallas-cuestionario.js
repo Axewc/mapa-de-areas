@@ -11,7 +11,7 @@ var current = 0;
 var locked = false;   // true entre un toque y la pregunta siguiente, y desde la última respuesta hasta el próximo startQuiz()
 var quizFrom = null;  // pantalla desde la que se empezó: a ella vuelve «← Atrás» en la primera pregunta
 
-// Último resultado en memoria ({ v: 3, t, answers, up? }): lo único que queda sin localStorage (se pierde al recargar).
+// Último resultado en memoria ({ v: 3, t, answers }): lo único que queda sin localStorage (se pierde al recargar).
 var quizMem = null;
 // «Ahora no» de la tarjeta de Hoy, en memoria (sin localStorage no se puede recordar entre visitas).
 var tipHidden = false;
@@ -20,10 +20,13 @@ var tipHidden = false;
 // (llave: su t) y el párrafo del aviso en pantalla.
 var resultShown = null;
 var resultT = null;
-var saveNotes = {};
+var saveNotes = {}; // llave: «uid:t» (el aviso de una cuenta no vale para otra)
+// Intentos que esta pestaña subió, aunque no se haya podido escribir la marca (t -> uid). Cuenta igual que up/uid.
+var upMem = {};
 var saveNode = null;
 var uploadingT = null; // t del intento que esta pestaña está subiendo
-var uploadingP = null; // promesa de esa subida (la devuelve uploadQuiz() si se pide otra vez el mismo intento)
+var uploadingUid = null; // y a qué cuenta (otra cuenta lo sube aparte, aunque sea el mismo intento)
+var uploadingP = null; // promesa de esa subida (la devuelve uploadQuiz() si se pide otra vez el mismo intento y cuenta)
 var copyTimer = null;
 var SAVED_NOTE = 'Guardado en tu cuenta.';
 var QUIZ_LOCK = 'mapa.quiz.upload'; // Web Lock que hace exclusiva la subida entre pestañas
@@ -41,10 +44,21 @@ function savedQuiz() {
   return quizMem ? quizMem.answers.slice() : null;
 }
 
-// Intento guardado (dispositivo o memoria) que aún no está en la cuenta; si no hay: null.
+// Cuenta de la sesión actual (o null).
+function sessionUid() { return session && session.user ? session.user.id : null; }
+
+// ¿El intento q ya está en la cuenta de la sesión actual? Por su marca (up y uid; una marca sin uid, de antes, no
+// cuenta) o porque esta pestaña lo subió aunque no pudo escribir la marca (upMem).
+function isUploaded(q) {
+  var uid = sessionUid();
+  if (!q || uid === null) return false;
+  return (q.up === 1 && q.uid === uid) || upMem[q.t] === uid;
+}
+
+// Intento guardado (dispositivo o memoria) que aún no está en la cuenta de la sesión; si no hay: null.
 function pendingQuiz() {
   var q = loadQuiz(storage, SETS[3]) || quizMem;
-  return q && q.up !== 1 ? q : null;
+  return q && !isUploaded(q) ? q : null;
 }
 
 // Olvida el resultado y la tarjeta en memoria («Borrar mis datos», cerrar sesión borrando y borrado desde otra pestaña).
@@ -54,6 +68,7 @@ function forgetQuiz() {
   resultShown = null;
   resultT = null;
   saveNotes = {};
+  upMem = {};
   saveNode = null;
 }
 
@@ -188,7 +203,7 @@ function resultMore(ranked, open) {
     el('li', { text: 'Elige dos áreas de tu lista, aunque una no sea la primera.' }),
     el('li', { text: 'Elige un proyecto corto de cada una (los de un fin de semana son buen comienzo) y haz el primero esta semana.' }),
     el('li', { text: 'Habla con una persona que trabaje en cada área y hazle la pregunta que te dejamos.' }));
-  var d = el('details', { class: 'result-more' }, el('summary', { text: 'Ver detalle' }),
+  var d = el('details', { class: 'result-more' }, el('summary', { id: 'result-more-sum', text: 'Ver detalle' }),
     el('div', { class: 'more-body' },
       el('section', { class: 'stack', 'aria-labelledby': 'more-bars-h' }, el('h2', { id: 'more-bars-h', text: 'Afinidad por área' }), bars,
         el('p', { class: 'fine', text: '100% significaría que en cada pregunta elegiste la respuesta que más se parece a esa área.' })),
@@ -255,14 +270,16 @@ function saveResult(ans) {
 // Aviso del guardado en la cuenta del intento t: el de su última subida en esta visita o, si ya está en la cuenta, «Guardado…».
 function saveNoteFor(t) {
   if (t === null) return '';
-  if (saveNotes[t]) return saveNotes[t];
+  var key = sessionUid() + ':' + t;
+  if (saveNotes[key]) return saveNotes[key];
   var q = loadQuiz(storage, SETS[3]) || quizMem;
-  return q && q.t === t && q.up === 1 ? SAVED_NOTE : '';
+  return q && q.t === t && isUploaded(q) ? SAVED_NOTE : '';
 }
 
-function putSaveNote(t, text) {
-  saveNotes[t] = text;
-  if (saveNode && resultT === t) saveNode.textContent = text;
+// Aviso de la subida del intento t a la cuenta uid; se muestra solo si es el intento en pantalla y la cuenta actual.
+function putSaveNote(t, text, uid) {
+  saveNotes[uid + ':' + t] = text;
+  if (saveNode && resultT === t && sessionUid() === uid) saveNode.textContent = text;
 }
 
 // Sube a mapa_respuestas, una sola vez, el último intento que aún no está en la cuenta (hecho con o sin sesión).
@@ -275,19 +292,19 @@ function putSaveNote(t, text) {
 function uploadQuiz() {
   var q = pendingQuiz();
   if (!session || deleting || !q) return Promise.resolve();
-  if (uploadingT === q.t) return uploadingP;
-  var t = q.t, ans = q.answers.slice();
+  if (uploadingT === q.t && uploadingUid === sessionUid()) return uploadingP;
+  var t = q.t, ans = q.answers.slice(), uid = sessionUid();
   var p;
   if (!loadQuiz(storage, SETS[3])) {
-    p = uploadInsert(t, ans, false); // solo en memoria: una pestaña
+    p = uploadInsert(t, ans, false, uid); // solo en memoria: una pestaña
   } else if (typeof navigator !== 'undefined' && navigator.locks && typeof navigator.locks.request === 'function') {
     // Si request lanza o su promesa se rechaza (p. ej. SecurityError en un origen opaco), sigue por el reclamo con ficha.
-    var viaClaim = function () { return uploadByClaim(t, ans); };
+    var viaClaim = function () { return uploadByClaim(t, ans, uid); };
     try {
       p = navigator.locks.request(QUIZ_LOCK, function () {
         var cur = loadQuiz(storage, SETS[3]);
-        if (!cur || cur.t !== t || cur.up === 1) return null; // otra pestaña ya lo subió (o ya hay otro intento)
-        return uploadInsert(t, ans, true).then(function (ok) {
+        if (!cur || cur.t !== t || isUploaded(cur)) return null; // otra pestaña ya lo subió (o ya hay otro intento)
+        return uploadInsert(t, ans, true, uid).then(function (ok) {
           if (ok) return new Promise(function (resolve) { setTimeout(resolve, QUIZ_SETTLE_MS); });
           return null;
         });
@@ -296,29 +313,32 @@ function uploadQuiz() {
       p = viaClaim();
     }
   } else {
-    p = uploadByClaim(t, ans);
+    p = uploadByClaim(t, ans, uid);
   }
-  var end = function () { if (uploadingT === t) { uploadingT = null; uploadingP = null; } }; // otro intento pudo empezar mientras tanto
+  var end = function () { // otro intento (u otra cuenta) pudo empezar mientras tanto
+    if (uploadingT === t && uploadingUid === uid) { uploadingT = null; uploadingUid = null; uploadingP = null; }
+  };
   uploadingT = t;
+  uploadingUid = uid;
   uploadingP = p.then(end, end);
   return uploadingP;
 }
 
 // Sin Web Locks (o si fallan): reclamo con ficha propia, espera aleatoria y relectura. Nunca rechaza.
-function uploadByClaim(t, ans) {
+function uploadByClaim(t, ans, uid) {
   var cid = String(Math.random()).slice(2) + '-' + Date.now();
-  if (!claimQuizUpload(storage, t, Date.now(), cid)) return Promise.resolve(); // otra pestaña lo está subiendo
+  if (!claimQuizUpload(storage, t, Date.now(), cid, uid)) return Promise.resolve(); // otra pestaña lo está subiendo
   return new Promise(function (resolve) { setTimeout(resolve, 50 + Math.floor(Math.random() * 101)); }).then(function () {
-    if (!ownsQuizClaim(storage, t, cid)) return null; // otra pestaña reclamó después: sube ella
-    return uploadInsert(t, ans, true);
+    if (!ownsQuizClaim(storage, t, cid, uid)) return null; // otra pestaña reclamó después: sube ella
+    return uploadInsert(t, ans, true, uid);
   });
 }
 
 // Inserta el intento t, lo marca (en localStorage si stored y en memoria) y deja el aviso. Resuelve true si se subió;
 // nunca rechaza. Si el insert no responde en QUIZ_UPLOAD_TIMEOUT_MS, resuelve como fallo (sin marca); si más tarde
 // responde bien, marca el intento entonces, para que el siguiente reintento no lo vuelva a subir.
-function uploadInsert(t, ans, stored) {
-  putSaveNote(t, 'Guardando tu resultado en tu cuenta…');
+function uploadInsert(t, ans, stored, uid) {
+  putSaveNote(t, 'Guardando tu resultado en tu cuenta…', uid);
   var insert = saveAttempt(ans, scoreAnswers(ans, 3), 3).then(function () { return { ok: true }; }, function (e) { return { ok: false, e: e }; });
   var timer = null;
   var limit = new Promise(function (resolve) {
@@ -328,13 +348,13 @@ function uploadInsert(t, ans, stored) {
   return Promise.race([insert, limit]).then(function (r) {
     if (r.late) insert.then(function (r2) {
       if (!r2.ok) return;
-      if (stored) finishQuizUpload(storage, t, true);
-      if (quizMem && quizMem.t === t) quizMem.up = 1;
-      putSaveNote(t, SAVED_NOTE);
+      if (stored) finishQuizUpload(storage, t, true, uid);
+      upMem[t] = uid;
+      putSaveNote(t, SAVED_NOTE, uid);
     });
-    if (stored) finishQuizUpload(storage, t, r.ok);
-    if (r.ok && quizMem && quizMem.t === t) quizMem.up = 1;
-    putSaveNote(t, r.ok ? SAVED_NOTE : 'No se pudo guardar en tu cuenta (' + (r.e && r.e.message ? r.e.message : 'error') + '). Se reintentará; tu resultado sigue aquí.');
+    if (stored) finishQuizUpload(storage, t, r.ok, uid);
+    if (r.ok) upMem[t] = uid; // cuenta aunque el almacenamiento no deje escribir la marca
+    putSaveNote(t, r.ok ? SAVED_NOTE : 'No se pudo guardar en tu cuenta (' + (r.e && r.e.message ? r.e.message : 'error') + '). Se reintentará; tu resultado sigue aquí.', uid);
     return r.ok;
   });
 }
@@ -363,12 +383,15 @@ function renderResult(ans, opts) {
     el('h1', { text: top.name }),
     el('p', { text: top.short })));
 
+  // Casi siempre son dos respuestas; en 33 de las 160,000 combinaciones, una. Ninguna combinación da cero (el área #1
+  // siempre recibió puntos), pero si pasara, la sección no se muestra.
+  var whyIdx = whyAnswers(SETS[3], ans, ranked[0].key);
   var why = el('ul', { class: 'why-list' });
-  whyAnswers(SETS[3], ans, ranked[0].key).forEach(function (i) {
+  whyIdx.forEach(function (i) {
     why.append(el('li', { title: QUESTIONS[i].q }, el('span', { class: 'sr-only', text: QUESTIONS[i].q + ': ' }), el('span', { class: 'why-a', text: QUESTIONS[i].opts[ans[i]].t })));
   });
-  root.append(el('section', { class: 'stack tight', 'aria-labelledby': 'why-h' }, el('h2', { id: 'why-h', text: 'Por qué te salió' }),
-    el('p', { class: 'small', text: 'Las dos respuestas que más te acercaron a esta área:' }), why));
+  if (whyIdx.length) root.append(el('section', { class: 'stack tight', 'aria-labelledby': 'why-h' }, el('h2', { id: 'why-h', text: 'Por qué te salió' }),
+    el('p', { class: 'small', id: 'why-intro', text: whyIdx.length === 1 ? 'La respuesta que más te acercó a esta área:' : 'Las dos respuestas que más te acercaron a esta área:' }), why));
 
   var lineSec = el('section', { class: 'stack tight', 'aria-labelledby': 'sugg-h' }, el('h2', { id: 'sugg-h', text: 'Tu línea sugerida' }));
   if (line && !sugg.exact) lineSec.append(el('p', { class: 'small', id: 'no-vacancy', text: 'Aún no tenemos una vacante de ' +
