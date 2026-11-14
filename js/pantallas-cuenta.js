@@ -1,4 +1,4 @@
-// Pantalla Yo (avance, meta, cuenta opcional, cuestionario, borrar datos y acceso a la vista docente) y la vista docente (renderAdmin).
+// Pantalla Yo (avance, meta, cuenta opcional con Mis respuestas, borrar datos y acceso a la vista docente) y la vista docente (renderAdmin).
 // Script clásico (ES5). Usa las globales de app.js: sb, session, isAdmin, state y storage.
 
 var PRIVACIDAD = 'Sin cuenta, nada sale de tu dispositivo. Con cuenta se guardan tu correo, tus respuestas del cuestionario y tu progreso de estudio; el profesor puede verlos; puedes borrar tu progreso aquí y tus respuestas desde Mis respuestas. Si tienes la sesión abierta en otros dispositivos, pueden volver a subir su copia hasta que cierres sesión o borres allí también.';
@@ -7,8 +7,8 @@ function statTile(value, label) {
   return el('div', { class: 'stat' }, el('b', { text: value }), el('span', { class: 'small', text: label }));
 }
 
-// Botón que despliega el formulario de acceso por correo (enlace mágico). Se usa en Yo y en Elegir meta.
-// prefix distingue los ids de cada copia (#email, #send-link y #auth-msg en Yo; #pick-email… en Elegir meta).
+// Botón que despliega el formulario de acceso por correo (enlace mágico). Se usa en Yo y en la entrada.
+// prefix distingue los ids de cada copia (#email, #send-link y #auth-msg en Yo; #pick-email… en la entrada).
 function signInBlock(prefix, openText, quiet) {
   var formId = prefix + 'login', emailId = prefix + 'email';
   var open = el('button', { class: quiet ? 'linkbtn' : 'btn ghost', type: 'button', 'aria-expanded': 'false', 'aria-controls': formId, text: openText });
@@ -54,13 +54,18 @@ function accountCard() {
     };
     // Cierra la sesión. Con wipe (lo normal, para que el siguiente en este equipo no mezcle su avance con el tuyo) primero
     // espera (con tope) a las sincronizaciones en curso, para que ninguna con un estado más viejo pise la fila después,
-    // intenta una última sincronización y, si salió bien, borra la copia de este dispositivo. Si algo falla, no borra nada.
+    // intenta una última sincronización y una última subida del resultado del cuestionario que falte y, si las dos
+    // salieron bien, borra la copia de este dispositivo. Si algo falla, no borra nada.
     var logout = function (wipe) {
       out.disabled = true;
       noWipe.disabled = true;
       msg.textContent = wipe ? 'Guardando tu avance en tu cuenta…' : '';
       (wipe
-        ? settlePending().then(function (w) { return w.timedOut ? { ok: false, discarded: false } : runSync(); })
+        ? settlePending().then(function (w) { return w.timedOut ? { ok: false, discarded: false } : runSync(); }).then(function (r) {
+          if (!r.ok) return r;
+          // El resultado del cuestionario que aún no está en la cuenta (falló o lo tiene reclamado otra pestaña) tampoco se borra.
+          return uploadQuiz().then(function () { return pendingQuiz() ? { ok: false, discarded: false, quiz: true } : r; });
+        })
         : Promise.resolve({ ok: true, discarded: false })).then(function (r) {
         if (!r.ok) {
           out.disabled = false;
@@ -69,18 +74,19 @@ function accountCard() {
           noWipe.hidden = false;
           msg.textContent = r.discarded
             ? 'Se está borrando tu progreso. Espera un momento e intenta de nuevo.'
-            : 'No se pudo guardar tu avance en tu cuenta, así que no lo borramos de este dispositivo. Puedes reintentar o cerrar sesión sin borrar: el avance se queda en este navegador y quien entre después en él lo combinará con su cuenta.';
+            : r.quiz
+              ? 'No se pudo guardar tu último resultado del cuestionario en tu cuenta, así que no borramos nada de este dispositivo. Puedes reintentar o cerrar sesión sin borrar: el resultado y el avance se quedan en este navegador y quien entre después en él los subirá a su cuenta.'
+              : 'No se pudo guardar tu avance en tu cuenta, así que no lo borramos de este dispositivo. Puedes reintentar o cerrar sesión sin borrar: el avance se queda en este navegador y quien entre después en él lo combinará con su cuenta.';
           return;
         }
         deleting = true; // ninguna sincronización empieza mientras se cierra la sesión y se borra la copia local
         return invalidateData().then(function () { return sb.auth.signOut(); }).then(function (res) {
           // SIGNED_OUT (app.js) pone session en null y redibuja; si no llegó, no se cerró.
           if ((res && res.error) || session) { deleting = false; failOut(); return; }
-          if (wipe) { clearLocal(storage); state = emptyState(); }
+          if (wipe) { clearLocal(storage); state = emptyState(); forgetQuiz(); }
           deleting = false;
-          answers = [];
           if (wipe) {
-            renderPick();
+            renderInicio();
             showNotice('Cerraste sesión. Tu avance quedó en tu cuenta y borramos la copia de este dispositivo.');
           } else {
             showNotice('Cerraste sesión. Tu avance sigue en este navegador: quien entre después en él lo combinará con su cuenta.');
@@ -90,8 +96,11 @@ function accountCard() {
     };
     out.addEventListener('click', function () { logout(true); });
     noWipe.addEventListener('click', function () { logout(false); });
+    var hist = el('button', { class: 'btn ghost', id: 'to-history', type: 'button', text: 'Mis respuestas' });
+    hist.addEventListener('click', function () { withDir('forward', function () { renderHistory(); }); });
     card.append(el('p', null, 'Sesión: ', el('b', { text: session.user.email })),
       el('p', { class: 'small', text: 'Tu progreso se guarda en la nube y lo ves en cualquier dispositivo con este correo. Al cerrar sesión se guarda tu avance y se borra la copia de este dispositivo.' }),
+      el('div', { class: 'row' }, hist),
       el('div', { class: 'row' }, out, noWipe), msg);
   } else {
     card.append(el('p', { text: 'Es opcional. Con una cuenta, tu progreso se guarda en la nube y sigue contigo en cualquier dispositivo.' }),
@@ -102,7 +111,7 @@ function accountCard() {
 }
 
 function deleteCard() {
-  var hint = el('p', { class: 'small', 'aria-live': 'polite', text: 'Borra tu progreso de estudio de este dispositivo' + (session ? ' y de la nube. Otros dispositivos con tu sesión abierta pueden volver a subir su copia hasta que cierren sesión o borren allí también' : '') + '.' });
+  var hint = el('p', { class: 'small', 'aria-live': 'polite', text: 'Borra de este dispositivo tu progreso de estudio y tu último resultado del cuestionario' + (session ? '. El progreso también se borra de la nube; otros dispositivos con tu sesión abierta pueden volver a subir su copia hasta que cierren sesión o borren allí también. Tus intentos del cuestionario guardados en la cuenta se borran desde Mis respuestas' : '') + '.' });
   var del = el('button', { class: 'btn ghost danger', type: 'button', text: 'Borrar mis datos' });
   var armed = false;
   del.addEventListener('click', function () {
@@ -134,7 +143,8 @@ function deleteCard() {
       if (uid && waited && waited.timedOut) waited.settled.then(function () { deleteRemote(sb, uid); });
       clearLocal(storage);
       state = emptyState();
-      renderPick();
+      forgetQuiz();
+      renderInicio();
       showNotice('Listo. Borramos tu progreso.');
     }).then(done, function (e) { done(); throw e; });
   });
@@ -165,19 +175,6 @@ function renderYo(keep) {
     el('div', null, change)));
 
   root.append(accountCard());
-
-  var quiz = el('button', { class: 'btn', type: 'button', text: 'Descubre tu área' });
-  quiz.addEventListener('click', openIntro);
-  var actions = el('div', { class: 'actions' }, quiz);
-  if (session) {
-    var hist = el('button', { class: 'btn ghost', type: 'button', text: 'Mis respuestas' });
-    hist.addEventListener('click', renderHistory);
-    actions.append(hist);
-  }
-  root.append(el('section', { class: 'card stack', 'aria-labelledby': 'quiz-h' },
-    el('h2', { id: 'quiz-h', text: '¿Qué área va contigo?' }),
-    el('p', { text: 'Un cuestionario de 10 preguntas y 5 minutos que te sugiere tres áreas de computación para explorar.' }),
-    actions));
 
   if (isAdmin) {
     var adm = el('button', { class: 'btn ghost', id: 'to-admin', type: 'button', text: 'Vista docente' });

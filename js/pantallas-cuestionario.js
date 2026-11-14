@@ -1,32 +1,91 @@
-// Cuestionario de áreas: selector de versión, preguntas, resultado (con las líneas que encajan) y Mis respuestas.
-// Elegir meta, Hoy, Sesión, Mapa, Línea, Estación, Yo y la vista docente viven en los demás pantallas-*.js.
+// Cuestionario de áreas (versión 3, 8 preguntas), resultado corto y Mis respuestas. Se entra desde la entrada, Descubre,
+// la tarjeta de Hoy o Mis respuestas. Elegir meta, Hoy, Sesión, Mapa, Línea, Estación, Yo y la vista docente viven en los
+// demás pantallas-*.js. Script clásico (ES5). Usa las globales de app.js (storage, session, state, sb).
 var body = document.getElementById('quiz-body');
 var ticks = document.getElementById('ticks');
 var counter = document.getElementById('counter');
 var backBtn = document.getElementById('back');
-var version = 1;
-var QUESTIONS = SETS[1].qs;
+var QUESTIONS = SETS[3].qs;
 var answers = [];
 var current = 0;
-var locked = false;
+var locked = false;   // true entre un toque y la pregunta siguiente, y desde la última respuesta hasta el próximo startQuiz()
+var quizFrom = null;  // pantalla desde la que se empezó: a ella vuelve «← Atrás» en la primera pregunta
 
-// Selector de versión del cuestionario (en #s-intro).
-var modesBox = document.getElementById('modes');
-var chosen = 2;
-function drawModes() {
-  modesBox.textContent = '';
-  [[2, 'Explorar', 'Preguntas sobre lo que te gusta hacer, sin nombres de herramientas. Ideal si apenas estás decidiendo.', 'Recomendada si estás empezando'],
-   [1, 'Con herramientas', 'Incluye cosas como Python, Docker o Power BI, con una explicación junto a cada pregunta. Mejor si ya programaste bastante.', null]].forEach(function (m) {
-    var b = el('button', { class: 'mode', type: 'button', 'aria-pressed': chosen === m[0] ? 'true' : 'false' },
-      m[3] ? el('span', { class: 'tag', text: m[3] }) : null, el('b', { text: m[1] }), el('span', { text: m[2] }));
-    b.addEventListener('click', function () { chosen = m[0]; drawModes(); });
-    modesBox.append(b);
-  });
+// Último resultado en memoria ({ v: 3, t, answers }): lo único que queda sin localStorage (se pierde al recargar).
+var quizMem = null;
+// «Ahora no» de la tarjeta de Hoy, en memoria (sin localStorage no se puede recordar entre visitas).
+var tipHidden = false;
+
+// Resultado en pantalla (respuestas y t de su intento, si lo hay), avisos del guardado en la cuenta por intento
+// (llave: su t) y el párrafo del aviso en pantalla.
+var resultShown = null;
+var resultT = null;
+var saveNotes = {}; // llave: «uid:t» (el aviso de una cuenta no vale para otra)
+// Intentos que esta pestaña subió, aunque no se haya podido escribir la marca (t -> uid). Cuenta igual que up/uid.
+var upMem = {};
+var saveNode = null;
+var uploadingT = null; // t del intento que esta pestaña está subiendo
+var uploadingUid = null; // y a qué cuenta (otra cuenta lo sube aparte, aunque sea el mismo intento)
+var uploadingP = null; // promesa de esa subida (la devuelve uploadQuiz() si se pide otra vez el mismo intento y cuenta)
+var copyTimer = null;
+var SAVED_NOTE = 'Guardado en tu cuenta.';
+var OTHER_NOTE = 'Este resultado se guardó en otra cuenta; no se sube a la tuya.';
+var QUIZ_LOCK = 'mapa.quiz.upload'; // Web Lock que hace exclusiva la subida entre pestañas
+// Tras marcar el intento, el lock se suelta QUIZ_SETTLE_MS después: un cambio de localStorage tarda unos milisegundos
+// en llegar a las otras pestañas (procesos distintos), y la siguiente en tomar el lock debe ya ver la marca.
+var QUIZ_SETTLE_MS = 300;
+// Un insert que no responde en QUIZ_UPLOAD_TIMEOUT_MS cuenta como fallo: se suelta el lock (o el reclamo), no se marca
+// y se avisa; si después responde bien, se marca entonces (ver uploadInsert).
+var QUIZ_UPLOAD_TIMEOUT_MS = 20000;
+
+// Respuestas del último resultado: las del dispositivo si son válidas; si no, las de esta visita; si no, null.
+function savedQuiz() {
+  var q = loadQuiz(storage, SETS[3]);
+  if (q) return q.answers.slice();
+  return quizMem ? quizMem.answers.slice() : null;
 }
-drawModes();
-function openIntro() { drawModes(); show('intro'); }
 
-function renderQuestion() {
+// Cuenta de la sesión actual (o null).
+function sessionUid() { return session && session.user ? session.user.id : null; }
+
+// ¿El intento q ya se subió a alguna cuenta? Por su marca (up: 1, sea cual sea su uid o aunque no tenga) o porque
+// esta pestaña lo subió aunque no pudo escribir la marca (upMem). Un intento subido no se vuelve a subir a otra cuenta.
+function isUploaded(q) {
+  return !!q && (q.up === 1 || upMem.hasOwnProperty(String(q.t)));
+}
+
+// Cuenta a la que se subió el intento q (su uid o el de upMem), o null si no se sabe o no se subió.
+function uploadedUid(q) {
+  if (!q) return null;
+  if (upMem.hasOwnProperty(String(q.t))) return upMem[q.t];
+  return q.up === 1 && typeof q.uid === 'string' ? q.uid : null;
+}
+
+// Intento guardado (dispositivo o memoria) que aún no está en ninguna cuenta; si no hay: null.
+function pendingQuiz() {
+  var q = loadQuiz(storage, SETS[3]) || quizMem;
+  return q && !isUploaded(q) ? q : null;
+}
+
+// Olvida el resultado y la tarjeta en memoria («Borrar mis datos», cerrar sesión borrando y borrado desde otra pestaña).
+function forgetQuiz() {
+  quizMem = null;
+  tipHidden = false;
+  resultShown = null;
+  resultT = null;
+  saveNotes = {};
+  upMem = {};
+  saveNode = null;
+}
+
+function sameAnswers(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+// ---------- Preguntas ----------
+function renderQuestion(focus) {
   var q = QUESTIONS[current];
   counter.textContent = 'Pregunta ' + (current + 1) + ' de ' + QUESTIONS.length;
   ticks.setAttribute('aria-valuenow', String(current));
@@ -41,16 +100,13 @@ function renderQuestion() {
     b.addEventListener('click', function () { choose(idx, b); });
     list.append(b);
   });
-  body.append(el('h2', { text: q.q }), list);
-  if (version === 1) {
-    var g = glossFor([q.q].concat(q.opts.map(function (o) { return o.t; })), '¿Hay términos que no conoces? Aquí se explican');
-    if (g) body.append(g);
-  }
-  body.append(el('p', { class: 'hint', text: 'Puedes responder con las teclas 1 a ' + q.opts.length + '. Nada de esto te encasilla: es para empezar a explorar.' }));
+  body.append(el('h1', { text: q.q }), list,
+    el('p', { class: 'hint', text: 'Puedes responder con las teclas 1 a ' + q.opts.length + '. Nada de esto te encasilla: es para empezar a explorar.' }));
+  if (focus) focusHeading(screens.quiz);
 }
 
 document.addEventListener('keydown', function (e) {
-  if (screens.quiz.hidden || locked || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (currentScreen !== 'quiz' || screens.quiz.hidden || locked || e.ctrlKey || e.metaKey || e.altKey) return;
   var n = parseInt(e.key, 10);
   var btns = body.querySelectorAll('.opt');
   if (n >= 1 && n <= btns.length) btns[n - 1].click();
@@ -62,48 +118,66 @@ function choose(idx, btn) {
   answers[current] = idx;
   Array.prototype.forEach.call(body.querySelectorAll('.opt'), function (b) { b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
   setTimeout(function () {
-    locked = false;
-    if (current < QUESTIONS.length - 1) { current++; renderQuestion(); }
-    else renderResult();
+    if (current < QUESTIONS.length - 1) { locked = false; current++; renderQuestion(true); }
+    else withDir('forward', function () { renderResult(answers.slice(), { fresh: true }); }); // locked sigue en true: un solo resultado
   }, 170);
 }
 
-function renderResult() {
-  var ranked = scoreAnswers(answers, version);
-  var top = ranked.slice(0, 3);
-  var unsure = answers.some(function (c, i) { return QUESTIONS[i].opts[c].unsure; });
-  var root = screens.result;
-  root.textContent = '';
+// Empieza el cuestionario desde la pregunta 1. Recuerda de qué pantalla se vino.
+function startQuiz() {
+  quizFrom = currentScreen;
+  answers = [];
+  current = 0;
+  locked = false;
+  renderQuestion(false);
+  show('quiz');
+}
 
-  var head = el('div', null,
-    el('p', { class: 'mono', text: 'Tu resultado' }),
-    el('h1', { text: 'Tres áreas para probar primero' }),
-    el('p', { class: 'sub', text: 'Esto ordena las áreas según qué tanto coinciden tus respuestas con lo que cada una suele pedir. Sirve para empezar a explorar, no para decidir tu carrera.' })
-  );
-  root.append(head);
-  // Guardar el intento requiere cuenta (la base lo rechaza sin sesión): sin cuenta ni se intenta.
-  if (session) {
-    var saveNote = el('div', { class: 'note', 'aria-live': 'polite', text: 'Guardando tu resultado…' });
-    saveAttempt(answers.slice(), ranked, version).then(function () {
-      saveNote.textContent = 'Guardado. Puedes volver a verlo en Mis respuestas.';
-    }).catch(function (e) {
-      saveNote.textContent = 'No se pudo guardar tu resultado (' + (e && e.message ? e.message : 'error') + '). Usa el botón Copiar mi resultado para no perderlo.';
-    });
-    root.append(saveNote);
-  } else {
-    var create = el('button', { class: 'btn ghost', type: 'button', text: 'Crear cuenta' });
-    create.addEventListener('click', function () { renderYo(); });
-    root.append(el('div', { class: 'note stack', 'aria-live': 'polite' },
-      el('p', { text: 'No se guardó: no tienes cuenta. Puedes crear una en Yo.' }),
-      el('div', null, create)));
-  }
+// «← Atrás»: a la pregunta anterior; en la primera, a la pantalla desde la que se empezó.
+backBtn.addEventListener('click', function () {
+  if (locked) return;
+  if (current > 0) { current--; renderQuestion(true); return; }
+  withDir('backward', function () {
+    if (quizFrom === 'hoy' && lineById(state.goal)) renderHoy();
+    else if (quizFrom === 'history' && session) renderHistory();
+    else if (quizFrom === 'entrada') renderInicio();
+    else renderDescubre();
+  });
+});
 
-  var notes = [];
-  if (top[0].pct - top[2].pct <= 10) notes.push('Tus tres primeras áreas están muy cerca. Es lo normal en quinto semestre y significa que conviene probar dos de ellas antes de inclinarte por una.');
-  else if (top[0].pct - top[1].pct >= 15) notes.push('Una de tus áreas se separa claramente de las demás. Aun así, prueba la segunda con un proyecto pequeño para comparar.');
-  if (unsure) notes.push('Dijiste que aún no sabes qué sector te interesa. Eso es común y no te retrasa: lo que más ayuda es hacer un proyecto pequeño en dos áreas y ver cuál te deja con ganas de seguir.');
-  notes.forEach(function (t) { root.append(el('div', { class: 'note', text: t })); });
+// ---------- Resultado corto ----------
+// Línea del mapa como botón-enlace (con su insignia si badge). Abre la pantalla Línea; «← Mapa» vuelve al mapa.
+function lineLink(line, label, badge) {
+  var b = el('button', { class: 'linkbtn line-link', type: 'button', 'data-line': line.id }, badge ? lineBadge(line) : null, el('span', { class: 'll-t', text: label }));
+  b.addEventListener('click', function () { withDir('forward', function () { openLinea(line.id, false, 'mapa'); }); });
+  return b;
+}
 
+// Tarjeta de la línea sugerida: insignia, nivel, título, empresa, «Elegir como meta» (o «Ir a Hoy» si ya es la meta) y «Ver en el mapa».
+function suggestedCard(line) {
+  var mine = line.id === state.goal;
+  var pick = el('button', { class: 'btn', id: 'result-goal', type: 'button', text: mine ? 'Ir a Hoy' : 'Elegir como meta' });
+  pick.addEventListener('click', function () {
+    if (line.id === state.goal) renderHoy();
+    else chooseGoal(line.id, true);
+  });
+  return el('div', { class: 'line-card sugg ' + line.color, 'data-line': line.id },
+    el('span', { class: 'lc-top' }, lineBadge(line),
+      el('span', { class: 'lvl' + (line.level === 'Para empezar' ? ' start' : ''), text: line.level }),
+      mine ? el('span', { class: 'lvl mine', text: 'Tu meta actual' }) : null),
+    el('h3', { class: 'lc-title', text: line.title }),
+    el('span', { class: 'lc-meta', text: line.company }),
+    el('div', { class: 'actions' }, pick, lineLink(line, 'Ver en el mapa', false)));
+}
+
+// Texto que copia «Copiar mi resultado».
+function resultSummary(ranked, line) {
+  var top = ranked.slice(0, 3).map(function (r, i) { return (i + 1) + ') ' + AREAS[r.key].name + ' (' + r.pct + '%)'; }).join(', ');
+  return 'Mi mapa de áreas: ' + top + '.' + (line ? ' Línea sugerida: L' + line.n + ' ' + line.title + ', ' + line.company + '.' : '');
+}
+
+// Detalle plegado: afinidad de las 9 áreas, las tres primeras a fondo, las otras seis y los pasos.
+function resultMore(ranked, open) {
   var bars = el('div', { class: 'bars' });
   ranked.forEach(function (r, i) {
     var fill = el('div', { class: 'bar-fill' });
@@ -111,127 +185,252 @@ function renderResult() {
     bars.append(el('div', { class: 'bar-row' + (i < 3 ? ' top' : '') },
       el('div', { class: 'bar-name', text: AREAS[r.key].name }),
       el('div', { class: 'bar-track' }, fill),
-      el('div', { class: 'bar-pct', text: r.pct + '%' })
-    ));
+      el('div', { class: 'bar-pct', text: r.pct + '%' })));
   });
-  root.append(el('div', { class: 'panel' },
-    el('p', { class: 'mono', text: 'Afinidad por área' }),
-    el('div', { style: 'height:14px' }),
-    bars,
-    el('p', { class: 'legend', text: '100% significaría que en cada pregunta elegiste la respuesta que más se parece a esa área.' })
-  ));
-
-  var labels = ['Mejor coincidencia', 'Segunda', 'Tercera'];
-  var cards = el('div', { class: 'cards' });
-  top.forEach(function (r, i) {
+  var deep = el('div', { class: 'stack' });
+  ranked.slice(0, 3).forEach(function (r) {
     var a = AREAS[r.key];
     var tryList = el('ul', { class: 'projects' });
     a.projects.forEach(function (pr) {
       tryList.append(el('li', null, el('b', { text: pr.n }), ' — ' + pr.d, el('span', { class: 'mono meta', text: 'Tiempo estimado: ' + pr.t })));
     });
-    cards.append(el('article', { class: 'panel area' },
-      el('p', { class: 'mono rank' }, el('mark', { text: labels[i] })),
+    deep.append(el('article', { class: 'area' },
       el('h3', { text: a.name }),
-      el('div', { class: 'block' }, el('p', { class: 'mono', text: 'Qué haces' }), el('p', { text: a.short })),
-      el('div', { class: 'block' }, el('p', { class: 'mono', text: 'Pregunta para alguien que ya trabaja ahí' }), el('p', { class: 'ask', text: a.ask })),
+      el('p', { text: a.short }),
       el('div', { class: 'block' }, el('p', { class: 'mono', text: 'Proyectos para probarla' }), tryList),
-      el('div', { class: 'block' }, el('p', { class: 'mono', text: 'Materias que ayudan' }), el('p', { text: a.courses }))
-    ));
+      el('div', { class: 'block' }, el('p', { class: 'mono', text: 'Materias que ayudan' }), el('p', { text: a.courses })),
+      el('div', { class: 'block' }, el('p', { class: 'mono', text: 'Pregunta para alguien que ya trabaja ahí' }), el('p', { class: 'ask', text: a.ask }))));
   });
-  root.append(cards);
-  var projTexts = [];
-  top.forEach(function (r) { AREAS[r.key].projects.forEach(function (pr) { projTexts.push(pr.n + ' ' + pr.d); }); });
-  var gl = glossFor(projTexts, 'Palabras de los proyectos que quizá no conozcas');
-  if (gl) { gl.style.marginTop = '0'; root.append(gl); }
-
-  root.append(vacancyPanel(lineasFor(top.map(function (r) { return r.key; }), LINEAS)));
-
-  var others = el('details', { class: 'panel others' }, el('summary', { text: 'Ver las otras seis áreas' }));
+  var rest = el('div', { class: 'stack' });
   ranked.slice(3).forEach(function (r) {
-    others.append(el('div', { class: 'other' }, el('h3', { text: AREAS[r.key].name }), el('p', { text: AREAS[r.key].short })));
+    rest.append(el('div', { class: 'other' }, el('h3', { text: AREAS[r.key].name }), el('p', { class: 'small', text: AREAS[r.key].short })));
   });
-  root.append(others);
-
   var steps = el('ol', { class: 'steps' },
     el('li', { text: 'Elige dos áreas de tu lista, aunque una no sea la primera.' }),
     el('li', { text: 'Elige un proyecto corto de cada una (los de un fin de semana son buen comienzo) y haz el primero esta semana.' }),
-    el('li', { text: 'Habla con una persona que trabaje en cada área y hazle la pregunta que te dejamos.' })
-  );
-  root.append(el('div', { class: 'panel' }, el('h2', { text: 'Cómo usar este resultado', style: 'font-size:1.35rem;margin-bottom:1rem' }), steps));
+    el('li', { text: 'Habla con una persona que trabaje en cada área y hazle la pregunta que te dejamos.' }));
+  var d = el('details', { class: 'result-more' }, el('summary', { id: 'result-more-sum', text: 'Ver detalle' }),
+    el('div', { class: 'more-body' },
+      el('section', { class: 'stack', 'aria-labelledby': 'more-bars-h' }, el('h2', { id: 'more-bars-h', text: 'Afinidad por área' }), bars,
+        el('p', { class: 'fine', text: '100% significaría que en cada pregunta elegiste la respuesta que más se parece a esa área.' })),
+      el('section', { class: 'stack', 'aria-labelledby': 'more-deep-h' }, el('h2', { id: 'more-deep-h', text: 'Tus tres áreas, a fondo' }), deep),
+      el('section', { class: 'stack', 'aria-labelledby': 'more-rest-h' }, el('h2', { id: 'more-rest-h', text: 'Las otras seis áreas' }), rest),
+      el('section', { class: 'stack', 'aria-labelledby': 'more-steps-h' }, el('h2', { id: 'more-steps-h', text: 'Cómo usar este resultado' }), steps)));
+  if (open) d.open = true;
+  return d;
+}
 
-  var summary = 'Mi mapa de áreas: ' + top.map(function (r, i) { return (i + 1) + ') ' + AREAS[r.key].name + ' (' + r.pct + '%)'; }).join('  ');
-  var status = el('p', { class: 'status', 'aria-live': 'polite' });
-  var shareBox = el('div', null);
-  var copyBtn = el('button', { class: 'btn', type: 'button', text: 'Copiar mi resultado' });
+// Pie: copiar (con un único role="status" y respaldo seleccionable), volver a hacerlo, Mis respuestas y la línea del guardado.
+function resultFooter(summary) {
+  var copyStatus = el('span', { class: 'copy-status', id: 'copy-status', role: 'status' });
+  var shareBox = el('div', { class: 'share-box' });
+  var say = function (text) {
+    clearTimeout(copyTimer);
+    copyStatus.textContent = text;
+    copyTimer = setTimeout(function () { copyStatus.textContent = ''; }, 2000);
+  };
+  var fallback = function () {
+    shareBox.textContent = '';
+    var ta = el('textarea', { class: 'share', id: 'share-text', readonly: 'readonly', 'aria-label': 'Tu resultado para copiar' });
+    ta.value = summary;
+    shareBox.append(ta);
+    ta.focus();
+    ta.select();
+    say('No se pudo copiar. Selecciona el texto de abajo y cópialo.');
+  };
+  var copyBtn = el('button', { class: 'btn ghost', id: 'copy-result', type: 'button', text: 'Copiar mi resultado' });
   copyBtn.addEventListener('click', function () {
-    var done = function () { status.textContent = 'Copiado. Puedes pegarlo en un mensaje.'; };
-    var fallback = function () {
-      shareBox.textContent = '';
-      var ta = el('textarea', { class: 'share', id: 'share-text', readonly: 'readonly' });
-      ta.value = summary;
-      shareBox.append(ta);
-      ta.focus(); ta.select();
-      status.textContent = 'Selecciona el texto y cópialo.';
-    };
     try {
-      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(summary).then(done, fallback);
-      else fallback();
+      if (!navigator.clipboard || !navigator.clipboard.writeText) { fallback(); return; }
+      navigator.clipboard.writeText(summary).then(function () { shareBox.textContent = ''; say('Copiado'); }, fallback);
     } catch (e) { fallback(); }
   });
-  var again = el('button', { class: 'btn ghost', type: 'button', text: 'Volver a empezar' });
-  again.addEventListener('click', reset);
-  var other = version === 1 ? 2 : 1;
-  var otherBtn = el('button', { class: 'btn ghost', type: 'button', text: 'Probar la versión «' + SETS[other].name + '»' });
-  otherBtn.addEventListener('click', function () { startQuiz(other); });
-  var hoyBtn = el('button', { class: 'btn', type: 'button', text: 'Ir a Hoy' });
-  hoyBtn.addEventListener('click', function () { renderHoy(); });
-  var actions = el('div', { class: 'footer-actions' }, hoyBtn, copyBtn, otherBtn);
+  var again = el('button', { class: 'btn ghost', id: 'quiz-again', type: 'button', text: 'Volver a hacerlo' });
+  again.addEventListener('click', function () { withDir('forward', function () { startQuiz(); }); });
+  var actions = el('div', { class: 'actions' }, copyBtn, again);
+  var foot = el('div', { class: 'result-foot' }, actions, copyStatus, shareBox);
   if (session) {
-    var histBtn = el('button', { class: 'btn ghost', type: 'button', text: 'Mis respuestas' });
-    histBtn.addEventListener('click', renderHistory);
-    actions.append(histBtn);
+    // Con sesión: el aviso del guardado y, en el mismo renglón, «Mis respuestas» como enlace (ahorra una fila de botones).
+    var hist = el('button', { class: 'linkbtn', id: 'result-history', type: 'button', text: 'Mis respuestas' });
+    hist.addEventListener('click', function () { withDir('forward', function () { renderHistory(); }); });
+    saveNode = el('span', { id: 'save-note', 'aria-live': 'polite', text: saveNoteFor(resultT) });
+    foot.append(el('p', { class: 'small save-row' }, saveNode, ' ', hist));
+  } else {
+    saveNode = null;
+    var toYo = el('button', { class: 'linkbtn', type: 'button', text: 'Crear una cuenta en Yo' });
+    toYo.addEventListener('click', function () { renderYo(); });
+    foot.append(el('p', { class: 'small', id: 'device-note' },
+      storage ? 'Tu resultado queda en este dispositivo. Con cuenta lo conservas en todos. ' : 'Este navegador no guarda datos: tu resultado se pierde al cerrar. Con cuenta lo conservas. ',
+      toYo));
   }
-  actions.append(again);
-  root.append(actions, status, shareBox);
-
-  show('result');
+  return foot;
 }
 
-// Líneas del mapa que encajan con las tres áreas del resultado: ver la línea o elegirla como meta.
-function vacancyPanel(ids) {
-  var box = el('section', { class: 'panel area vacancy', 'aria-labelledby': 'vac-h' },
-    el('h2', { id: 'vac-h', text: 'Vacantes reales para tus áreas', style: 'font-size:1.35rem' }));
-  if (!ids.length) {
-    box.append(el('p', { text: 'Por ahora no hay vacantes para esas áreas. Las agregaremos pronto.' }));
-    return box;
-  }
-  box.append(el('p', { class: 'small', text: 'Cada una es una línea del mapa: ves lo que piden y por dónde empezar.' }));
-  var list = el('ul', { class: 'vac-list' });
-  ids.forEach(function (id) {
-    var line = lineById(id);
-    if (!line) return;
-    var see = el('button', { class: 'btn ghost', type: 'button', text: 'Ver la línea', 'aria-label': 'Ver la línea ' + line.title });
-    see.addEventListener('click', function () { openLinea(id, false, 'mapa'); });
-    var pick;
-    if (line.id === state.goal) {
-      pick = el('button', { class: 'btn', type: 'button', disabled: '', 'aria-current': 'true', text: 'Es tu meta' });
-    } else {
-      pick = el('button', { class: 'btn', type: 'button', text: 'Elegir como meta', 'aria-label': 'Elegir como meta ' + line.title });
-      pick.addEventListener('click', function () { chooseGoal(id, true); });
+// Guarda el resultado recién terminado en el dispositivo (o en memoria). Lo sube uploadQuiz().
+function saveResult(ans) {
+  var t = Date.now();
+  quizMem = { v: 3, t: t, answers: ans.slice() };
+  saveQuiz(storage, ans, t);
+}
+
+// Aviso del guardado en la cuenta del intento t: el de su última subida en esta visita; si ya está en la cuenta de la
+// sesión, «Guardado…»; si se subió a otra cuenta conocida, que se guardó en otra cuenta; si la cuenta no se sabe, nada.
+function saveNoteFor(t) {
+  if (t === null) return '';
+  var key = sessionUid() + ':' + t;
+  if (saveNotes[key]) return saveNotes[key];
+  var q = loadQuiz(storage, SETS[3]) || quizMem;
+  if (!q || q.t !== t || !isUploaded(q)) return '';
+  var owner = uploadedUid(q);
+  if (owner === null) return '';
+  return owner === sessionUid() ? SAVED_NOTE : OTHER_NOTE;
+}
+
+// Aviso de la subida del intento t a la cuenta uid; se muestra solo si es el intento en pantalla y la cuenta actual.
+function putSaveNote(t, text, uid) {
+  saveNotes[uid + ':' + t] = text;
+  if (saveNode && resultT === t && sessionUid() === uid) saveNode.textContent = text;
+}
+
+// Sube a mapa_respuestas, una sola vez, el último intento que aún no está en la cuenta (hecho con o sin sesión).
+// Se llama al mostrar un resultado, al iniciar sesión y al arrancar con sesión. uploadingT evita que esta pestaña lo
+// suba dos veces. Entre pestañas (solo si está en localStorage): con Web Locks, el tramo «releer la marca → insertar
+// → marcar» es exclusivo; sin ellos, reclamo con ficha propia, espera aleatoria y relectura. Si el insert falla no
+// se marca: se reintenta en la siguiente ocasión.
+// Devuelve una promesa que se cumple (nunca se rechaza) cuando termina este intento de subida, o enseguida si no hay
+// nada que hacer; quien necesite saber si quedó subido mira pendingQuiz() después («Cerrar sesión»).
+function uploadQuiz() {
+  var q = pendingQuiz();
+  if (!session || deleting || !q) return Promise.resolve();
+  if (uploadingT === q.t && uploadingUid === sessionUid()) return uploadingP;
+  var t = q.t, ans = q.answers.slice(), uid = sessionUid();
+  var p;
+  if (!loadQuiz(storage, SETS[3])) {
+    p = uploadInsert(t, ans, false, uid); // solo en memoria: una pestaña
+  } else if (typeof navigator !== 'undefined' && navigator.locks && typeof navigator.locks.request === 'function') {
+    // Si request lanza o su promesa se rechaza (p. ej. SecurityError en un origen opaco), sigue por el reclamo con ficha.
+    var viaClaim = function () { return uploadByClaim(t, ans, uid); };
+    try {
+      p = navigator.locks.request(QUIZ_LOCK, function () {
+        var cur = loadQuiz(storage, SETS[3]);
+        if (!cur || cur.t !== t || isUploaded(cur)) return null; // otra pestaña ya lo subió (o ya hay otro intento)
+        return uploadInsert(t, ans, true, uid).then(function (ok) {
+          if (ok) return new Promise(function (resolve) { setTimeout(resolve, QUIZ_SETTLE_MS); });
+          return null;
+        });
+      }).then(null, viaClaim);
+    } catch (e) {
+      p = viaClaim();
     }
-    list.append(el('li', { class: 'vac-row ' + line.color, 'data-line': id },
-      el('span', { class: 'lc-top' }, lineBadge(line), el('span', { class: 'lvl' + (line.level === 'Para empezar' ? ' start' : ''), text: line.level })),
-      el('span', { class: 'lc-title', text: line.title }),
-      el('span', { class: 'lc-meta', text: line.company }),
-      el('div', { class: 'actions' }, see, pick)));
-  });
-  box.append(list);
-  return box;
+  } else {
+    p = uploadByClaim(t, ans, uid);
+  }
+  var end = function () { // otro intento (u otra cuenta) pudo empezar mientras tanto
+    if (uploadingT === t && uploadingUid === uid) { uploadingT = null; uploadingUid = null; uploadingP = null; }
+  };
+  uploadingT = t;
+  uploadingUid = uid;
+  uploadingP = p.then(end, end);
+  return uploadingP;
 }
 
-function setVersion(v) { version = v; QUESTIONS = SETS[v].qs; }
-function startQuiz(v) { setVersion(v); answers = []; current = 0; locked = false; renderQuestion(); show('quiz'); }
-function reset() { answers = []; current = 0; locked = false; show('intro'); }
+// Sin Web Locks (o si fallan): reclamo con ficha propia, espera aleatoria y relectura. Nunca rechaza.
+function uploadByClaim(t, ans, uid) {
+  var cid = String(Math.random()).slice(2) + '-' + Date.now();
+  if (!claimQuizUpload(storage, t, Date.now(), cid)) return Promise.resolve(); // otra pestaña lo está subiendo
+  return new Promise(function (resolve) { setTimeout(resolve, 50 + Math.floor(Math.random() * 101)); }).then(function () {
+    if (!ownsQuizClaim(storage, t, cid)) return null; // otra pestaña reclamó después: sube ella
+    return uploadInsert(t, ans, true, uid);
+  });
+}
+
+// Inserta el intento t, lo marca (en localStorage si stored y en memoria) y deja el aviso. Resuelve true si se subió;
+// nunca rechaza. Si el insert no responde en QUIZ_UPLOAD_TIMEOUT_MS, resuelve como fallo (sin marca); si más tarde
+// responde bien, marca el intento entonces, para que el siguiente reintento no lo vuelva a subir.
+function uploadInsert(t, ans, stored, uid) {
+  putSaveNote(t, 'Guardando tu resultado en tu cuenta…', uid);
+  var insert = saveAttempt(ans, scoreAnswers(ans, 3), 3).then(function () { return { ok: true }; }, function (e) { return { ok: false, e: e }; });
+  var timer = null;
+  var limit = new Promise(function (resolve) {
+    timer = setTimeout(function () { resolve({ ok: false, late: true, e: { message: 'no respondió a tiempo' } }); }, QUIZ_UPLOAD_TIMEOUT_MS);
+  });
+  insert.then(function () { clearTimeout(timer); });
+  return Promise.race([insert, limit]).then(function (r) {
+    if (r.late) insert.then(function (r2) {
+      if (!r2.ok) return;
+      if (stored) finishQuizUpload(storage, t, true, uid);
+      upMem[t] = uid;
+      putSaveNote(t, SAVED_NOTE, uid);
+    });
+    if (stored) finishQuizUpload(storage, t, r.ok, uid);
+    if (r.ok) upMem[t] = uid; // cuenta aunque el almacenamiento no deje escribir la marca
+    putSaveNote(t, r.ok ? SAVED_NOTE : 'No se pudo guardar en tu cuenta (' + (r.e && r.e.message ? r.e.message : 'error') + '). Se reintentará; tu resultado sigue aquí.', uid);
+    return r.ok;
+  });
+}
+
+// Resultado corto. opts.fresh: recién terminado (guarda e inserta una vez); si no, reabierto desde Descubre (no inserta).
+// opts.keep: redibujar la misma pantalla (tras iniciar sesión o sincronizar) sin mover el scroll y conservando el detalle abierto.
+function renderResult(ans, opts) {
+  var o = opts || {};
+  var root = screens.result;
+  var same = !o.fresh && sameAnswers(resultShown, ans);
+  var oldMore = root.querySelector('details.result-more');
+  var wasOpen = !!(o.keep && same && oldMore && oldMore.open);
+  resultShown = ans.slice();
+  var ranked = scoreAnswers(ans, 3);
+  if (o.fresh) saveResult(ans);
+  var rec = loadQuiz(storage, SETS[3]) || quizMem;
+  resultT = rec && sameAnswers(rec.answers, ans) ? rec.t : null;
+  uploadQuiz();
+  var top = AREAS[ranked[0].key];
+  var sugg = suggestLine(ranked, LINEAS);
+  var line = sugg.line ? lineById(sugg.line) : null;
+  root.textContent = '';
+
+  root.append(el('div', { class: 'hub-title' },
+    el('p', { class: 'mono', text: 'Tu resultado' }),
+    el('h1', { text: top.name }),
+    el('p', { text: top.short })));
+
+  // Casi siempre son dos respuestas; en 33 de las 160,000 combinaciones, una. Ninguna combinación da cero (el área #1
+  // siempre recibió puntos), pero si pasara, la sección no se muestra.
+  var whyIdx = whyAnswers(SETS[3], ans, ranked[0].key);
+  var why = el('ul', { class: 'why-list' });
+  whyIdx.forEach(function (i) {
+    why.append(el('li', { title: QUESTIONS[i].q }, el('span', { class: 'sr-only', text: QUESTIONS[i].q + ': ' }), el('span', { class: 'why-a', text: QUESTIONS[i].opts[ans[i]].t })));
+  });
+  if (whyIdx.length) root.append(el('section', { class: 'stack tight', 'aria-labelledby': 'why-h' }, el('h2', { id: 'why-h', text: 'Por qué te salió' }),
+    el('p', { class: 'small', id: 'why-intro', text: whyIdx.length === 1 ? 'La respuesta que más te acercó a esta área:' : 'Las dos respuestas que más te acercaron a esta área:' }), why));
+
+  var lineSec = el('section', { class: 'stack tight', 'aria-labelledby': 'sugg-h' }, el('h2', { id: 'sugg-h', text: 'Tu línea sugerida' }));
+  if (line && !sugg.exact) lineSec.append(el('p', { class: 'small', id: 'no-vacancy', text: 'Aún no tenemos una vacante de ' +
+    (ranked[0].key === 'inv' ? 'investigación' : top.name.toLowerCase()) + '; te sugerimos la de ' + AREAS[sugg.area].name.toLowerCase() + ', tu siguiente área.' }));
+  lineSec.append(line ? suggestedCard(line) : el('p', { class: 'small', text: 'Por ahora no hay vacantes para tus áreas.' }));
+  // Las líneas «Meta a …» piden experiencia: se dice cuánto falta, sin desanimar.
+  var lvl = line ? /^Meta a (.+)$/.exec(line.level) : null;
+  if (lvl) lineSec.append(el('p', { class: 'small', id: 'sugg-level', text: 'Es una meta a mediano plazo: empiezas por lo básico y llegas en ' + lvl[1] + '.' }));
+  root.append(lineSec);
+
+  var others = el('ul', { class: 'res-others' });
+  ranked.slice(1, 3).forEach(function (r) {
+    var a = AREAS[r.key];
+    var lid = lineForArea(r.key, LINEAS);
+    var l = lid ? lineById(lid) : null;
+    others.append(el('li', { class: 'res-other' },
+      el('h3', { text: a.name }),
+      el('p', { class: 'small one-line', text: a.short }),
+      !l ? el('p', { class: 'small', text: 'Aún sin vacante en el mapa.' })
+        : line && l.id === line.id ? el('p', { class: 'small', text: 'Es la línea sugerida arriba.' })
+        : lineLink(l, l.title, true)));
+  });
+  root.append(el('section', { class: 'stack tight', 'aria-labelledby': 'others-h2' }, el('h2', { id: 'others-h2', text: 'Tus otras dos áreas' }), others));
+
+  root.append(el('p', { class: 'fine', text: 'Es una afinidad para empezar a explorar, no un veredicto.' }));
+  root.append(resultMore(ranked, wasOpen));
+  root.append(resultFooter(resultSummary(ranked, line)));
+  show('result', !!o.keep);
+}
 
 
 function saveAttempt(ans, ranked, v) {
@@ -251,6 +450,7 @@ function topLine(scores) {
   return topOf(scores).slice(0, 3).map(function (r, i) { return (i + 1) + ') ' + AREAS[r.key].name; }).join('   ');
 }
 
+// Preguntas y respuestas de un intento guardado; v es su quiz_version (1, 2 o 3; otra cosa se lee como 1).
 function qaList(ans, v) {
   var ul = el('ul', { class: 'qa' });
   var qs = (SETS[v] || SETS[1]).qs;
@@ -280,7 +480,7 @@ function renderHistory() {
     ));
     if (!rows.length) {
       var go = el('button', { class: 'btn', type: 'button', text: 'Hacer el cuestionario' });
-      go.addEventListener('click', function () { startQuiz(chosen); });
+      go.addEventListener('click', function () { withDir('forward', function () { startQuiz(); }); });
       root.append(el('div', null, go));
       return;
     }
@@ -321,15 +521,7 @@ function renderHistory() {
     });
     root.append(el('div', null, el('p', { class: 'mono', text: 'Cada intento' }), el('div', { style: 'height:10px' }), list));
     var again = el('button', { class: 'btn', type: 'button', text: 'Hacer el cuestionario otra vez' });
-    again.addEventListener('click', function () { startQuiz(chosen); });
+    again.addEventListener('click', function () { withDir('forward', function () { startQuiz(); }); });
     root.append(el('div', null, again));
   });
 }
-
-document.getElementById('start').addEventListener('click', function () { startQuiz(chosen); });
-// En la primera pregunta, «Atrás» regresa a la presentación del cuestionario.
-backBtn.addEventListener('click', function () {
-  if (locked) return;
-  if (current > 0) { current--; renderQuestion(); } else show('intro');
-});
-document.getElementById('intro-back').addEventListener('click', function () { renderYo(); });

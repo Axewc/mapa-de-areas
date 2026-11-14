@@ -1,9 +1,33 @@
 // Arranque: cliente de Supabase, sesión, estado global, sincronización y pantalla inicial.
 var SUPABASE_URL = 'https://vhdrnrzerjysjzpyzgif.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_D6zlOACzmjEzb2_CdqupZQ_Vyj1ZbQz';
-var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' }
-});
+// El cliente real existe solo si la biblioteca de Supabase ya cargó (viene de un CDN, con `async`: no bloquea la página).
+function realClient() {
+  if (!window.supabase || !window.supabase.createClient) return null;
+  return window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' }
+  });
+}
+// Mientras no carga (o si el CDN está bloqueado) se usa este cliente sin conexión: nunca hay sesión y toda consulta
+// responde con error, así que el estudio sin cuenta funciona igual y las pantallas de cuenta avisan del fallo.
+function offlineClient() {
+  var err = { message: 'no hay conexión con el servicio de cuentas. Intenta más tarde' };
+  function Q() {}
+  ['select', 'insert', 'upsert', 'update', 'delete', 'eq', 'order', 'limit'].forEach(function (m) { Q.prototype[m] = function () { return this; }; });
+  Q.prototype.then = function (res, rej) { return Promise.resolve({ data: null, error: err }).then(res, rej); };
+  return {
+    auth: {
+      getSession: function () { return Promise.resolve({ data: { session: null }, error: null }); },
+      onAuthStateChange: function () { return { data: { subscription: { unsubscribe: function () {} } } }; },
+      signOut: function () { return Promise.resolve({ error: err }); },
+      signInWithOtp: function () { return Promise.resolve({ error: err }); }
+    },
+    from: function () { return new Q(); }
+  };
+}
+var sb = realClient();
+var sbReady = !!sb;
+if (!sb) sb = offlineClient();
 var session = null;
 var isAdmin = false;
 
@@ -78,12 +102,12 @@ function invalidateData() {
   return settlePending();
 }
 
-// Sincroniza y redibuja. Si en la primera visita (sin meta) llega una meta de la nube, entra a Hoy.
+// Sincroniza y redibuja. Si en la primera visita (sin meta, en la entrada o en Elegir meta) llega una meta de la nube, entra a Hoy.
 function syncAndRefresh() {
   var hadGoal = !!lineById(state.goal);
   return syncNow().then(function (r) {
     if (r === null) return;
-    if (!hadGoal && currentScreen === 'pick' && lineById(state.goal)) renderHoy();
+    if (!hadGoal && (currentScreen === 'pick' || currentScreen === 'entrada') && lineById(state.goal)) renderHoy();
     else refreshScreen();
   });
 }
@@ -93,6 +117,9 @@ function refreshScreen() {
   if (currentScreen === 'hoy') renderHoy(true);
   else if (currentScreen === 'yo') renderYo(true);
   else if (currentScreen === 'pick') renderPick(true);
+  else if (currentScreen === 'entrada') renderEntrada(true);
+  else if (currentScreen === 'descubre') renderDescubre(true);
+  else if (currentScreen === 'result' && resultShown) renderResult(resultShown, { fresh: false, keep: true });
   else if (currentScreen === 'mapa') renderMapa(true);
   else if (currentScreen === 'linea' && lineaShown) openLinea(lineaShown, true);
   else if (currentScreen === 'estacion' && estShown) openEstacion(estShown, null, true);
@@ -116,6 +143,7 @@ Array.prototype.forEach.call(document.querySelectorAll('#tabbar button[data-tab]
     try {
       if (t === 'hoy') renderHoy();
       else if (t === 'mapa') renderMapa();
+      else if (t === 'descubre') renderDescubre();
       else renderYo();
     } finally { tabNav = false; }
   });
@@ -128,39 +156,78 @@ document.addEventListener('visibilitychange', function () {
   if ((currentScreen === 'hoy' || currentScreen === 'yo') && renderedDay !== todayYmd()) refreshScreen();
 });
 
-// Pantalla inicial: sin meta válida se pide elegirla.
+// Pantalla de inicio según lo guardado: con meta, Hoy; sin meta pero con un resultado del cuestionario, Descubre;
+// si no, la entrada. También se usa tras «Borrar mis datos» y al cerrar sesión borrando la copia local.
+function renderInicio() {
+  if (lineById(state.goal)) renderHoy();
+  else if (loadQuiz(storage, SETS[3])) renderDescubre();
+  else renderEntrada();
+}
+
+// Pantalla inicial.
 if (bootLoad.warning === 'sin-almacenamiento') showNotice('Este navegador no deja guardar progreso. Funciona, pero no se conservará al cerrar.');
 else if (bootLoad.warning === 'estado-invalido') showNotice('Tu progreso guardado no se pudo leer, así que empezamos de cero.');
-if (lineById(state.goal)) renderHoy(); else renderPick();
+renderInicio();
 
-sb.auth.getSession().then(function (r) {
-  session = r.data.session;
-  checkAdmin();
-  if (session) syncAndRefresh();
-  else refreshScreen();
-});
-sb.auth.onAuthStateChange(function (ev, s) {
-  session = s;
-  if (ev === 'SIGNED_IN') {
-    if (window.location.hash.indexOf('access_token') !== -1) history.replaceState(null, '', window.location.pathname);
+// Sesión: se consulta cuando el cliente real está listo. Si la biblioteca llega después, se conecta entonces.
+function bootAuth() {
+  sb.auth.getSession().then(function (r) {
+    session = r.data.session;
     checkAdmin();
-    refreshScreen();
-    syncAndRefresh();
-  } else if (ev === 'SIGNED_OUT') {
-    isAdmin = false;
-    refreshScreen();
-  }
-});
+    if (session) {
+      uploadQuiz(); // un resultado hecho sin cuenta (o cuyo guardado falló) se sube una vez
+      syncAndRefresh();
+    } else refreshScreen();
+  });
+  sb.auth.onAuthStateChange(function (ev, s) {
+    session = s;
+    if (ev === 'SIGNED_IN') {
+      if (window.location.hash.indexOf('access_token') !== -1) history.replaceState(null, '', window.location.pathname);
+      checkAdmin();
+      uploadQuiz();
+      refreshScreen();
+      syncAndRefresh();
+    } else if (ev === 'SIGNED_OUT') {
+      isAdmin = false;
+      // Mis respuestas y la vista docente muestran datos de la cuenta: al cerrarse la sesión (también desde otra pestaña) se dejan.
+      if (currentScreen === 'history' || currentScreen === 'admin') renderInicio();
+      else refreshScreen();
+    }
+  });
+}
+if (sbReady) bootAuth();
+else {
+  var sbLib = document.getElementById('sb-lib');
+  if (sbLib) sbLib.addEventListener('load', function () {
+    var c = realClient();
+    if (!c || sbReady) return;
+    sb = c;
+    sbReady = true;
+    bootAuth();
+  });
+}
 
 // «Borrar mis datos» (o limpiar los datos del sitio) en otra pestaña de este navegador: esta pestaña adopta el estado vacío
 // y se redibuja, sin volver a escribir lo que ya no está. Si tenía una sesión de estudio abierta, se cierra.
+// Si la otra pestaña solo borró el resultado del cuestionario (sin progreso que borrar, no llega el borrado de mapa.v2),
+// esta olvida el suyo y, en Descubre o en el resultado, vuelve a la invitación.
 window.addEventListener('storage', function (e) {
   if (!storage || deleting) return;
   if (e.storageArea && e.storageArea !== storage) return;
-  if (!isWipeEvent(e)) return;
+  var wipe = isWipeEvent(e);
+  if (!wipe && !(e.key === QUIZ_KEY && e.newValue === null)) return;
+  forgetQuiz();
+  // Mis respuestas y la vista docente tampoco se quedan a la vista tras un borrado (o un cierre de sesión) en otra pestaña.
+  var privateScreen = currentScreen === 'history' || currentScreen === 'admin';
+  if (!wipe) {
+    if (currentScreen === 'descubre' || currentScreen === 'result') renderDescubre(true);
+    else if (privateScreen) renderInicio();
+    return;
+  }
   dataEpoch++; // una sincronización en curso no devuelve el progreso borrado
   state = emptyState();
   sesRun = null;
-  if (['intro', 'quiz', 'result', 'history', 'admin'].indexOf(currentScreen) === -1) renderPick();
+  if (currentScreen === 'descubre' || currentScreen === 'result') renderDescubre(true);
+  else if (currentScreen !== 'quiz') renderInicio(); // también desde Mis respuestas y la vista docente
   showNotice('Se borró tu progreso de este dispositivo desde otra pestaña.');
 });

@@ -4,17 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
+<meta name="description" content="Descubre qué área de computación va contigo y estudia, cinco minutos al día, las habilidades que piden vacantes reales.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F5F3EC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141917" media="(prefers-color-scheme: dark)">
 <title>Mapa de áreas</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2316201E'/%3E%3Cpath d='M7 22h7l5-12h6' fill='none' stroke='%23FFE27A' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='7' cy='22' r='3.2' fill='%23F5F3EC'/%3E%3Ccircle cx='25' cy='10' r='3.2' fill='%23F5F3EC'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Las fuentes no bloquean el primer dibujo: la hoja se aplica al cargar (display=swap) y, mientras, se usan las del sistema. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"></noscript>
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
 
 <main class="wrap">
 
-  <!-- Hub de estudio -->
+  <!-- Entrada (primera visita) y hub de estudio -->
+  <section id="s-entrada" class="hub" hidden></section>
   <section id="s-pick" class="hub" hidden></section>
   <section id="s-hoy" class="hub" hidden></section>
   <section id="s-mapa" class="hub" hidden></section>
@@ -23,31 +31,19 @@
   <section id="s-sesion" class="hub" hidden></section>
   <section id="s-yo" class="hub" hidden></section>
 
-  <!-- Cuestionario de áreas (se llega desde Yo) -->
-  <section id="s-intro" class="intro" hidden>
-    <div class="topnav"><button class="linkbtn" id="intro-back" type="button">← Volver</button></div>
-    <p class="mono">10 preguntas · 5 minutos · sin respuestas correctas</p>
-    <h1>¿Qué área de computación <mark>va contigo</mark>?</h1>
-    <p class="lede">No hay respuestas correctas. Elige lo que harías de verdad, no lo que suena mejor en un CV. Al final verás tres áreas que encajan con tus respuestas y qué puedes probar este semestre para comprobarlo.</p>
-    <div>
-      <p class="mono" style="margin-bottom:0.6rem">Elige cómo quieres hacerlo</p>
-      <div class="modes" id="modes" role="group" aria-label="Versión del cuestionario"></div>
-    </div>
-    <div class="actions">
-      <button class="btn" id="start" type="button">Hacer el cuestionario</button>
-    </div>
-  </section>
+  <!-- Pestaña Descubre y cuestionario de áreas -->
+  <section id="s-descubre" class="hub" hidden></section>
 
   <section id="s-quiz" class="quiz" hidden>
     <div class="quiz-head">
       <button class="linkbtn" id="back" type="button">← Atrás</button>
       <p class="mono" id="counter" aria-live="polite"></p>
     </div>
-    <div class="ticks" id="ticks" role="progressbar" aria-label="Avance del cuestionario" aria-valuemin="0" aria-valuemax="10"></div>
+    <div class="ticks" id="ticks" role="progressbar" aria-label="Avance del cuestionario" aria-valuemin="0" aria-valuemax="8"></div>
     <div id="quiz-body"></div>
   </section>
 
-  <section id="s-result" class="result" hidden></section>
+  <section id="s-result" class="hub" hidden></section>
   <section id="s-history" class="result" hidden></section>
   <section id="s-admin" class="result" hidden></section>
 
@@ -58,10 +54,11 @@
 <nav id="tabbar" class="tabbar" aria-label="Secciones" hidden>
   <button type="button" data-tab="hoy"><i aria-hidden="true"></i>Hoy</button>
   <button type="button" data-tab="mapa"><i aria-hidden="true"></i>Mapa</button>
+  <button type="button" data-tab="descubre"><i aria-hidden="true"></i>Descubre</button>
   <button type="button" data-tab="yo"><i aria-hidden="true"></i>Yo</button>
 </nav>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script id="sb-lib" async src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="js/data-areas.js"></script>
 <script src="js/data-estaciones.js"></script>
 <script src="js/data-lineas.js"></script>
@@ -72,6 +69,7 @@
 <script src="js/pantallas-estudio.js"></script>
 <script src="js/pantallas-mapa.js"></script>
 <script src="js/pantallas-cuenta.js"></script>
+<script src="js/pantallas-descubre.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

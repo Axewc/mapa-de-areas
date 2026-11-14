@@ -354,6 +354,60 @@ var SETS = {
     { t: "Tener mi propio producto o negocio", p: {web: 3, bak: 1, con: 1} },
     { t: "Que las decisiones de mi trabajo se apoyen en lo que yo encontré", p: {dat: 3, rsk: 1, con: 1} }
   ]}
+] },
+  3: { name: 'Descubre', qs: [
+  { q: "Te encuentras con un problema que te deja pensando. ¿Qué parte te engancha más?", opts: [
+    { t: "Ordenar toda la información que hay hasta que por fin se entienda", p: {dat: 3} },
+    { t: "Descubrir un patrón que sirva para anticipar qué va a pasar", p: {ml: 3, rsk: 2, inv: 1} },
+    { t: "Que nadie conozca la respuesta todavía y haya que encontrarla", p: {inv: 3} },
+    { t: "Buscar el punto débil por donde alguien podría colarse", p: {sec: 3, inf: 1} },
+    { t: "Entender bien a la persona que lo tiene y qué necesita", p: {con: 3, web: 1} }
+  ]},
+  { q: "Un programa que hiciste deja de funcionar y un asistente de IA te propone un arreglo. ¿Qué haces primero?", opts: [
+    { t: "Reviso qué cambió en la conexión o la configuración antes de aceptarlo", p: {inf: 3, sec: 1} },
+    { t: "Leo el arreglo línea por línea para ver si la lógica cuadra", p: {bak: 3} },
+    { t: "Me fijo si el arreglo deja abierta una puerta que antes estaba cerrada", p: {sec: 3, bak: 1} },
+    { t: "Me quedo con la duda de por qué falló, aunque el arreglo funcione", p: {inv: 3} },
+    { t: "Reproduzco la falla como la viviría quien usa el programa", p: {web: 3} }
+  ]},
+  { q: "Tu equipo va a hacer una app para pedir comida en la cafetería de la escuela. ¿Qué parte te gustaría tomar?", opts: [
+    { t: "Diseñar las pantallas para que pedir sea claro y rápido", p: {web: 3} },
+    { t: "Programar las reglas de precios, pedidos y lo que ya se acabó", p: {bak: 3} },
+    { t: "Vigilar que siga en pie a la hora de la comida, cuando todos piden", p: {inf: 3} },
+    { t: "Preguntarle a quien atiende qué le complica más el día", p: {con: 3, web: 1} }
+  ]},
+  { q: "La cafetería ya tiene un año de pedidos guardados. ¿Qué te gustaría hacer con ellos?", opts: [
+    { t: "Explicar qué se vendió más cada mes y por qué fue así", p: {dat: 3, inv: 1} },
+    { t: "Predecir cuántas tortas habrá que preparar mañana", p: {ml: 3} },
+    { t: "Estimar cuánto se pierde un día de lluvia, cuando llegan pocos", p: {rsk: 3, ml: 1} },
+    { t: "Buscar si hay una regla general en cómo elige la gente", p: {inv: 3, ml: 1} },
+    { t: "Proponerle a la dueña un cambio que le haga ganar más", p: {con: 3, dat: 1} }
+  ]},
+  { q: "Vas a ayudar con el sistema de inscripciones de tu facultad en la semana de altas y bajas. ¿De qué parte te gustaría encargarte?", opts: [
+    { t: "Cuidar que nadie entre con la cuenta de otro ni cambie calificaciones", p: {sec: 3} },
+    { t: "Lograr que siga funcionando aunque miles entren a la misma hora", p: {inf: 3, bak: 1} },
+    { t: "Asegurar que las reglas de cupo y horarios se cumplan sin errores", p: {bak: 3} },
+    { t: "Estimar qué tan probable es una falla y cuánto afectaría", p: {rsk: 3} }
+  ]},
+  { q: "Una tiendita de tu colonia quiere vender más y te pide ayuda. ¿Por dónde empiezas?", opts: [
+    { t: "Platico con la dueña hasta entender cómo funciona su negocio", p: {con: 3} },
+    { t: "Calculo cuánto podría perder si las ventas tardan en llegar", p: {rsk: 3} },
+    { t: "Le armo una página sencilla donde reciba pedidos en línea", p: {web: 3, bak: 2} },
+    { t: "Reviso sus ventas de este año para ver qué le conviene vender", p: {dat: 3, con: 1} }
+  ]},
+  { q: "En tu próximo proyecto, un asistente de IA hace el primer borrador. ¿Qué parte del trabajo quieres hacer tú?", opts: [
+    { t: "Afinar cómo se ve y se siente hasta que sea cómodo de usar", p: {web: 3} },
+    { t: "Ordenar la lógica por dentro para que sea fácil de cambiar", p: {bak: 3} },
+    { t: "Escoger los ejemplos con los que el programa aprende a predecir", p: {ml: 3, dat: 2} },
+    { t: "Atacarlo por mi cuenta para encontrar sus huecos antes que otros", p: {sec: 3} },
+    { t: "Diseñar el experimento que muestre si la idea funciona", p: {inv: 3} }
+  ]},
+  { q: "Un asistente de IA hace propuestas y alguien debe decidir cuáles se aceptan. ¿Qué te gustaría revisar tú?", opts: [
+    { t: "Si sus predicciones siguen acertando con los datos de este mes", p: {ml: 3, dat: 1} },
+    { t: "Cuánto costaría equivocarse y si vale la pena el riesgo", p: {rsk: 3, con: 1} },
+    { t: "Si el cambio se puede aplicar sin interrumpir a nadie", p: {inf: 3, bak: 1} },
+    { t: "Si los datos en que se basó la propuesta están completos", p: {dat: 3} }
+  ]}
 ] }
 };
 
@@ -659,15 +713,30 @@ Object.keys(SETS).forEach(function (v) {
 });
 
 function scoreAnswers(answers, v) {
-  var qs = SETS[v].qs, raw = {};
+  var qs = SETS[v].qs, M = MAXP[v], raw = {}, picked = [];
   Object.keys(AREAS).forEach(function (k) { raw[k] = 0; });
   answers.forEach(function (choice, i) {
     var p = qs[i].opts[choice].p;
+    picked.push(p);
     Object.keys(p).forEach(function (k) { raw[k] += p[k]; });
   });
-  return Object.keys(AREAS).map(function (k, idx) {
-    return { key: k, pct: Math.round(raw[k] / MAXP[v][k] * 100), idx: idx };
-  }).sort(function (a, b) { return b.pct - a.pct || a.idx - b.idx; });
+  var list = Object.keys(AREAS).map(function (k, idx) {
+    return { key: k, pct: Math.round(raw[k] / M[k] * 100), idx: idx };
+  });
+  // Orden: proporción exacta raw/MAXP (multiplicación cruzada, sin errores de redondeo);
+  // luego puntos brutos; luego gana quien recibió más puntos en la pregunta más reciente
+  // en que las dos áreas difieren (de la última a la primera); solo si son idénticas, índice.
+  return list.sort(function (a, b) {
+    var ka = a.key, kb = b.key, i, pa, pb;
+    var d = (raw[kb] * M[ka] - raw[ka] * M[kb]) || (raw[kb] - raw[ka]);
+    if (d) return d;
+    for (i = picked.length - 1; i >= 0; i--) {
+      pa = picked[i][ka] || 0;
+      pb = picked[i][kb] || 0;
+      if (pa !== pb) return pb - pa;
+    }
+    return a.idx - b.idx;
+  });
 }
 
 if (typeof module !== 'undefined') module.exports = { AREAS: AREAS, SETS: SETS, GLOSS: GLOSS, MAXP: MAXP, scoreAnswers: scoreAnswers };

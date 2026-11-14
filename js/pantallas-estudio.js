@@ -27,20 +27,21 @@ function renderPick(keep) {
   var root = screens.pick;
   root.textContent = '';
   var hasGoal = !!lineById(state.goal);
-  if (hasGoal) {
-    var back = el('button', { class: 'linkbtn', type: 'button', text: '← Volver' });
-    back.addEventListener('click', function () { renderYo(); });
-    root.append(el('div', { class: 'topnav' }, back));
-  } else {
-    root.append(hubHead());
-  }
+  // Con meta se llega desde Yo; sin meta y con un resultado guardado, desde Descubre; si no, desde la entrada.
+  var back = el('button', { class: 'linkbtn', type: 'button', text: '← Volver' });
+  back.addEventListener('click', function () {
+    withDir('backward', function () {
+      if (lineById(state.goal)) renderYo();
+      else if (savedQuiz()) renderDescubre();
+      else renderEntrada();
+    });
+  });
+  root.append(el('div', { class: 'topnav' }, back));
   root.append(el('div', { class: 'hub-title' },
     el('h1', { text: hasGoal ? 'Cambia tu meta' : 'Elige tu meta' }),
     el('p', { class: 'lede', text: 'Elige una vacante real como meta. Vas a estudiar las habilidades que pide, a tu ritmo.' })
   ));
   if (hasGoal) root.append(el('p', { class: 'small', text: 'Lo que ya estudiaste se conserva: las habilidades compartidas cuentan para todas las líneas.' }));
-  // Quien ya tiene cuenta puede entrar antes de elegir, para traer su meta de la nube sin pisarla.
-  if (!hasGoal && !session) root.append(el('div', { class: 'pick-login' }, signInBlock('pick-', '¿Ya tienes cuenta? Entra', true)));
 
   var groups = [
     ['Para empezar', 'Piden poca o ninguna experiencia.', LINEAS.filter(function (l) { return l.level === 'Para empezar'; })],
@@ -215,7 +216,29 @@ function renderHoy(keep) {
     root.append(el('section', { class: 'card', 'aria-labelledby': 'others-h' },
       el('h2', { class: 'mono card-h', id: 'others-h', text: 'Otras líneas que ya avanzaste' }), list));
   }
+  var tip = quizTipCard();
+  if (tip) root.append(tip);
   show('hoy', keep);
+}
+
+// Tarjeta descartable de Hoy que invita al cuestionario. null si ya hay un resultado o si se cerró con «Ahora no».
+// No cuenta como tarea: no toca racha ni XP.
+function quizTipCard() {
+  if (savedQuiz() || tipHidden || tipDismissed(storage)) return null;
+  var go = el('button', { class: 'btn', id: 'tip-go', type: 'button', text: 'Descubrir mi área' });
+  go.addEventListener('click', function () { withDir('forward', function () { startQuiz(); }); });
+  var no = el('button', { class: 'btn ghost', id: 'tip-no', type: 'button', text: 'Ahora no' });
+  var card = el('section', { class: 'card stack quiz-tip', 'aria-labelledby': 'tip-h' },
+    el('h2', { id: 'tip-h', text: '¿Dudas si esta es tu área?' }),
+    el('p', { class: 'small', text: 'Son 5 minutos: 8 preguntas, sin cuenta. Te sugerimos un área y una vacante.' }),
+    el('div', { class: 'actions' }, go, no));
+  no.addEventListener('click', function () {
+    tipHidden = true;
+    dismissTip(storage);
+    card.remove();
+    focusHeading(screens.hoy);
+  });
+  return card;
 }
 
 // ---------- Sesión ----------

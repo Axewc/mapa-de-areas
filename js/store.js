@@ -1,9 +1,11 @@
 // Guardado local del progreso (localStorage). ES5, script clásico.
 var STORE_KEY = 'mapa.v2';
+var QUIZ_KEY = 'mapa.quiz';    // último intento del cuestionario: { v: 3, t, answers }
+var TIP_KEY = 'mapa.quizTip';  // '1' cuando se cerró el aviso del cuestionario
 
 var storeCore = (typeof module !== 'undefined' && typeof require === 'function')
   ? require('./core.js')
-  : { emptyState: emptyState, validState: validState, mergeState: mergeState };
+  : { emptyState: emptyState, validState: validState, mergeState: mergeState, validQuiz: validQuiz };
 
 function safeStorage() {
   try {
@@ -52,7 +54,101 @@ function saveLocal(storage, state) {
 
 function clearLocal(storage) {
   if (!storage) return;
-  try { storage.removeItem(STORE_KEY); } catch (e) { /* sin acción */ }
+  // El progreso va al final: otra pestaña que reacciona a su borrado ya ve borrados el resultado y el aviso.
+  var keys = [QUIZ_KEY, TIP_KEY, STORE_KEY];
+  for (var i = 0; i < keys.length; i++) {
+    try { storage.removeItem(keys[i]); } catch (e) { /* sin acción */ }
+  }
+}
+
+// Último intento guardado si es válido para `set`; si no hay, está roto o es de otra versión: null. Nunca lanza.
+function loadQuiz(storage, set) {
+  if (!storage) return null;
+  var raw;
+  try { raw = storage.getItem(QUIZ_KEY); } catch (e) { return null; }
+  if (raw === null || raw === undefined) return null;
+  try {
+    var parsed = JSON.parse(raw);
+    return storeCore.validQuiz(parsed, set) ? parsed : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Guarda { v: 3, t: now, answers }. -> true si quedó guardado. Nunca lanza.
+function saveQuiz(storage, answers, now) {
+  if (!storage || !Array.isArray(answers) || typeof now !== 'number' || !isFinite(now)) return false;
+  try {
+    storage.setItem(QUIZ_KEY, JSON.stringify({ v: 3, t: now, answers: answers.slice() }));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Subida del último intento a la cuenta. En «mapa.quiz» se agregan campos que validQuiz tolera:
+// up: 1 cuando ya está en mapa_respuestas (de cualquier cuenta: no se vuelve a subir) y uid, la cuenta que lo subió
+// (solo decide el aviso «Guardado en tu cuenta.»).
+// Solo donde no hay Web Locks, un reclamo para que otra pestaña no lo suba
+// a la vez: c (ms en que una pestaña lo reclamó) y cid (ficha aleatoria de esa pestaña).
+// Un reclamo de más de QUIZ_CLAIM_MS (o con reloj al revés) se considera abandonado.
+var QUIZ_CLAIM_MS = 60000;
+
+// Lee «mapa.quiz», y si es el intento con ese t, le aplica fn (que devuelve false para no escribir) y lo guarda.
+// -> true si escribió. Nunca lanza.
+function quizUpdate(storage, t, fn) {
+  if (!storage) return false;
+  try {
+    var q = JSON.parse(storage.getItem(QUIZ_KEY));
+    if (!q || typeof q !== 'object' || Array.isArray(q) || q.t !== t) return false;
+    if (fn(q) === false) return false;
+    storage.setItem(QUIZ_KEY, JSON.stringify(q));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Reclama la subida del intento t con la ficha cid: false si ya está en la cuenta, si otra pestaña lo reclamó hace
+// menos de QUIZ_CLAIM_MS, si ya no es el intento guardado o si no se pudo escribir. Leer y escribir no es atómico
+// entre pestañas: quien reclama espera un poco y confirma con ownsQuizClaim antes de subir.
+function claimQuizUpload(storage, t, now, cid) {
+  return quizUpdate(storage, t, function (q) {
+    if (q.up === 1) return false;
+    if (typeof q.c === 'number' && now >= q.c && now - q.c < QUIZ_CLAIM_MS) return false;
+    q.c = now;
+    q.cid = cid;
+  });
+}
+
+// ¿El reclamo del intento t (aún sin subir) sigue siendo el de la ficha cid? Nunca lanza.
+function ownsQuizClaim(storage, t, cid) {
+  if (!storage) return false;
+  try {
+    var q = JSON.parse(storage.getItem(QUIZ_KEY));
+    return !!q && typeof q === 'object' && q.t === t && q.up !== 1 && q.cid === cid;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Termina la subida del intento t: quita el reclamo y, si ok, lo marca como subido (up: 1) por la cuenta uid.
+function finishQuizUpload(storage, t, ok, uid) {
+  return quizUpdate(storage, t, function (q) {
+    delete q.c;
+    delete q.cid;
+    if (ok) { q.up = 1; q.uid = uid; }
+  });
+}
+
+function tipDismissed(storage) {
+  if (!storage) return false;
+  try { return storage.getItem(TIP_KEY) === '1'; } catch (e) { return false; }
+}
+
+function dismissTip(storage) {
+  if (!storage) return;
+  try { storage.setItem(TIP_KEY, '1'); } catch (e) { /* sin acción */ }
 }
 
 // ¿Este evento `storage` (de otra pestaña) borró el progreso? Se decide con los datos del evento, no volviendo a leer:
@@ -104,4 +200,4 @@ function deleteRemote(sb, userId) {
   }
 }
 
-if (typeof module !== 'undefined') module.exports = { STORE_KEY: STORE_KEY, safeStorage: safeStorage, loadLocal: loadLocal, saveLocal: saveLocal, clearLocal: clearLocal, isWipeEvent: isWipeEvent, syncRemote: syncRemote, deleteRemote: deleteRemote };
+if (typeof module !== 'undefined') module.exports = { STORE_KEY: STORE_KEY, QUIZ_KEY: QUIZ_KEY, TIP_KEY: TIP_KEY, safeStorage: safeStorage, loadLocal: loadLocal, saveLocal: saveLocal, clearLocal: clearLocal, loadQuiz: loadQuiz, saveQuiz: saveQuiz, QUIZ_CLAIM_MS: QUIZ_CLAIM_MS, claimQuizUpload: claimQuizUpload, ownsQuizClaim: ownsQuizClaim, finishQuizUpload: finishQuizUpload, tipDismissed: tipDismissed, dismissTip: dismissTip, isWipeEvent: isWipeEvent, syncRemote: syncRemote, deleteRemote: deleteRemote };
