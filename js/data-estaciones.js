@@ -1152,7 +1152,7 @@ var ESTACIONES = {
       },
       {
         idea: "Un modelo de crecimiento estima cuánto cambia un resultado cuando cambia una variable, por ejemplo cuántos leads trae subir de posición en un buscador. Que dos cosas suban juntas no prueba que una cause la otra: para eso sirven los experimentos.",
-        q: { q: "Las páginas que más leads traen son también las mejor posicionadas en Google. ¿Qué puedes afirmar?", opts: ["Que subir de posición siempre trae más leads", "Que los leads hacen que una página suba en Google", "Que la posición en Google no influye en nada", "Que van juntas, pero falta probar qué causa qué"], ok: 3, why: "Puede que la posición traiga los leads, pero también que esas páginas traten temas que atraen a gente lista para agendar, y por eso Google las prefiere y la gente se registra. La correlación sola no separa las dos historias; un experimento sí." }
+        q: { q: "Las páginas que más leads traen son también las mejor posicionadas en Google. ¿Qué puedes afirmar?", opts: ["Que subir de posición siempre trae más leads", "Que los leads hacen que una página suba en Google", "Que la posición en Google no influye en nada", "Que van juntas, pero falta probar qué causa qué"], ok: 3, why: "Puede que la posición traiga los leads, pero también puede haber un tercer factor: esas páginas tratan temas que busca gente ya decidida a atenderse, y el tema explica a la vez su buena posición y los registros. La correlación sola no separa las dos historias; un experimento sí." }
       }
     ],
     extra: [
@@ -1190,7 +1190,7 @@ var ESTACIONES = {
     ],
     extra: [
       { q: "Quieres saber si agregar preguntas frecuentes con fuentes médicas hace que los asistentes citen más tu sitio. ¿Cómo lo pruebas?", opts: ["Las agregas a todo el sitio y le preguntas una vez a cada asistente", "Las agregas a la mitad de páginas parecidas y comparas con el resto", "Le preguntas directamente al asistente si te va a citar más", "Copias las preguntas frecuentes de la competencia"], ok: 1, why: "Las respuestas de los asistentes cambian solas con el tiempo; si cambias todo a la vez, no sabes si fue tu cambio. Con una mitad sin cambios como control y la misma lista de preguntas repetida, la diferencia entre mitades sí dice algo." },
-      { q: "Search Console muestra que tu página aparece muchas veces en los resultados de Google, pero casi nadie le da clic. ¿Qué revisas?", opts: ["El título y la descripción del resultado", "Qué tan rápido carga la página después del clic", "Cuántas palabras tiene el texto completo de la página", "Cuántos enlaces de tu sitio apuntan a esa página"], ok: 0, why: "Si apareces mucho y te eligen poco, el problema está en lo que la gente ve antes de entrar: el título y la descripción del resultado. La velocidad importa ya que hicieron clic, y el largo del texto o los enlaces influyen en dónde apareces, no en si te eligen." }
+      { q: "Search Console muestra que tu página aparece muchas veces en los resultados de Google, pero casi nadie le da clic. ¿Qué revisas?", opts: ["El título y la descripción del resultado", "Qué tan rápido carga la página después del clic", "Cuántas palabras tiene el texto completo de la página", "Cuántos enlaces de tu sitio apuntan a esa página"], ok: 0, why: "Si apareces mucho y te eligen poco, revisa lo que la gente ve antes de entrar: el título y la descripción del resultado (y en qué posición sales: muy abajo, casi nadie da clic). La velocidad importa ya que hicieron clic, y el largo del texto o los enlaces pueden cambiar tu posición, pero no lo que la gente lee en el resultado." }
     ],
     task: { n: "Auditoría de SEO y GEO", d: "Elige el sitio de un servicio de salud o de tu universidad. En tres páginas revisa el título, la descripción, quién firma el contenido y si robots.txt deja rastrearlas. Después haz 10 preguntas reales a dos asistentes de IA, cada una tres veces, y anota en una hoja si mencionan o citan el sitio. Cierra con los tres cambios que probarías primero.", t: "1 tarde" },
     res: [
@@ -1211,7 +1211,7 @@ var ESTACIONES = {
         q: { q: "Quieres que el botón «Pagar» se vea rojo y más grande en el teléfono. ¿Qué lenguaje cambias?", opts: ["HTML", "CSS", "JavaScript", "SQL"], ok: 1, why: "El aspecto (color, tamaño y acomodo según la pantalla) le toca a CSS. Podrías cambiar estilos desde JavaScript, pero es más difícil de mantener; HTML solo dice que ahí hay un botón, y SQL es para consultar bases de datos." }
       },
       {
-        idea: "Un componente es una pieza de la interfaz con su HTML, su estilo y su lógica, que se usa muchas veces: un botón, una tarjeta de cliente, una tabla de pagos. En Vue cada componente vive en un archivo .vue y recibe datos de fuera mediante props.",
+        idea: "Un componente es una pieza de la interfaz con su HTML, su estilo y su lógica, que se usa muchas veces: un botón, una tarjeta de cliente, una tabla de pagos. En Vue cada componente suele vivir en su propio archivo .vue y recibe datos de fuera mediante props.",
         q: { q: "La misma tarjeta de cliente aparece en cinco pantallas, copiada y pegada en cada una. ¿Qué conviene?", opts: ["Dejarla así: copiar y pegar es más rápido", "Juntar las cinco pantallas en una sola", "Hacer un componente y usarlo en las cinco", "Usar una imagen de la tarjeta en cada pantalla"], ok: 2, why: "Con un componente, un cambio (por ejemplo, mostrar el RFC) se hace una vez y aparece en las cinco pantallas. Copiar y pegar es rápido el primer día, pero cada corrección hay que repetirla cinco veces y tarde o temprano una copia queda distinta." }
       },
       {
@@ -1263,7 +1263,7 @@ var ESTACIONES = {
     ],
     task: { n: "Un mini sistema de diseño", d: "Define en un archivo JSON tus tokens: cinco colores con su versión oscura, tres tamaños de letra y cuatro espacios. Con ellos construye, en Vue o en HTML y CSS, un botón con tres variantes y un campo de texto con estado de error, y documenta cada uno en una página con ejemplos y cuándo usarlo. Cambia un token y comprueba que todo se actualiza.", t: "1 tarde" },
     res: [
-      { n: "Design Tokens Community Group (W3C, en inglés): el formato estándar para guardar tokens de diseño", u: "https://www.designtokens.org/" },
+      { n: "Design Tokens Community Group (grupo comunitario del W3C, en inglés): el formato común que proponen para guardar tokens de diseño", u: "https://www.designtokens.org/" },
       { n: "Why Storybook? (documentación de Storybook, en inglés): construir y documentar componentes aislados", u: "https://storybook.js.org/docs/why-storybook" }
     ]
   },
@@ -1284,7 +1284,7 @@ var ESTACIONES = {
       },
       {
         idea: "La latencia tiene dos partes: cuánto tarda en salir el primer token y cuánto tarda en escribirse el resto. Generar menos tokens es lo que más acorta la espera, y mostrar la respuesta mientras se genera (streaming) la hace sentir mucho más corta.",
-        q: { q: "Las personas se quejan de que el asistente «se queda pensando» 12 segundos antes de mostrar algo, aunque la respuesta completa es buena. ¿Qué mejora más la espera que sienten?", opts: ["Mostrar la respuesta conforme se genera", "Mandarles un correo cuando la respuesta esté lista", "Subir la temperatura del modelo", "Agregar más ejemplos al prompt"], ok: 0, why: "Con streaming el texto empieza a aparecer en cuanto sale el primer token, y la persona lee mientras el modelo sigue escribiendo. Subir la temperatura cambia qué tan variadas son las respuestas, no su velocidad, y más ejemplos alargan la entrada." }
+        q: { q: "El asistente espera a tener la respuesta completa, unos 12 segundos, antes de mostrar algo, y las personas se quejan de que «se queda pensando». ¿Qué mejora más la espera que sienten?", opts: ["Mostrar la respuesta conforme se genera", "Mandarles un correo cuando la respuesta esté lista", "Subir la temperatura del modelo", "Agregar más ejemplos al prompt"], ok: 0, why: "Con streaming el texto empieza a aparecer en cuanto sale el primer token, y la persona lee mientras el modelo sigue escribiendo. Subir la temperatura cambia qué tan variadas son las respuestas, no su velocidad, y más ejemplos alargan la entrada." }
       },
       {
         idea: "La caché reutiliza trabajo. La de respuestas guarda lo que se contestó a una pregunta idéntica; la de prompts reutiliza el inicio fijo del prompt (instrucciones, documentos), que se cobra más barato y responde antes. Por eso lo fijo va al principio.",

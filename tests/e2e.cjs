@@ -260,9 +260,12 @@ async function miniLineScenarios(browser, setStep) {
   const { LINEAS } = require('../js/data-lineas.js');
   for (const width of [320, 360, 390]) {
     const ctx = await browser.newContext({ viewport: { width, height: 844 }, colorScheme: 'light', deviceScaleFactor: 1 });
-    for (const line of LINEAS) {
-      setStep('miniatura de Hoy: ' + line.id + ' a ' + width + ' px');
-      const goal = { v: 2, goal: line.id, goalT: 1, items: {}, days: {} };
+    // Las líneas de más de 5 estaciones se prueban con cada estación como actual; las anteriores quedan visitadas.
+    for (const [line, c] of LINEAS.flatMap((l) => (l.stations.length > 5 ? l.stations.map((_, i) => [l, i]) : [[l, 0]]))) {
+      setStep('miniatura de Hoy: ' + line.id + ' a ' + width + ' px, actual ' + (c + 1));
+      const items = {};
+      for (const id of line.stations.slice(0, c)) for (let n = 0; n < 6; n++) items[id + '.' + n] = { b: 5, due: '2099-01-01', t: 1 };
+      const goal = { v: 2, goal: line.id, goalT: 1, items, days: {} };
       const { page, errors } = await openHome(ctx, { local: JSON.stringify(goal) });
       await page.waitForSelector('#s-hoy .mini-labels .lab');
       const problems = await page.evaluate(() => {
@@ -288,11 +291,11 @@ async function miniLineScenarios(browser, setStep) {
         if (!(document.documentElement.scrollWidth <= window.innerWidth)) out.push('scroll horizontal');
         return out;
       });
-      assert.deepEqual(problems, [], 'miniatura de ' + line.id + ' a ' + width + ' px');
+      assert.deepEqual(problems, [], 'miniatura de ' + line.id + ' a ' + width + ' px, actual ' + (c + 1));
       assert.deepEqual(errors, []);
       if (SHOTS) {
         const box = await page.locator('#s-hoy .goal').boundingBox();
-        await page.screenshot({ path: path.join(SHOTS, 'mini-' + width + '-' + line.id + '.png'), clip: { x: 0, y: box.y, width, height: box.height }, animations: 'disabled' });
+        await page.screenshot({ path: path.join(SHOTS, 'mini-' + width + '-' + line.id + '-' + (c + 1) + '.png'), clip: { x: 0, y: box.y, width, height: box.height }, animations: 'disabled' });
       }
       await page.close();
     }

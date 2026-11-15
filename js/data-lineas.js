@@ -284,7 +284,7 @@ var LINEAS = [
     asks: [
       "Años construyendo sistemas sobre los que otros equipos construyen, y experiencia reciente con modelos de IA: consumo de tokens, límites de tasa, latencia y servidores MCP.",
       "Haber diseñado y construido bases de experiencia de usuario a escala: sistemas de diseño, plataformas de componentes o infraestructura de frontend que usan muchos equipos.",
-      "Gusto por el diseño que se note en tu trabajo y, de preferencia, agentes o herramientas que ya ayuden a diseñadores a hacer más.",
+      "Gusto por el diseño que se note en tu trabajo y, lo que más pesa para el puesto, haber construido agentes o herramientas que ayuden a diseñadores a hacer más.",
       "Llevar proyectos por tu cuenta en una organización grande, sin un PM detrás, y explicar decisiones técnicas a quien no lee código.",
       "Evidencia de lo que construiste: GitHub, herramientas en uso y demos que puedas explicar."
     ],

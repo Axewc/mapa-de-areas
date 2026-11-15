@@ -129,8 +129,11 @@ function miniLine(line) {
   else {
     var c = curIdx === -1 ? null : curIdx;
     if (c === null || c >= 3) named[0] = [1, 3];
-    // La última ocupa 3 columnas si la actual no las necesita (en L12, «Observabilidad» no cabe en 2 a 320 px).
-    if (c === null || c <= n - 4) named[n - 1] = [c === null || c + 3 <= n - 2 ? n - 2 : n - 1, n + 1];
+    // La última ocupa 3 columnas si la actual no las necesita. Con solo 2 se omite si trae una palabra larga y hay
+    // 7 o más estaciones (en L12, «Observabilidad» no cabe en 2 de 7 columnas a 320 px; «Requerimientos» sí cabe en 2 de 6).
+    var lastLong = ESTACIONES[ids[n - 1]].name.split(' ').some(function (w) { return w.length > 11; });
+    if (c === null || c + 3 <= n - 2) named[n - 1] = [n - 2, n + 1];
+    else if (c <= n - 4 && !(lastLong && n >= 7)) named[n - 1] = [n - 1, n + 1];
     if (c === 0) named[0] = [1, 3];
     else if (c === n - 1) named[n - 1] = [n - 2, n + 1];
     else if (c !== null) named[c] = [c, c + 3];
