@@ -19,7 +19,7 @@ test('MAXP tiene las 9 áreas en las tres versiones', () => {
 });
 test('el resultado enlaza con las líneas de sus tres áreas', () => {
   const top = scoreAnswers([0,0,0,0,0,0,0,0,0,0], 2).slice(0, 3).map(x => x.key);
-  assert.deepEqual([...lineasFor(top, LINEAS)], ['edar-dev-jr', 'sears-datos-jr', 'mvs-tester-jr', 'banorte-ds-jr', 'getnet-ai-deploy']);
+  assert.deepEqual([...lineasFor(top, LINEAS)], ['edar-dev-jr', 'sears-datos-jr', 'mvs-tester-jr', 'banorte-ds-jr', 'getnet-ai-deploy', 'clivi-growth-ai', 'toku-software-eng', 'nubank-ai-design']);
   assert.deepEqual([...lineasFor(['inv'], LINEAS)], []);
 });
 test('data-areas.js solo exporta el cuestionario y el glosario', () => {

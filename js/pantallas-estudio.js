@@ -10,7 +10,7 @@ function lineById(id) {
   return null;
 }
 
-// Insignia «L1»…«L9» con el color de la línea: el número distingue la línea sin depender del color.
+// Insignia «L1»…«L12» con el color de la línea: el número distingue la línea sin depender del color.
 function lineBadge(line) {
   return el('span', { class: 'lbadge ' + line.color, title: 'Línea ' + line.n }, 'L' + line.n);
 }
@@ -111,7 +111,7 @@ function miniLine(line) {
   var said = [];
   // Con 5 estaciones o menos se nombran todas, escalonadas en dos renglones: cada etiqueta puede medir el doble de una
   // columna, centrada en su estación (la primera y la última, pegadas a su borde y de 1.5 columnas; y la caja se ajusta al texto, así que las del
-  // mismo renglón solo se tocan si ambos textos son largos: la prueba lo revisa con las nueve líneas). La cuadrícula
+  // mismo renglón solo se tocan si ambos textos son largos: la prueba lo revisa con todas las líneas). La cuadrícula
   // de etiquetas tiene 2n unidades (media columna cada una). Con más de 5 solo se nombran la actual y los extremos
   // que caben sin encimarse; cada etiqueta ocupa también las columnas vacías de al lado (columnas 1 a n, fin exclusivo).
   var named = {};
@@ -129,9 +129,13 @@ function miniLine(line) {
   else {
     var c = curIdx === -1 ? null : curIdx;
     if (c === null || c >= 3) named[0] = [1, 3];
-    if (c === null || c <= n - 4) named[n - 1] = [n - 1, n + 1];
+    // La última ocupa 3 columnas si la actual no las necesita. Con solo 2 se omite si trae una palabra larga y hay
+    // 7 o más estaciones (en L12, «Observabilidad» no cabe en 2 de 7 columnas a 320 px; «Requerimientos» sí cabe en 2 de 6).
+    var lastLong = ESTACIONES[ids[n - 1]].name.split(' ').some(function (w) { return w.length > 11; });
+    if (c === null || c + 3 <= n - 2) named[n - 1] = [n - 2, n + 1];
+    else if (c <= n - 4 && !(lastLong && n >= 7)) named[n - 1] = [n - 1, n + 1];
     if (c === 0) named[0] = [1, 3];
-    else if (c === n - 1) named[n - 1] = [n - 1, n + 1];
+    else if (c === n - 1) named[n - 1] = [n - 2, n + 1];
     else if (c !== null) named[c] = [c, c + 3];
   }
   if (stagger) labels.classList.add('stagger');

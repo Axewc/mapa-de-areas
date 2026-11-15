@@ -1096,6 +1096,211 @@ var ESTACIONES = {
       { n: "Modelos de catástrofes (NAIC, la asociación de reguladores de seguros de Estados Unidos, en inglés)", u: "https://content.naic.org/insurance-topics/catastrophe-models-property" },
       { n: "Loss Data Analytics: libro abierto de actuaría, con capítulos de frecuencia y severidad (en inglés)", u: "https://openacttexts.github.io/" }
     ]
+  },
+
+  "experimentos": {
+    id: "experimentos",
+    name: "Experimentos",
+    plain: "Probar una idea con datos antes de darla por buena: le muestras el cambio a un grupo elegido al azar y lo comparas con otro grupo que no lo recibe.",
+    why: "Clivi busca a alguien que diseñe experimentos para validar hipótesis de crecimiento y analice los resultados con métodos estadísticos. En una empresa que crece rápido hay muchas ideas y poco tiempo: un buen experimento te dice cuáles sí funcionan y evita confundir una coincidencia con un logro.",
+    steps: [
+      {
+        idea: "Un experimento empieza con una hipótesis que se puede comprobar: «si el formulario pide 3 datos en vez de 6, más visitantes lo van a terminar». Dice qué cambias, qué número esperas mover y hacia dónde.",
+        q: { q: "¿Cuál de estas es una hipótesis que un experimento puede comprobar?", opts: ["Nuestra página tiene que verse más moderna", "Si el formulario pide menos datos, más gente lo termina", "Los usuarios merecen una mejor experiencia", "Este trimestre tenemos que mejorar como sea el embudo de registro"], ok: 1, why: "Dice qué cambias (menos datos), qué mides (cuántos terminan el formulario) y qué esperas que pase. «Verse más moderna» puede ser una buena idea, pero no dice qué medir ni cómo sabrías que funcionó." }
+      },
+      {
+        idea: "En una prueba A/B, cada visitante cae al azar en el grupo A (la versión actual, que es el grupo de control) o en el B (la versión nueva). El azar reparte parejo todo lo demás, como la edad o el teléfono, así que la diferencia se debe al cambio.",
+        q: { q: "¿Por qué se asigna a cada visitante al azar, en vez de mostrar la versión nueva solo a quienes llegan en la mañana?", opts: ["Para que los dos grupos se parezcan en todo menos en el cambio", "Porque así el experimento termina más rápido", "Porque las herramientas de análisis solo aceptan datos al azar", "Para que nadie del equipo sepa qué versión ganó"], ok: 0, why: "Si la versión nueva solo sale en la mañana, cualquier diferencia podría deberse a quién visita a esa hora y no al cambio. El azar reparte por igual entre los dos grupos lo que no controlas. No hace que el experimento termine antes." }
+      },
+      {
+        idea: "Antes de empezar calculas el tamaño de muestra: entre más pequeña la diferencia que quieres detectar, más visitantes necesitas. Con pocos datos, una diferencia real puede no notarse y una casual puede parecer enorme.",
+        q: { q: "Tu página convierte 5 % de las visitas y crees que un cambio la subirá a 5.5 %. ¿Qué pasa si corres la prueba con 200 visitas por grupo?", opts: ["Alcanza de sobra, porque 200 visitas ya es una muestra grande", "Es muy probable que no distingas esa diferencia del azar", "Gana la versión nueva, porque la diferencia es real", "El resultado es más confiable porque la prueba es corta"], ok: 1, why: "Con 200 visitas, el 5 % son unas 10 conversiones por grupo, y unas cuantas de más o de menos por azar pesan más que el medio punto que buscas. Para una diferencia así hacen falta decenas de miles de visitas por grupo: calcúlalo antes de empezar." }
+      },
+      {
+        idea: "Fija de antemano la métrica principal y cuánto dura la prueba, y no la detengas en cuanto la versión nueva «va ganando»: revisar a cada rato y parar en el mejor momento hace que el azar parezca un efecto. Vigila también una métrica de protección.",
+        q: { q: "Al tercer día de una prueba planeada para dos semanas, la versión B lleva 20 % más registros. ¿Qué haces?", opts: ["La detienes y publicas B, porque ya ganó", "Cambias la métrica principal por una que favorezca más a B", "Agregas una versión C para aprovechar el impulso", "Sigues hasta completar las dos semanas y la muestra"], ok: 3, why: "En los primeros días los resultados suben y bajan mucho; si paras en cuanto B va arriba, acabas publicando cambios que no mejoran nada. Cambiar de métrica a la mitad es el mismo error con otra cara: buscar el número que te da la razón." }
+      }
+    ],
+    extra: [
+      { q: "Cambiaste el título de la página de inicio y la semana siguiente los registros subieron 15 %, pero esa misma semana salió en televisión una nota sobre diabetes. ¿Qué puedes concluir del título?", opts: ["Que funcionó, porque los registros subieron", "Que no funcionó, porque la nota lo explica todo", "Nada todavía: sin grupo de control no separas los dos efectos", "Que el título explica la mitad del aumento"], ok: 2, why: "Comparar antes y después no es un experimento: la nota, la temporada o una campaña pueden explicar el aumento. Con un grupo de control que vea el título viejo en las mismas fechas, la diferencia entre los dos grupos sí se le puede atribuir al título." },
+      { q: "En una prueba, la versión B sube 8 % los registros, pero bajan las consultas que de verdad se pagan. ¿Qué haces?", opts: ["Revisas todo el embudo antes de decidir", "Publicas B, porque la métrica principal subió", "Repites la prueba hasta que las consultas también suban", "Ignoras las consultas, porque no eran la métrica principal"], ok: 0, why: "Para eso sirve una métrica de protección: B puede atraer registros que nunca se vuelven clientes. Publicarla por el 8 % mejora un número y empeora el negocio. Repetir la prueba hasta que salga lo que quieres es buscar suerte, no evidencia." }
+    ],
+    task: { n: "Diseña y analiza una prueba A/B", d: "Escribe la hipótesis, la métrica principal, una métrica de protección y la duración de un experimento para la página de registro de una clínica en línea. Con la calculadora de Evan Miller estima el tamaño de muestra para detectar un aumento de 5 % a 6 %. Luego simula en Python los dos grupos con esas tasas y compáralos con una prueba de proporciones (proportions_ztest, de statsmodels).", t: "1 tarde" },
+    res: [
+      { n: "A/B Testing (Udacity, curso gratuito en inglés hecho con Google): diseñar y analizar experimentos en línea", u: "https://www.udacity.com/course/ab-testing--ud257" },
+      { n: "Calculadora de tamaño de muestra de Evan Miller (en inglés)", u: "https://www.evanmiller.org/ab-testing/sample-size.html" }
+    ]
+  },
+
+  "embudo": {
+    id: "embudo",
+    name: "Embudo de adquisición",
+    plain: "El camino que recorre la gente desde que encuentra tu sitio hasta que paga: visitas, leads (quienes dejan sus datos) y clientes. En cada paso se queda una parte, por eso se dibuja como un embudo.",
+    why: "Clivi quiere a alguien que analice la relación entre el posicionamiento orgánico, el tráfico, los leads y los ingresos, y que construya modelos para entender qué variables impulsan el crecimiento. Con el embudo ves en qué paso se pierde más gente y qué palanca conviene mover primero.",
+    steps: [
+      {
+        idea: "Un embudo de adquisición tiene pasos en orden: visitas al sitio, leads, consultas agendadas y clientes que pagan. La tasa de conversión de cada paso es cuántos pasan al siguiente entre cuántos llegaron a ese paso.",
+        q: { q: "En un mes hubo 20,000 visitas, 800 leads y 200 clientes. ¿Cuál fue la conversión de lead a cliente?", opts: ["1 %", "4 %", "25 %", "40 %"], ok: 2, why: "Se divide entre quienes llegaron a ese paso: 200 / 800 = 25 %. El 1 % es de visita a cliente (200 / 20,000) y el 4 %, de visita a lead (800 / 20,000): son tasas reales, pero de otros pasos." }
+      },
+      {
+        idea: "Los ingresos salen de multiplicar los pasos: visitas × conversión a lead × conversión a cliente × ingreso por cliente. Por eso subir una conversión del 4 % al 5 % rinde lo mismo que traer 25 % más visitas.",
+        q: { q: "Tienes 10,000 visitas al mes; 4 % se vuelven leads y 25 % de los leads pagan $1,000. ¿Cuánto ingresas, y cuánto si la conversión a lead sube a 5 %?", opts: ["$100,000 y $125,000", "$100,000 y $101,000", "$40,000 y $50,000", "$250,000 y $260,000"], ok: 0, why: "10,000 × 0.04 = 400 leads; 400 × 0.25 = 100 clientes; 100 × $1,000 = $100,000. Con 5 % hay 500 leads y 125 clientes: $125,000. Un punto de conversión subió 25 % los ingresos, porque cada paso multiplica a los demás." }
+      },
+      {
+        idea: "Para saber qué mueve el crecimiento, separa los datos: por canal (orgánico, anuncios, recomendaciones), por página de entrada o por ciudad. Un promedio general puede esconder que un canal convierte el triple que otro.",
+        q: { q: "El tráfico orgánico creció 30 % en el trimestre, pero los leads no subieron. ¿Qué revisas primero?", opts: ["Si conviene gastar más en anuncios", "A qué páginas llegó el tráfico nuevo y cuánto convierte cada una", "Si el sitio cambió de colores este trimestre", "Nada: más tráfico siempre acaba en más leads"], ok: 1, why: "Quizá el tráfico nuevo llega a artículos generales que casi no generan leads, mientras las páginas que sí convierten siguen igual. Separar por página de entrada lo muestra. Más tráfico no siempre trae más leads: depende de quién llega y a dónde." }
+      },
+      {
+        idea: "Un modelo de crecimiento estima cuánto cambia un resultado cuando cambia una variable, por ejemplo cuántos leads trae subir de posición en un buscador. Que dos cosas suban juntas no prueba que una cause la otra: para eso sirven los experimentos.",
+        q: { q: "Las páginas que más leads traen son también las mejor posicionadas en Google. ¿Qué puedes afirmar?", opts: ["Que subir de posición siempre trae más leads", "Que los leads hacen que una página suba en Google", "Que la posición en Google no influye en nada", "Que van juntas, pero falta probar qué causa qué"], ok: 3, why: "Puede que la posición traiga los leads, pero también puede haber un tercer factor: esas páginas tratan temas que busca gente ya decidida a atenderse, y el tema explica a la vez su buena posición y los registros. La correlación sola no separa las dos historias; un experimento sí." }
+      }
+    ],
+    extra: [
+      { q: "Para planear el próximo trimestre quieres comparar canales que traen cantidades muy distintas de visitas. ¿Qué cifra sirve más?", opts: ["El número total de visitas de cada canal", "El ingreso por visita de cada canal", "Cuántas páginas tiene el sitio", "Cuánto tarda en cargar la página de inicio"], ok: 1, why: "El ingreso por visita junta todos los pasos del embudo: cuánto deja, en promedio, cada persona que llega por ese canal. Las visitas solas premian al canal más grande, aunque traiga gente que casi nunca paga." },
+      { q: "En la exploración de embudo ves que 60 % de quienes empiezan el registro lo abandonan en el paso «Datos médicos». ¿Qué propones primero?", opts: ["Comprar más anuncios para que lleguen más personas al registro", "Quitar el formulario de registro completo", "Entender ese paso y probar un cambio con un experimento", "Esperar a que el abandono baje solo"], ok: 2, why: "El embudo te dice dónde se pierde la gente; lo siguiente es entender por qué (quizá piden datos que nadie tiene a la mano) y probar un cambio con un experimento. Más anuncios llenan la parte de arriba, pero esa gente se iría en el mismo paso." }
+    ],
+    task: { n: "Modela tu embudo en una hoja", d: "Arma en una hoja de cálculo un embudo inventado de 12 meses para una clínica en línea: visitas por canal (orgánico, anuncios y recomendaciones), conversión a lead, conversión a cliente e ingreso por cliente. Calcula los ingresos y el ingreso por visita de cada canal, y prueba qué pasa si cada tasa sube un punto. Escribe en un párrafo qué palanca moverías primero y por qué.", t: "1 tarde" },
+    res: [
+      { n: "Exploración de embudo (Ayuda de Google Analytics): ver en qué paso abandonan las personas", u: "https://support.google.com/analytics/answer/9327974?hl=es" }
+    ]
+  },
+
+  "seo-geo": {
+    id: "seo-geo",
+    name: "SEO y GEO",
+    plain: "Lograr que te encuentren: el SEO busca que tus páginas aparezcan en buscadores como Google, y el GEO, que asistentes de IA como ChatGPT, Claude o Perplexity mencionen y citen tu sitio en sus respuestas.",
+    why: "Clivi quiere una ventaja en adquisición orgánica: investigar qué hace que herramientas como ChatGPT, Claude y Perplexity identifiquen y recomienden un servicio de salud, y diseñar experimentos para mejorar su lugar ahí. También suma puntos haber experimentado con SEO o GEO.",
+    steps: [
+      {
+        idea: "Un buscador hace tres cosas: rastrea (un programa visita tus páginas siguiendo enlaces), indexa (guarda y entiende lo que encontró) y ordena los resultados de cada búsqueda. Una página que no se puede rastrear ni indexar no aparece, por buena que sea.",
+        q: { q: "Publicaste una página nueva y, semanas después, no aparece en Google ni buscando su título exacto. ¿Qué revisas primero?", opts: ["Si Google pudo rastrearla e indexarla", "Si el texto repite lo suficiente sus palabras clave", "Si la página usa colores llamativos", "Si la competencia publicó algo parecido"], ok: 0, why: "Si ni el título exacto la encuentra, lo más probable es que no esté en el índice: quizá robots.txt la bloquea, nada enlaza a ella o pide no indexar. Search Console te dice si Google pudo rastrear e indexar la página. Las palabras clave ayudan a ordenar, pero una página fuera del índice no compite." }
+      },
+      {
+        idea: "Para ordenar, Google busca contenido útil y confiable hecho para personas: que responda la pregunta, que diga quién lo escribió y con qué experiencia, y que tenga un título claro. Repetir palabras clave a la fuerza no ayuda y puede perjudicar.",
+        q: { q: "¿Qué mejora más las posibilidades de que una página sobre control de glucosa salga bien posicionada?", opts: ["Repetir «control de glucosa» en cada párrafo", "Una respuesta útil, revisada por un médico con nombre visible", "Esconder texto con palabras clave en letra blanca", "Publicar diez páginas casi iguales con títulos distintos"], ok: 1, why: "Google dice que premia el contenido útil y confiable hecho para personas, y en temas de salud pesa todavía más saber quién lo escribió o lo revisó. Repetir palabras o esconder texto van contra sus reglas, y las páginas casi iguales compiten entre sí." }
+      },
+      {
+        idea: "Los asistentes de IA responden con lo que aprendieron al entrenarse y, cada vez más, con búsquedas en la web que hacen en el momento; cuando buscan, suelen citar las páginas que usaron. Por eso el GEO parte del SEO.",
+        q: { q: "¿Qué tiene que ver el SEO con aparecer en la respuesta de un asistente que busca en la web?", opts: ["Nada: los asistentes no usan páginas web", "Que el SEO garantiza salir en todas sus respuestas", "Que no se cita lo que no se encuentra", "Que hay que pagarle al asistente para que te cite"], ok: 2, why: "Cuando un asistente busca en la web trabaja con las páginas que encuentra; una página que nadie puede encontrar no llega a su respuesta. El SEO tampoco garantiza aparecer: el asistente elige qué citar según la pregunta." }
+      },
+      {
+        idea: "Para medir el GEO, arma una lista fija de preguntas reales («¿dónde me atiendo la diabetes en línea?»), hazlas en varios asistentes cada semana y anota si mencionan tu marca y si citan tu sitio. Las respuestas cambian de una vez a otra: repite cada pregunta.",
+        q: { q: "Le preguntas una vez a un asistente por clínicas para diabetes y no menciona a tu empresa. ¿Qué concluyes?", opts: ["Que nunca te menciona y hay que rehacer el sitio", "Que te menciona más o menos en la mitad de los casos", "Que el asistente tiene algo en contra de tu marca", "Poco: las respuestas varían y hace falta repetir"], ok: 3, why: "Los asistentes no dan siempre la misma respuesta: cambia con la redacción, el día y la conversación. Una sola respuesta no dice nada; con la misma lista de preguntas repetida cada semana sí ves si tu presencia sube o baja." }
+      }
+    ],
+    extra: [
+      { q: "Quieres saber si agregar preguntas frecuentes con fuentes médicas hace que los asistentes citen más tu sitio. ¿Cómo lo pruebas?", opts: ["Las agregas a todo el sitio y le preguntas una vez a cada asistente", "Las agregas a la mitad de páginas parecidas y comparas con el resto", "Le preguntas directamente al asistente si te va a citar más", "Copias las preguntas frecuentes de la competencia"], ok: 1, why: "Las respuestas de los asistentes cambian solas con el tiempo; si cambias todo a la vez, no sabes si fue tu cambio. Con una mitad sin cambios como control y la misma lista de preguntas repetida, la diferencia entre mitades sí dice algo." },
+      { q: "Search Console muestra que tu página aparece muchas veces en los resultados de Google, pero casi nadie le da clic. ¿Qué revisas?", opts: ["El título y la descripción del resultado", "Qué tan rápido carga la página después del clic", "Cuántas palabras tiene el texto completo de la página", "Cuántos enlaces de tu sitio apuntan a esa página"], ok: 0, why: "Si apareces mucho y te eligen poco, revisa lo que la gente ve antes de entrar: el título y la descripción del resultado (y en qué posición sales: muy abajo, casi nadie da clic). La velocidad importa ya que hicieron clic, y el largo del texto o los enlaces pueden cambiar tu posición, pero no lo que la gente lee en el resultado." }
+    ],
+    task: { n: "Auditoría de SEO y GEO", d: "Elige el sitio de un servicio de salud o de tu universidad. En tres páginas revisa el título, la descripción, quién firma el contenido y si robots.txt deja rastrearlas. Después haz 10 preguntas reales a dos asistentes de IA, cada una tres veces, y anota en una hoja si mencionan o citan el sitio. Cierra con los tres cambios que probarías primero.", t: "1 tarde" },
+    res: [
+      { n: "Guía de optimización en buscadores (SEO) para principiantes (Google Search Central)", u: "https://developers.google.com/search/docs/fundamentals/seo-starter-guide?hl=es" },
+      { n: "AI features and your website (Google Search Central, en inglés): cómo se eligen las páginas en las respuestas con IA", u: "https://developers.google.com/search/docs/appearance/ai-features" },
+      { n: "GEO: Generative Engine Optimization (Aggarwal et al., KDD 2024): el artículo que propuso el término", u: "https://arxiv.org/abs/2311.09735" }
+    ]
+  },
+
+  "frontend": {
+    id: "frontend",
+    name: "Frontend",
+    plain: "La parte de una aplicación web que la gente ve y usa en el navegador: pantallas, formularios y botones, armados con piezas reutilizables llamadas componentes.",
+    why: "Toku busca Software Engineers que diseñen, desarrollen y mantengan aplicaciones web con Vue.js en el frontend y Python con FastAPI en el backend, y suma puntos tener experiencia con TypeScript y Vue. Es lo primero que ven los clientes: un error en la pantalla se nota de inmediato.",
+    steps: [
+      {
+        idea: "Una página web usa tres lenguajes: HTML dice qué hay (un título, un formulario), CSS dice cómo se ve (colores, tamaños y acomodo) y JavaScript dice qué hace (validar, pedir datos a una API, mostrar un aviso).",
+        q: { q: "Quieres que el botón «Pagar» se vea rojo y más grande en el teléfono. ¿Qué lenguaje cambias?", opts: ["HTML", "CSS", "JavaScript", "SQL"], ok: 1, why: "El aspecto (color, tamaño y acomodo según la pantalla) le toca a CSS. Podrías cambiar estilos desde JavaScript, pero es más difícil de mantener; HTML solo dice que ahí hay un botón, y SQL es para consultar bases de datos." }
+      },
+      {
+        idea: "Un componente es una pieza de la interfaz con su HTML, su estilo y su lógica, que se usa muchas veces: un botón, una tarjeta de cliente, una tabla de pagos. En Vue cada componente suele vivir en su propio archivo .vue y recibe datos de fuera mediante props.",
+        q: { q: "La misma tarjeta de cliente aparece en cinco pantallas, copiada y pegada en cada una. ¿Qué conviene?", opts: ["Dejarla así: copiar y pegar es más rápido", "Juntar las cinco pantallas en una sola", "Hacer un componente y usarlo en las cinco", "Usar una imagen de la tarjeta en cada pantalla"], ok: 2, why: "Con un componente, un cambio (por ejemplo, mostrar el RFC) se hace una vez y aparece en las cinco pantallas. Copiar y pegar es rápido el primer día, pero cada corrección hay que repetirla cinco veces y tarde o temprano una copia queda distinta." }
+      },
+      {
+        idea: "En Vue la interfaz es reactiva: describes qué mostrar según los datos y, cuando un dato cambia, Vue actualiza esa parte de la pantalla. No tienes que buscar a mano el elemento para cambiarle el texto.",
+        q: { q: "En un componente de Vue, total es un dato reactivo y la plantilla muestra {{ total }}. Si tu código cambia total, ¿qué pasa en la pantalla?", opts: ["Vue actualiza el número que se ve", "Hay que recargar la página para verlo", "Tienes que buscar el elemento y cambiarle el texto", "Nada: la plantilla solo se lee al cargar"], ok: 0, why: "Esa es la idea de la reactividad: la plantilla depende de total y Vue la vuelve a dibujar cuando cambia. Buscar el elemento a mano es como se hacía sin frameworks, y es justo lo que Vue te ahorra." }
+      },
+      {
+        idea: "El frontend casi nunca tiene los datos: se los pide a la API del backend con fetch y muestra un estado de carga, el resultado o un mensaje de error. Lo que llega del navegador se puede alterar, así que el backend valida otra vez.",
+        q: { q: "El formulario de Vue ya revisa que el monto sea positivo antes de enviarlo. ¿Hace falta validarlo también en la API de FastAPI?", opts: ["No, con validar en el navegador basta", "No, porque Vue no deja enviar datos inválidos", "Solo si la API es pública", "Sí: cualquiera puede llamar a la API sin tu formulario"], ok: 3, why: "La validación del navegador sirve para que la persona corrija rápido; la del backend protege tus datos, porque alguien puede mandar la petición directo, con curl o cambiando el JavaScript. Que la API no sea pública no lo evita: también puede llamarla otro sistema con un error." }
+      }
+    ],
+    extra: [
+      { q: "Al abrir la lista de pagos, la API tarda 3 segundos en responder. ¿Qué debe mostrar la pantalla mientras tanto?", opts: ["Una pantalla en blanco", "Un aviso de carga", "Un mensaje de error", "La lista de ayer, sin avisar"], ok: 1, why: "Un indicador de carga le dice a la persona que algo está pasando y evita que toque el botón otra vez. Mostrar datos viejos sin avisar parece rápido, pero alguien puede decidir con información que ya cambió." },
+      { q: "Un cliente reporta que en su teléfono no puede tocar «Confirmar» porque el botón queda fuera de la pantalla. ¿Qué haces primero?", opts: ["Le pides que mejor use una computadora", "Reescribes la pantalla en otro framework", "Reproduces el problema con el ancho de su teléfono", "Agrandas el texto y los botones de toda la aplicación"], ok: 2, why: "Antes de corregir hay que ver el error: las herramientas de desarrollo del navegador simulan el ancho de un teléfono, y ahí encuentras qué estilo empuja el botón fuera. Pedirle que use una computadora no lo arregla para los demás clientes." }
+    ],
+    task: { n: "Una pantalla de pagos con Vue", d: "Con create-vue arma una aplicación con dos componentes: TarjetaPago, que recibe por props el cliente, el monto y el estado, y ListaPagos, que pide los datos a una API (la que hiciste en la estación APIs o un archivo JSON) y muestra carga, error o la lista. Agrega un filtro por estado y revisa que se vea bien a 360 px de ancho.", t: "1 tarde" },
+    res: [
+      { n: "Introduction (documentación oficial de Vue, en inglés): qué es Vue y cómo empezar", u: "https://vuejs.org/guide/introduction" },
+      { n: "Components Basics (documentación oficial de Vue, en inglés): componentes y props", u: "https://vuejs.org/guide/essentials/component-basics" }
+    ]
+  },
+
+  "sistemas-diseno": {
+    id: "sistemas-diseno",
+    name: "Sistemas de diseño",
+    plain: "Un sistema de diseño es la fuente única de colores, tipografías, espacios y componentes que usan todos los equipos de una empresa, con su documentación, para que sus productos se vean y funcionen igual.",
+    why: "Nubank busca a alguien que ya haya diseñado y construido bases de experiencia de usuario a escala: sistemas de diseño, plataformas de componentes y frameworks de interfaz que usan muchos equipos. Su función de diseño tiene unas 260 personas y muchas herramientas locales que no se hablan entre sí; un sistema de diseño es el ejemplo clásico de convertir soluciones locales en una base común.",
+    steps: [
+      {
+        idea: "Un sistema de diseño tiene capas: decisiones básicas (colores, tipografía, espacios), componentes construidos con ellas (botones, campos, tarjetas) y documentación que dice cuándo usar cada uno. Su valor es ser la fuente única que todos consultan.",
+        q: { q: "Tres equipos tienen cada uno su propio botón «Continuar», con tamaños y colores distintos. ¿Qué resuelve un sistema de diseño?", opts: ["Que cada equipo elija el color que prefiera", "Un solo botón documentado que todos usan y mantienen", "Que el diseño lo decida quien programe más rápido", "Nada: las diferencias pequeñas no importan"], ok: 1, why: "Con un componente compartido, el botón se diseña, se prueba (también su accesibilidad) y se corrige una vez, y los tres equipos reciben la mejora. Las diferencias pequeñas sí importan: confunden a la gente y multiplican el trabajo de mantenerlas." }
+      },
+      {
+        idea: "Los tokens de diseño son las decisiones básicas con nombre: color.texto.principal = #16201E o espacio.m = 16px. Los componentes usan el nombre, no el valor; así, cambiar un token cambia todo lo que lo usa, en web, iOS y Android.",
+        q: { q: "Un componente usa el token color.alerta y otro tiene escrito directo el valor #C2323C. La marca cambia el rojo de alerta. ¿Qué pasa?", opts: ["Los dos cambian solos", "Ninguno de los dos cambia", "Solo cambia el que usa el token", "Solo cambia el que tiene el valor directo"], ok: 2, why: "El token es una referencia: al cambiar su valor, todo lo que lo usa se actualiza. El valor escrito directo queda congelado y hay que encontrarlo a mano; por eso un sistema de diseño pide usar tokens." }
+      },
+      {
+        idea: "Cada componente se documenta con sus variantes y estados (normal, deshabilitado, con error, cargando), ejemplos y reglas de accesibilidad. Herramientas como Storybook muestran cada componente aislado, con sus casos, para revisarlo y probarlo.",
+        q: { q: "¿Qué documentación le sirve más a otro equipo que va a usar tu componente de campo de texto?", opts: ["Sus variantes y estados, con ejemplos y cuándo usarlo", "Las notas de todas las reuniones donde se diseñó el componente", "Solo el código fuente, sin explicación", "Una captura del componente en una pantalla"], ok: 0, why: "Quien lo usa necesita saber qué variantes hay, cómo se ve con error o deshabilitado y cuándo conviene otro componente. El código dice cómo está hecho, no cuándo usarlo, y una captura muestra un solo estado." }
+      },
+      {
+        idea: "Un sistema de diseño es un producto interno: tiene usuarios (los equipos), versiones y un camino para pedir cambios. Si no resuelve lo que los equipos necesitan, cada uno vuelve a hacer su propia versión y el sistema deja de ser la fuente única.",
+        q: { q: "Un equipo necesita un tipo de tarjeta que el sistema no tiene y está por crear la suya aparte. ¿Qué es lo mejor para el sistema?", opts: ["Prohibirle que la haga", "Ignorarlo: es su problema", "Copiar después su tarjeta al sistema sin hablar con ese equipo", "Entender la necesidad y, si sirve a otros, sumarla al sistema"], ok: 3, why: "Las necesidades nuevas son información: si varios equipos la tienen, el componente entra al sistema con su documentación; si es muy particular, se queda local de forma consciente. Prohibirla solo hace que la creen a escondidas." }
+      }
+    ],
+    extra: [
+      { q: "En el tema oscuro, el texto de un botón casi no se lee. El botón usa el token color.texto.boton. ¿Dónde lo corriges?", opts: ["En ese token, para el tema oscuro", "En cada pantalla donde aparece el botón", "En el código de uno de los equipos", "En una nota que pida no usar el tema oscuro"], ok: 0, why: "El problema está en la decisión (qué color tiene ese texto en el tema oscuro), así que se corrige en el token y la mejora llega a todos los productos. Corregir pantalla por pantalla deja el error en las que olvides." },
+      { q: "El equipo de pagos pide una variante «peligro» del botón principal para acciones que no se pueden deshacer. ¿Qué incluyes al agregarla?", opts: ["Solo el color rojo nuevo", "La variante con tokens, estados, ejemplos y reglas de uso", "Una copia del botón principal con otro nombre y otro color", "Nada: que cada equipo la haga a su manera"], ok: 1, why: "Una variante nueva entra completa: usa tokens, cubre sus estados (también deshabilitado y con foco), trae ejemplos y dice cuándo usarla y cuándo no. Una copia con otro nombre es el primer paso para volver a tener tres botones distintos." }
+    ],
+    task: { n: "Un mini sistema de diseño", d: "Define en un archivo JSON tus tokens: cinco colores con su versión oscura, tres tamaños de letra y cuatro espacios. Con ellos construye, en Vue o en HTML y CSS, un botón con tres variantes y un campo de texto con estado de error, y documenta cada uno en una página con ejemplos y cuándo usarlo. Cambia un token y comprueba que todo se actualiza.", t: "1 tarde" },
+    res: [
+      { n: "Design Tokens Community Group (grupo comunitario del W3C, en inglés): el formato común que proponen para guardar tokens de diseño", u: "https://www.designtokens.org/" },
+      { n: "Why Storybook? (documentación de Storybook, en inglés): construir y documentar componentes aislados", u: "https://storybook.js.org/docs/why-storybook" }
+    ]
+  },
+
+  "costo-latencia": {
+    id: "costo-latencia",
+    name: "Costo y latencia",
+    plain: "Lo que cuesta, cuánto tarda y cuánto aguanta cada llamada a un modelo: los tokens que se cobran, los límites de uso del proveedor, el tiempo de respuesta y lo que se puede reutilizar con caché.",
+    why: "Nubank pide experiencia reciente con los retos de ingeniería de IA, como el consumo de tokens, los límites de tasa, la latencia de las respuestas y los servidores MCP. En su primer proyecto, NuBrain, lo difícil es cómo se organiza el contexto: cómo se busca la información y cómo se mantiene razonable el consumo de tokens.",
+    steps: [
+      {
+        idea: "Cada llamada cobra los tokens de entrada (instrucciones, historial, documentos) y los de salida, que suelen costar varias veces más. Un prompt largo se paga en cada llamada, y en una conversación el historial crece con cada turno.",
+        q: { q: "Tu asistente manda en cada llamada un manual de 30,000 tokens, aunque casi siempre bastan dos secciones. ¿Qué baja más el costo?", opts: ["Pedirle al modelo respuestas más cortas", "Mandar solo las secciones que hacen falta", "Usar un modelo con ventana de contexto más grande", "Escribir las preguntas en inglés"], ok: 1, why: "Casi todo lo que pagas son esos 30,000 tokens de entrada repetidos en cada llamada; buscar y mandar solo lo necesario (la idea de RAG) los reduce mucho. Pedir respuestas cortas ahorra algo, pero no toca el manual que se repite, y una ventana más grande no abarata nada." }
+      },
+      {
+        idea: "Los proveedores ponen límites de tasa: cuántas solicitudes y cuántos tokens puedes usar por minuto. Si los rebasas, la API responde 429; lo correcto es esperar lo que indique el encabezado retry-after o reintentar con espera exponencial.",
+        q: { q: "Tu servicio recibe errores 429 del proveedor del modelo en las horas pico. ¿Qué haces?", opts: ["Reintentas de inmediato, en un ciclo, hasta que la llamada pase", "Le muestras a la persona el error 429 tal cual", "Esperas cada vez más entre reintentos y vigilas tu uso", "Creas más claves de API para repartir las llamadas"], ok: 2, why: "El 429 dice que rebasaste el límite de solicitudes o de tokens por minuto. Reintentar de inmediato lo empeora, porque todas las llamadas vuelven a chocar; esperar cada vez más (y respetar retry-after) da tiempo a que el límite se libere. Más claves no sirven: el límite suele ser de toda la organización." }
+      },
+      {
+        idea: "La latencia tiene dos partes: cuánto tarda en salir el primer token y cuánto tarda en escribirse el resto. Generar menos tokens es lo que más acorta la espera, y mostrar la respuesta mientras se genera (streaming) la hace sentir mucho más corta.",
+        q: { q: "El asistente espera a tener la respuesta completa, unos 12 segundos, antes de mostrar algo, y las personas se quejan de que «se queda pensando». ¿Qué mejora más la espera que sienten?", opts: ["Mostrar la respuesta conforme se genera", "Mandarles un correo cuando la respuesta esté lista", "Subir la temperatura del modelo", "Agregar más ejemplos al prompt"], ok: 0, why: "Con streaming el texto empieza a aparecer en cuanto sale el primer token, y la persona lee mientras el modelo sigue escribiendo. Subir la temperatura cambia qué tan variadas son las respuestas, no su velocidad, y más ejemplos alargan la entrada." }
+      },
+      {
+        idea: "La caché reutiliza trabajo. La de respuestas guarda lo que se contestó a una pregunta idéntica; la de prompts reutiliza el inicio fijo del prompt (instrucciones, documentos), que se cobra más barato y responde antes. Por eso lo fijo va al principio.",
+        q: { q: "Todas las llamadas de tu asistente empiezan con las mismas instrucciones y el mismo catálogo de 20,000 tokens, y al final va la pregunta. ¿Qué aprovechas?", opts: ["Cambiar a un modelo más grande y potente", "Un límite de salida más alto", "Mandar el catálogo al final", "La caché de prompts del proveedor"], ok: 3, why: "Como el inicio se repite idéntico, el proveedor puede guardarlo y cobrar esa parte mucho más barata en las llamadas siguientes, y responder antes. Si mandas el catálogo al final, después de la pregunta que cambia, ya no se puede reutilizar." }
+      }
+    ],
+    extra: [
+      { q: "Tienes que clasificar 50,000 comentarios de usuarios en cinco categorías fijas. ¿Qué conviene probar primero?", opts: ["El modelo más grande y caro, por si acaso", "Un agente con muchas herramientas", "Un modelo pequeño, medido con un conjunto de evaluación", "Mandar todos los comentarios en una sola llamada"], ok: 2, why: "Clasificar en categorías fijas es una tarea sencilla que un modelo pequeño suele hacer bien, por mucho menos dinero y en menos tiempo; lo que decide es medirlo con un conjunto de evaluación y subir de modelo solo si no alcanza. 50,000 comentarios no cabrían en una sola llamada." },
+      { q: "Finanzas te pide estimar el costo mensual de un asistente con 2,000 conversaciones al día. ¿Qué necesitas?", opts: ["Los tokens de entrada y de salida, y el precio del modelo", "El número de personas del área de diseño", "Cuántos segundos tarda en promedio cada respuesta del modelo", "El tamaño del servidor donde corre el código de tu asistente"], ok: 0, why: "El costo es tokens por precio: (tokens de entrada × precio de entrada + tokens de salida × precio de salida) × conversaciones al día × 30. Los sacas de tus registros de observabilidad. Lo que tarda cada respuesta no es lo que cobra el proveedor." }
+    ],
+    task: { n: "Mide y recorta el costo de un asistente", d: "Toma uno de tus ejercicios con un modelo, o escribe un script que haga 20 preguntas sobre un documento largo. Registra en cada llamada los tokens de entrada y de salida, el tiempo hasta el primer token y el tiempo total. Luego aplica dos cambios, como mandar solo las secciones necesarias y activar la caché de prompts, y compara costo y latencia antes y después.", t: "1 tarde" },
+    res: [
+      { n: "Prompt caching (documentación de Claude, en inglés): reutilizar el inicio del prompt", u: "https://platform.claude.com/docs/en/build-with-claude/prompt-caching" },
+      { n: "Rate limits (documentación de Claude, en inglés): límites por minuto, el error 429 y retry-after", u: "https://platform.claude.com/docs/en/api/rate-limits" },
+      { n: "Latency optimization (documentación de OpenAI, en inglés): siete formas de bajar la latencia", u: "https://developers.openai.com/api/docs/guides/latency-optimization" }
+    ]
   }
 };
 

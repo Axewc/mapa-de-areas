@@ -253,16 +253,19 @@ async function visualPass(browser, viewport, colorScheme) {
   await ctxT.close();
 }
 
-// Línea en miniatura de Hoy: con cada una de las nueve líneas como meta, a 320, 360 y 390 px, ninguna etiqueta se corta
+// Línea en miniatura de Hoy: con cada una de las líneas como meta, a 320, 360 y 390 px, ninguna etiqueta se corta
 // (ni en ancho ni con «…» por exceso de renglones), ninguna palabra se parte a media palabra, ninguna se encima con otra
 // y la página no se desborda.
 async function miniLineScenarios(browser, setStep) {
   const { LINEAS } = require('../js/data-lineas.js');
   for (const width of [320, 360, 390]) {
     const ctx = await browser.newContext({ viewport: { width, height: 844 }, colorScheme: 'light', deviceScaleFactor: 1 });
-    for (const line of LINEAS) {
-      setStep('miniatura de Hoy: ' + line.id + ' a ' + width + ' px');
-      const goal = { v: 2, goal: line.id, goalT: 1, items: {}, days: {} };
+    // Las líneas de más de 5 estaciones se prueban con cada estación como actual; las anteriores quedan visitadas.
+    for (const [line, c] of LINEAS.flatMap((l) => (l.stations.length > 5 ? l.stations.map((_, i) => [l, i]) : [[l, 0]]))) {
+      setStep('miniatura de Hoy: ' + line.id + ' a ' + width + ' px, actual ' + (c + 1));
+      const items = {};
+      for (const id of line.stations.slice(0, c)) for (let n = 0; n < 6; n++) items[id + '.' + n] = { b: 5, due: '2099-01-01', t: 1 };
+      const goal = { v: 2, goal: line.id, goalT: 1, items, days: {} };
       const { page, errors } = await openHome(ctx, { local: JSON.stringify(goal) });
       await page.waitForSelector('#s-hoy .mini-labels .lab');
       const problems = await page.evaluate(() => {
@@ -288,11 +291,11 @@ async function miniLineScenarios(browser, setStep) {
         if (!(document.documentElement.scrollWidth <= window.innerWidth)) out.push('scroll horizontal');
         return out;
       });
-      assert.deepEqual(problems, [], 'miniatura de ' + line.id + ' a ' + width + ' px');
+      assert.deepEqual(problems, [], 'miniatura de ' + line.id + ' a ' + width + ' px, actual ' + (c + 1));
       assert.deepEqual(errors, []);
       if (SHOTS) {
         const box = await page.locator('#s-hoy .goal').boundingBox();
-        await page.screenshot({ path: path.join(SHOTS, 'mini-' + width + '-' + line.id + '.png'), clip: { x: 0, y: box.y, width, height: box.height }, animations: 'disabled' });
+        await page.screenshot({ path: path.join(SHOTS, 'mini-' + width + '-' + line.id + '-' + (c + 1) + '.png'), clip: { x: 0, y: box.y, width, height: box.height }, animations: 'disabled' });
       }
       await page.close();
     }
@@ -354,16 +357,16 @@ async function mapaScenarios(browser, setStep) {
   await page.waitForSelector('#s-hoy:not([hidden])');
   await page.click('#tabbar [data-tab=mapa]');
   await page.waitForSelector('#s-mapa:not([hidden]) svg');
-  assert.equal(await page.locator('#s-mapa svg [data-station]').count(), 32);
-  assert.equal(await page.locator('#s-mapa .line-list [data-line]').count(), 9);
+  assert.equal(await page.locator('#s-mapa svg [data-station]').count(), 38);
+  assert.equal(await page.locator('#s-mapa .line-list [data-line]').count(), 12);
   assert.match(await page.getAttribute('#s-mapa svg', 'viewBox'), /^0 0 360 \d+$/);
   assert.equal(await page.getAttribute('#s-mapa svg', 'role'), 'group');
-  assert.equal(await page.locator('#s-mapa svg polyline.trk').count(), 9);
+  assert.equal(await page.locator('#s-mapa svg polyline.trk').count(), 12);
   assert.equal(await page.getAttribute('#s-mapa [data-station=sql]', 'role'), 'link');
-  assert.equal(await page.getAttribute('#s-mapa [data-station=sql]', 'aria-label'), 'SQL, líneas L1, L2, L4, L6 y L8, 0% de avance');
-  assert.equal(await page.getAttribute('#s-mapa [data-station=apis]', 'aria-label'), 'APIs, línea L1, 0% de avance');
+  assert.equal(await page.getAttribute('#s-mapa [data-station=sql]', 'aria-label'), 'SQL, líneas L1, L2, L4, L6, L8 y L11, 0% de avance');
+  assert.equal(await page.getAttribute('#s-mapa [data-station=apis]', 'aria-label'), 'APIs, líneas L1 y L11, 0% de avance');
   // Insignias «L#» al inicio de cada línea, ocultas para lectores de pantalla.
-  assert.deepEqual(await page.locator('#s-mapa svg [data-badge] text').allTextContents(), ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9']);
+  assert.deepEqual(await page.locator('#s-mapa svg [data-badge] text').allTextContents(), ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12']);
   assert.equal(await page.getAttribute('#s-mapa svg g.badges', 'aria-hidden'), 'true');
   const badgeFs = await page.evaluate(() => {
     const svg = document.querySelector('#s-mapa svg.metro');
@@ -457,7 +460,7 @@ async function mapaScenarios(browser, setStep) {
     const pct = +(await page.textContent('#s-mapa .line-list [data-line=' + lid + '] .pct')).match(/(\d+)%/)[1];
     assert.ok(pct > 0, lid + ' sube con SQL');
   }
-  assert.match(await page.getAttribute('#s-mapa [data-station=sql]', 'aria-label'), /SQL, líneas L1, L2, L4, L6 y L8, 80% de avance/);
+  assert.match(await page.getAttribute('#s-mapa [data-station=sql]', 'aria-label'), /SQL, líneas L1, L2, L4, L6, L8 y L11, 80% de avance/);
   await page.click('#s-mapa [data-station=sql]');
   await page.waitForSelector('#s-estacion:not([hidden])');
   assert.equal(await page.locator('#s-estacion .shortcut').count(), 0, 'el atajo no se repite');
@@ -1911,11 +1914,14 @@ async function main() {
     assert.ok(firstFocus.style === 'none' || firstFocus.width === '0px', 'sin aro de foco en el título al cargar');
     await page.click('#door-goal');
     await page.waitForSelector('#s-pick:not([hidden])');
-    assert.equal(await page.locator('#s-pick .line-card').count(), 9);
+    assert.equal(await page.locator('#s-pick .line-card').count(), 12);
     assert.match(await page.locator('#s-pick .line-card').first().textContent(), /Para empezar/);
     const levels = await page.locator('#s-pick .line-card').evaluateAll((cs) => cs.map((c) => /Para empezar/.test(c.textContent)));
-    assert.deepEqual(levels, [true, true, true, true, true, true, false, false, false], 'primero las de «Para empezar»');
-    for (let n = 1; n <= 9; n++) assert.equal(await page.locator('#s-pick .line-card .lbadge', { hasText: 'L' + n }).count(), 1, 'insignia L' + n);
+    assert.deepEqual(levels, [true, true, true, true, true, true, true, true, false, false, false, false], 'primero las de «Para empezar»');
+    // texto exacto: «L1» no debe contar también «L10», «L11» y «L12»
+    for (let n = 1; n <= 12; n++) assert.equal(await page.locator('#s-pick .line-card .lbadge', { hasText: new RegExp('^L' + n + '$') }).count(), 1, 'insignia L' + n);
+    // la meta a 4 o 5 años va en «Para más adelante»
+    assert.match(await page.locator('#s-pick .pick-group').nth(1).textContent(), /Para más adelante[^]*L12[^]*Meta a 4 o 5 años/);
     assert.equal(await page.isVisible('#tabbar'), false, 'sin barra inferior al elegir meta');
     await page.locator('#s-pick .line-card', { hasText: 'Desarrollador de Software Jr.' }).click();
     await page.waitForSelector('#s-hoy:not([hidden])');
@@ -1947,7 +1953,7 @@ async function main() {
     assert.equal(await page.evaluate(() => document.activeElement.getAttribute('data-tab')), 'mapa', 'el foco se queda en la pestaña');
     assert.equal(await page.getAttribute('#tabbar [data-tab=hoy]', 'aria-current'), null);
 
-    step = 'mapa: 9 líneas, 32 estaciones';
+    step = 'mapa: 12 líneas, 38 estaciones';
     await mapaScenarios(browser, (t) => { step = t; });
 
     step = 'Yo: cuenta opcional, cambiar meta, cuestionario';
@@ -2329,8 +2335,9 @@ async function main() {
     assert.match(await ck.page.textContent('#s-hoy'), /12%/);
     assert.match(await ck.page.textContent('#s-hoy'), /te faltan 4 estaciones/);
     const rows = await ck.page.locator('#s-hoy .lrow').allTextContents();
-    assert.equal(rows.length, 1, 'solo L4 comparte Git');
+    assert.equal(rows.length, 2, 'L4 y L11 comparten Git');
     assert.match(rows[0], /L4[^]*Ingeniero de Operaciones Cloud Jr\.[^]*12%/);
+    assert.match(rows[1], /L11[^]*Software Engineer MX[^]*10%/);
     assert.deepEqual(ck.errors, []);
     await ctxC.close();
 
