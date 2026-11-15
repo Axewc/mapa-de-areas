@@ -100,9 +100,9 @@ test('L1 a L4: vacantes y estaciones de la tabla del spec', () => {
   });
 });
 
-test('hay 32 estaciones y 9 líneas, en orden L1 a L9', () => {
-  assert.equal(Object.keys(ESTACIONES).length, 32);
-  assert.deepEqual(LINEAS.map(l => l.id), ['edar-dev-jr', 'sears-datos-jr', 'mvs-tester-jr', 'satori-cloud-jr', 'safe-soc', 'banorte-ds-jr', 'getnet-ai-deploy', 'liverpool-negocio-jr', 'mapfre-suscriptor-jr']);
+test('hay 38 estaciones y 12 líneas, en orden L1 a L12', () => {
+  assert.equal(Object.keys(ESTACIONES).length, 38);
+  assert.deepEqual(LINEAS.map(l => l.id), ['edar-dev-jr', 'sears-datos-jr', 'mvs-tester-jr', 'satori-cloud-jr', 'safe-soc', 'banorte-ds-jr', 'getnet-ai-deploy', 'liverpool-negocio-jr', 'mapfre-suscriptor-jr', 'clivi-growth-ai', 'toku-software-eng', 'nubank-ai-design']);
 });
 
 test('todas las áreas salvo inv tienen al menos una línea', () => {
@@ -152,6 +152,32 @@ test('L5 a L7: vacantes y estaciones de la tabla del spec', () => {
 
 test('L5 a L7 declaran la experiencia que piden', () => {
   for (const id of ['safe-soc', 'banorte-ds-jr', 'getnet-ai-deploy']) assert.match(LINEAS.find(l => l.id === id).note, /año/);
+});
+
+test('L10 a L12: vacantes y estaciones del diseño del 15 de noviembre', () => {
+  const by = Object.fromEntries(LINEAS.map(l => [l.id, l]));
+  const exp = {
+    'clivi-growth-ai': [10, 'Para empezar', ['dat', 'ml'], 'https://www.linkedin.com/jobs/view/4481760468/', ['estadistica', 'experimentos', 'embudo', 'seo-geo', 'tableros']],
+    'toku-software-eng': [11, 'Para empezar', ['web', 'bak'], 'https://jobs.ashbyhq.com/Toku/2ab175a3-eda8-48a4-bee0-4e1db97fa007', ['frontend', 'apis', 'sql', 'git', 'pruebas-auto', 'requerimientos']],
+    'nubank-ai-design': [12, 'Meta a 4 o 5 años', ['ml', 'web'], 'https://jobs.ashbyhq.com/nubank/fac13a25-9ede-43a9-b644-ad0e2760cb6d', ['sistemas-diseno', 'llm', 'rag', 'costo-latencia', 'mcp', 'agentes', 'observabilidad']]
+  };
+  for (const id of Object.keys(exp)) {
+    const l = by[id];
+    assert.ok(l, id);
+    assert.equal(l.n, exp[id][0], id);
+    assert.equal(l.color, 'l' + exp[id][0], id);
+    assert.equal(l.level, exp[id][1], id);
+    assert.equal(l.seen, '2026-11-15', id);
+    assert.deepEqual([...l.areas], exp[id][2], id);
+    assert.equal(l.url, exp[id][3], id);
+    assert.deepEqual([...l.stations], exp[id][4], id);
+  }
+  // Clivi se postula con Easy Apply de LinkedIn y pide buen inglés; Nubank es una meta y dice la experiencia que pide
+  assert.match(by['clivi-growth-ai'].note, /Easy Apply/);
+  assert.match(by['clivi-growth-ai'].note, /inglés/);
+  assert.match(by['nubank-ai-design'].note, /año/);
+  // la frase de meta a mediano plazo del resultado sale del nivel: todos son «Para empezar» o «Meta a …»
+  for (const l of LINEAS) assert.match(l.level, /^(Para empezar|Meta a .+)$/, l.id);
 });
 
 test('las 21 preguntas de Getnet se conservan', () => {
@@ -270,7 +296,13 @@ test('cada estación tiene en el glosario sus términos', () => {
     diagramas: ['diagrama de flujo', 'bpmn', 'carril', 'uml', 'caso de uso', 'actor', 'diagrama de secuencia', 'draw.io'],
     agil: ['ágil', 'incremento', 'scrum', 'sprint', 'backlog', 'product owner', 'scrum master', 'daily scrum', 'retrospectiva', 'kanban', 'trabajo en curso'],
     seguros: ['póliza', 'prima', 'suma asegurada', 'deducible', 'coaseguro', 'siniestro', 'exclusiones', 'endoso', 'reaseguro', 'ramo de daños', 'suscripción'],
-    riesgo: ['frecuencia y severidad', 'severidad', 'pérdida esperada', 'prima de riesgo', 'exposición', 'cúmulo', 'modelo catastrófico', 'zona de lago', 'monte carlo']
+    riesgo: ['frecuencia y severidad', 'severidad', 'pérdida esperada', 'prima de riesgo', 'exposición', 'cúmulo', 'modelo catastrófico', 'zona de lago', 'monte carlo'],
+    experimentos: ['prueba a/b', 'grupo de control', 'tamaño de muestra', 'métrica de protección'],
+    embudo: ['embudo', 'lead', 'conversión', 'orgánico', 'ingreso por visita'],
+    'seo-geo': ['seo', 'geo', 'rastrear', 'indexar', 'robots.txt', 'search console', 'palabras clave'],
+    frontend: ['frontend', 'html', 'css', 'javascript', 'componente', 'vue', 'props', 'reactiva', 'typescript'],
+    'sistemas-diseno': ['sistema de diseño', 'token', 'componente', 'accesibilidad', 'storybook'],
+    'costo-latencia': ['token', 'latencia', 'límites de tasa', 'espera exponencial', 'retry-after', 'streaming', 'caché']
   };
   for (const id of Object.keys(need)) {
     assert.ok(ESTACIONES[id], 'la estación «' + id + '» de la lista no existe');

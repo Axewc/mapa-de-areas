@@ -673,7 +673,7 @@ const withAns = (i, a) => { const q = ok8(); q.answers[i] = a; return q; };
 
 test('lineForArea con las líneas reales', () => {
   const esperado = {
-    dat: 'sears-datos-jr', ml: 'banorte-ds-jr', bak: 'edar-dev-jr', web: 'edar-dev-jr', rsk: 'mapfre-suscriptor-jr',
+    dat: 'sears-datos-jr', ml: 'banorte-ds-jr', bak: 'edar-dev-jr', web: 'toku-software-eng', rsk: 'mapfre-suscriptor-jr',
     con: 'liverpool-negocio-jr', sec: 'safe-soc', inf: 'satori-cloud-jr', inv: null
   };
   assert.deepEqual(Object.keys(esperado), Object.keys(AREAS));

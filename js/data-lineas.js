@@ -1,4 +1,4 @@
-// Líneas del hub: cada una es una vacante real, leída completa en la fecha de `seen`. Van en orden L1 a L9.
+// Líneas del hub: cada una es una vacante real, leída completa en la fecha de `seen`. Van en orden L1 a L12.
 // Forma (spec «Modelo de contenido»): { id, n, color, title, company, place, level, url, seen, areas, summary, asks, note?, stations, map, badge? }
 // `stations` va en orden de estudio. `map` da { id: [x, y, lado?] } en un viewBox de 360 de ancho; el lado ('l', 'r' por defecto,
 // 't' arriba o 'b' abajo) es donde va la etiqueta. Una estación compartida lleva
@@ -29,8 +29,8 @@ var LINEAS = [
     ],
     note: "De $12,000 a $15,000 al mes. Para estudiantes del último semestre o recién egresados, con 0 a 2 años de experiencia.",
     stations: ["git", "datos", "sql", "apis", "pruebas-auto"],
-    map: { "git": [215, 120, "t"], "datos": [175, 160, "l"], "sql": [215, 200, "r"], "apis": [160, 270, "r"], "pruebas-auto": [150, 325, "b"] },
-    badge: [183, 120]
+    map: { "git": [215, 125, "t"], "datos": [140, 135, "l"], "sql": [215, 200, "r"], "apis": [185, 255, "b"], "pruebas-auto": [175, 105, "l"] },
+    badge: [222, 88]
   },
   {
     id: "sears-datos-jr",
@@ -53,7 +53,7 @@ var LINEAS = [
     ],
     note: "Temporal por proyecto y 100% presencial. Pide de 1 a 2 años de experiencia en análisis de datos.",
     stations: ["hojas", "datos", "sql", "tableros", "indicadores"],
-    map: { "hojas": [135, 200, "l"], "datos": [175, 160, "l"], "sql": [215, 200, "r"], "tableros": [295, 280, "b"], "indicadores": [344, 220, "l"] },
+    map: { "hojas": [135, 200, "l"], "datos": [140, 135, "l"], "sql": [215, 200, "r"], "tableros": [290, 315, "b"], "indicadores": [344, 220, "l"] },
     badge: [102, 219]
   },
   {
@@ -76,8 +76,8 @@ var LINEAS = [
     ],
     note: "$13,000 al mes. Temporal y presencial, con turnos rotativos que incluyen fines de semana.",
     stations: ["casos-prueba", "defectos", "hojas", "pruebas-auto"],
-    map: { "casos-prueba": [85, 90, "t"], "defectos": [85, 140, "l"], "hojas": [135, 200, "l"], "pruebas-auto": [150, 325, "b"] },
-    badge: [63, 90]
+    map: { "casos-prueba": [55, 100, "t"], "defectos": [85, 160, "l"], "hojas": [135, 200, "l"], "pruebas-auto": [175, 105, "l"] },
+    badge: [21, 116]
   },
   {
     id: "satori-cloud-jr",
@@ -100,7 +100,7 @@ var LINEAS = [
     ],
     note: "De $20,000 a $25,000 al mes. 100% presencial, de lunes a viernes de 9 a 19 h. Pide título y experiencia previa en soporte o infraestructura.",
     stations: ["linux", "nube", "monitoreo", "sql", "git"],
-    map: { "linux": [300, 522, "b"], "nube": [262, 485, "l"], "monitoreo": [260, 355, "r"], "sql": [215, 200, "r"], "git": [215, 120, "t"] },
+    map: { "linux": [300, 522, "b"], "nube": [262, 485, "l"], "monitoreo": [260, 360, "r"], "sql": [215, 200, "r"], "git": [215, 125, "t"] },
     badge: [332, 522]
   },
   {
@@ -124,7 +124,7 @@ var LINEAS = [
     ],
     note: "De $20,000 a $26,000 al mes, 100% presencial. Pide al menos 2 años de experiencia en un puesto parecido: es una meta, no un primer empleo.",
     stations: ["redes", "linux", "monitoreo", "amenazas", "incidentes"],
-    map: { "redes": [338, 485, "t"], "linux": [300, 522, "b"], "monitoreo": [260, 355, "r"], "amenazas": [235, 395, "l"], "incidentes": [235, 445, "l"] },
+    map: { "redes": [338, 485, "t"], "linux": [300, 522, "b"], "monitoreo": [260, 360, "r"], "amenazas": [230, 395, "l"], "incidentes": [235, 445, "l"] },
     badge: [338, 450]
   },
   {
@@ -148,8 +148,8 @@ var LINEAS = [
     ],
     note: "Híbrido. Pide de 2 a 4 años de experiencia en ciencia de datos, ML o IA.",
     stations: ["python", "sql", "estadistica", "ml", "llm", "rag", "evaluacion"],
-    map: { "python": [220, 300, "l"], "sql": [215, 200, "r"], "estadistica": [95, 285, "l"], "ml": [110, 420, "r"], "llm": [110, 510, "r"], "rag": [110, 565, "l"], "evaluacion": [190, 565, "b"] },
-    badge: [220, 320]
+    map: { "python": [255, 180, "r"], "sql": [215, 200, "r"], "estadistica": [110, 295, "r"], "ml": [105, 420, "r"], "llm": [110, 510, "r"], "rag": [110, 565, "l"], "evaluacion": [190, 565, "t"] },
+    badge: [267, 148]
   },
   {
     id: "getnet-ai-deploy",
@@ -171,8 +171,8 @@ var LINEAS = [
     ],
     note: "Híbrido. No pide años de experiencia: valora haber construido algo real con IA, en el trabajo, en un proyecto propio o en un emprendimiento.",
     stations: ["agentes", "multiagente", "guardrails", "mcp", "observabilidad", "rag", "evaluacion"],
-    map: { "agentes": [265, 580, "r"], "multiagente": [265, 640, "r"], "guardrails": [200, 705, "b"], "mcp": [110, 705, "l"], "observabilidad": [110, 650, "l"], "rag": [110, 565, "l"], "evaluacion": [190, 565, "b"] },
-    badge: [243, 580]
+    map: { "agentes": [230, 710, "r"], "multiagente": [250, 770, "r"], "guardrails": [160, 770, "b"], "mcp": [110, 705, "l"], "observabilidad": [220, 640, "r"], "rag": [110, 565, "l"], "evaluacion": [190, 565, "t"] },
+    badge: [203, 730]
   },
   {
     id: "liverpool-negocio-jr",
@@ -195,8 +195,8 @@ var LINEAS = [
     ],
     note: "Híbrido: en el corporativo por la mañana y remoto por la tarde, con varios horarios.",
     stations: ["requerimientos", "diagramas", "agil", "sql", "hojas"],
-    map: { "requerimientos": [305, 40, "t"], "diagramas": [255, 75, "l"], "agil": [255, 160, "r"], "sql": [215, 200, "r"], "hojas": [135, 200, "l"] },
-    badge: [327, 40]
+    map: { "requerimientos": [210, 60, "t"], "diagramas": [255, 60, "r"], "agil": [255, 105, "r"], "sql": [215, 200, "r"], "hojas": [135, 200, "l"] },
+    badge: [175, 60]
   },
   {
     id: "mapfre-suscriptor-jr",
@@ -218,8 +218,80 @@ var LINEAS = [
     ],
     note: "Pide una ingeniería afín, como mecánica o industrial, e inglés B2. Si estudias computación, estas estaciones te dan la base de seguros y riesgos que el puesto da por hecha, para esta vacante o para otras parecidas del sector. Ofrece bono anual, vales y prestaciones superiores.",
     stations: ["hojas", "estadistica", "seguros", "riesgo"],
-    map: { "hojas": [135, 200, "l"], "estadistica": [95, 285, "l"], "seguros": [80, 360, "l"], "riesgo": [55, 430, "b"] },
-    badge: [92, 182]
+    map: { "hojas": [135, 200, "l"], "estadistica": [110, 295, "r"], "seguros": [80, 360, "l"], "riesgo": [55, 430, "b"] },
+    badge: [159, 219]
+  },
+  {
+    id: "clivi-growth-ai",
+    n: 10,
+    color: "l10",
+    title: "Growth Modeling & AI Associate",
+    company: "Clivi",
+    place: "Ciudad de México · presencial",
+    level: "Para empezar",
+    url: "https://www.linkedin.com/jobs/view/4481760468/",
+    seen: "2026-11-15",
+    areas: ["dat", "ml"],
+    summary: "Entender con datos cómo llegan los pacientes a una healthtech mexicana que atiende diabetes, sobrepeso y obesidad. Relacionas posicionamiento orgánico, tráfico, leads e ingresos, investigas cómo recomiendan servicios de salud ChatGPT, Claude y Perplexity (GEO), diseñas experimentos y armas dashboards que lo conectan todo.",
+    asks: [
+      "Licenciatura concluida en actuaría, matemáticas, estadística, economía, ingeniería, física, computación o una carrera afín.",
+      "De 1 a 3 años de experiencia, o ser recién egresado con proyectos propios que muestren lo que sabes hacer.",
+      "Facilidad para trabajar con datos, encontrar patrones y construir modelos; interés por la estadística, la optimización y la IA, y haber experimentado con LLM.",
+      "Buen inglés oral y escrito: parte del proceso de selección es en inglés.",
+      "Suman puntos: Python, SQL o herramientas de visualización, modelos predictivos, olimpiadas de matemáticas o programación y haber probado SEO o GEO."
+    ],
+    note: "Tiempo completo y presencial en la Ciudad de México. Pide de 1 a 3 años de experiencia o ser recién egresado con proyectos propios, y buen inglés. Dice que no busca un expediente perfecto, sino evidencia de lo que puedes hacer. Se postula en LinkedIn con Easy Apply (solicitud sencilla). Ofrece participación en la empresa (equity).",
+    stations: ["estadistica", "experimentos", "embudo", "seo-geo", "tableros"],
+    map: { "estadistica": [110, 295, "r"], "experimentos": [60, 295, "t"], "embudo": [150, 335, "b"], "seo-geo": [195, 330, "t"], "tableros": [290, 315, "b"] },
+    badge: [144, 312]
+  },
+  {
+    id: "toku-software-eng",
+    n: 11,
+    color: "l11",
+    title: "Software Engineer MX",
+    company: "Toku",
+    place: "México · híbrido",
+    level: "Para empezar",
+    url: "https://jobs.ashbyhq.com/Toku/2ab175a3-eda8-48a4-bee0-4e1db97fa007",
+    seen: "2026-11-15",
+    areas: ["web", "bak"],
+    summary: "Diseñar, desarrollar y mantener aplicaciones web full stack, con Vue.js en el frontend y Python con FastAPI en el backend. Defines requisitos con el equipo, pruebas y despliegas, y hablas directo con clientes para entender sus procesos y convertir sus problemas en funciones del producto.",
+    asks: [
+      "Bases de datos relacionales, como PostgreSQL, y control de versiones con Git.",
+      "Explicar problemas y soluciones técnicas con claridad a clientes o a personas no técnicas.",
+      "Escribir código legible, sostenible y eficiente, y trabajar en todas las partes del full stack.",
+      "Resolver problemas con varios sistemas o fuentes de datos, y conocer los pros y contras de cada tecnología.",
+      "Deseable: TypeScript y Vue.js, Python y FastAPI, nube (Google Cloud o AWS), Scrum o Kanban, y pruebas automatizadas y revisiones de código."
+    ],
+    note: "Híbrido y de tiempo completo. No dice cuántos años de experiencia pide y aclara que no busca a alguien perfecto ni con todas las habilidades, sino comprometido con aprender. También te invita a participar en la elección de futuros integrantes del equipo.",
+    stations: ["frontend", "apis", "sql", "git", "pruebas-auto", "requerimientos"],
+    map: { "frontend": [105, 250, "l"], "apis": [185, 255, "b"], "sql": [215, 200, "r"], "git": [215, 125, "t"], "pruebas-auto": [175, 105, "l"], "requerimientos": [210, 60, "t"] },
+    badge: [69, 231]
+  },
+  {
+    id: "nubank-ai-design",
+    n: 12,
+    color: "l12",
+    title: "AI Engineer, Design",
+    company: "Nubank",
+    place: "Ciudad de México u otras sedes de Nu · híbrido",
+    level: "Meta a 4 o 5 años",
+    url: "https://jobs.ashbyhq.com/nubank/fac13a25-9ede-43a9-b644-ad0e2760cb6d",
+    seen: "2026-11-15",
+    areas: ["ml", "web"],
+    summary: "Ser el primer ingeniero del Centro de Excelencia de Diseño de Nu y construir los sistemas, cada vez más agénticos, con los que trabajan unas 260 personas de diseño e investigación. Lo primero es NuBrain, un sistema global de conocimiento que une más de 30 repositorios locales; también decides si cada herramienta debe ser un plugin, un servidor MCP, un agente o una plataforma, y la mides desde el primer día.",
+    asks: [
+      "Años construyendo sistemas sobre los que otros equipos construyen, y experiencia reciente con modelos de IA: consumo de tokens, límites de tasa, latencia y servidores MCP.",
+      "Haber diseñado y construido bases de experiencia de usuario a escala: sistemas de diseño, plataformas de componentes o infraestructura de frontend que usan muchos equipos.",
+      "Gusto por el diseño que se note en tu trabajo y, de preferencia, agentes o herramientas que ya ayuden a diseñadores a hacer más.",
+      "Llevar proyectos por tu cuenta en una organización grande, sin un PM detrás, y explicar decisiones técnicas a quien no lee código.",
+      "Evidencia de lo que construiste: GitHub, herramientas en uso y demos que puedas explicar."
+    ],
+    note: "Híbrido, en la Ciudad de México o en otra sede de Nu. No da una cifra, pero busca a alguien con mucha experiencia: años construyendo sistemas para otros equipos y experiencia reciente con IA. Es una meta a 4 o 5 años, no un primer empleo. La vacante se publicó en inglés.",
+    stations: ["sistemas-diseno", "llm", "rag", "costo-latencia", "mcp", "agentes", "observabilidad"],
+    map: { "sistemas-diseno": [60, 510, "b"], "llm": [110, 510, "r"], "rag": [110, 565, "l"], "costo-latencia": [120, 635, "l"], "mcp": [110, 705, "l"], "agentes": [230, 710, "r"], "observabilidad": [220, 640, "r"] },
+    badge: [84, 485]
   }
 ];
 

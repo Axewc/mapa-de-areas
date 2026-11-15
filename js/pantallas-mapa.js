@@ -62,7 +62,7 @@ function mapSvg() {
   });
   svg.append(tracks);
 
-  // Estaciones, en el orden de las líneas (L1 a L9): así las recorre Tab.
+  // Estaciones, en el orden de las líneas (L1 a L12): así las recorre Tab.
   var G = MAP_GEO;
   var colorOf = {};
   LINEAS.forEach(function (l) { colorOf[l.id] = l.color; });
