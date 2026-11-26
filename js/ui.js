@@ -108,6 +108,8 @@ function show(name, keep, dir) {
 // La parte de show() que cambia la página: visibilidad, barra inferior, título, scroll y foco.
 function paintScreen(name, keep, first, fromTab) {
   Object.keys(screens).forEach(function (k) { screens[k].hidden = (k !== name); });
+  // El mapa 3D libera su escena al salir de la pantalla Mapa (renderMapa lo vuelve a montar).
+  if (name !== 'mapa' && typeof Metro3D !== 'undefined') Metro3D.destroy();
   var bar = document.getElementById('tabbar');
   if (bar) {
     bar.hidden = !!NO_TABBAR[name];
