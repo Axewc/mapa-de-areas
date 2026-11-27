@@ -222,7 +222,8 @@ var Metro3D = (function () {
       var pts = linePoints(segs);
       var goal = l.goal;
       var rad = goal ? 4.1 : 3.3;
-      var path = roundedPath(pts, rad + (goal ? 0.6 : 0), 9, ox, oz);
+      // Cada línea a una altura apenas distinta: donde dos salen juntas de una estación, una queda encima y no parpadean.
+      var path = roundedPath(pts, rad + (goal ? 0.6 : 0) + l.n * 0.12, 9, ox, oz);
       if (!path) return;
       var len = path.getLength();
       var g = track(m, new THREE.TubeGeometry(path, Math.max(24, Math.round(len / 2.5)), rad, 10, false));

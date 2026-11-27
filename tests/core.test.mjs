@@ -11,7 +11,7 @@ const {
   buildSession, enqueueRepeat, describeSession, nextDue,
   recordAnswer, finishSession, setGoal, totalXp, level, weekKey, streak, mergeState,
   applyShortcut, sessionTail, segmentOffsets, lineasFor,
-  mapLabelLines, mapMarkerW, mapLayout, mapIssues, MAP_GEO, mapTextW, adminRow, adminCompare, streakCurrent
+  mapLabelLines, mapMarkerW, mapLayout, mapIssues, octiRoute, octiOffset, mapCrossings, mapOverlaps, MAP_GEO, mapTextW, adminRow, adminCompare, streakCurrent
 } = require('../js/core.js');
 const { LINEAS } = require('../js/data-lineas.js');
 const { ESTACIONES } = require('../js/data-estaciones.js');
@@ -319,6 +319,65 @@ test('mapLayout: estaciones sin repetir, alto = y mayor + 40 y tramos compartido
   assert.equal(L.byId.b.label.anchor, 'end');
   assert.ok(L.byId.b.label.box.x1 <= 100 - mapMarkerW(2) / 2);
   assert.equal(L.byId.c.label.anchor, 'start');
+});
+
+const octi = (s) => { const dx = Math.abs(s[2] - s[0]), dy = Math.abs(s[3] - s[1]); return dx < 0.01 || dy < 0.01 || Math.abs(dx - dy) < 0.01; };
+
+test('octiRoute: tramos rectos o a 45° quedan igual; los demás se parten en diagonal y recto', () => {
+  assert.deepEqual(octiRoute([0, 0], [0, 50]), [[0, 0], [0, 50]]);
+  assert.deepEqual(octiRoute([0, 0], [40, 0]), [[0, 0], [40, 0]]);
+  assert.deepEqual(octiRoute([0, 0], [-30, 30]), [[0, 0], [-30, 30]]);
+  // 'd' (por defecto): primero la diagonal desde p; 's': primero el recto y la diagonal llega a q.
+  assert.deepEqual(octiRoute([0, 0], [20, 60]), [[0, 0], [20, 20], [20, 60]]);
+  assert.deepEqual(octiRoute([0, 0], [20, 60], 's'), [[0, 0], [0, 40], [20, 60]]);
+  assert.deepEqual(octiRoute([100, 100], [20, 70], 'd'), [[100, 100], [70, 70], [20, 70]]);
+});
+
+test('octiOffset: las paralelas de un quiebre se juntan en el inglete y siguen siendo octilineales', () => {
+  const segs = octiOffset(octiRoute([0, 0], [20, 60]), 3.5);
+  assert.equal(segs.length, 2);
+  assert.ok(segs.every(octi), JSON.stringify(segs));
+  assert.deepEqual(segs[0].slice(2), segs[1].slice(0, 2), 'sin hueco en el quiebre');
+  // Recto: igual que el desplazamiento de siempre.
+  assert.deepEqual(octiOffset([[100, 20], [100, 120]], 3.5).map((s) => s.map((v) => +v.toFixed(2))), [[96.5, 20, 96.5, 120]]);
+});
+
+test('mapLayout: con quiebres, todos los sub-tramos son octilineales y un tramo compartido usa el mismo quiebre', () => {
+  const lines = [
+    { id: 'p', stations: ['a', 'b'], map: { a: [40, 40], b: [80, 160] } },
+    { id: 'q', stations: ['b', 'a'], map: { b: [80, 160], a: [40, 40] } },
+    { id: 'r', stations: ['a', 'c'], map: { a: [40, 40], c: [200, 80] }, bends: { 'a|c': 's' } }
+  ];
+  const L = mapLayout(lines, ST);
+  for (const id of ['p', 'q', 'r']) assert.ok(L.paths[id].every(octi), id);
+  assert.equal(L.paths.p.length, 2);
+  // q recorre el mismo tramo al revés: su quiebre está en el mismo lugar (a la otra mano por el desplazamiento).
+  const bend = (segs) => segs[0].slice(2).map((v) => Math.round(v));
+  assert.ok(Math.hypot(bend(L.paths.p)[0] - bend(L.paths.q)[0], bend(L.paths.p)[1] - bend(L.paths.q)[1]) < 10);
+  // r con 's': sale de a en recto (horizontal) y llega a c en diagonal.
+  assert.equal(L.paths.r[0][1], L.paths.r[0][3]);
+});
+
+test('mapOverlaps encuentra tramos distintos sobre la misma recta, no los paralelos separados', () => {
+  const ST4 = { a: { name: 'A' }, b: { name: 'B' }, c: { name: 'C' }, d: { name: 'D' } };
+  const sep = [{ id: 'p', stations: ['a', 'b'], map: { a: [40, 40], b: [40, 200] } }, { id: 'q', stations: ['c', 'd'], map: { c: [90, 40], d: [90, 200] } }];
+  assert.deepEqual(mapOverlaps(mapLayout(sep, ST4), sep), []);
+  const col = [{ id: 'p', stations: ['a', 'b'], map: { a: [40, 40], b: [40, 200] } }, { id: 'q', stations: ['c', 'd'], map: { c: [40, 100], d: [40, 300] } }];
+  assert.deepEqual(mapOverlaps(mapLayout(col, ST4), col), ['a|b sobre c|d']);
+  // Dos tramos que salen de la misma estación en la misma dirección también cuentan.
+  const sal = [{ id: 'p', stations: ['a', 'b'], map: { a: [40, 40], b: [40, 200] } }, { id: 'q', stations: ['a', 'c'], map: { a: [40, 40], c: [100, 200] }, bends: { 'a|c': 's' } }];
+  assert.deepEqual(mapOverlaps(mapLayout(sal, ST4), sal), ['a|b sobre a|c']);
+  // … salvo que el trecho junto sea corto y se pida perdonarlo (aquí corren juntos 100).
+  assert.deepEqual(mapOverlaps(mapLayout(sal, ST4), sal, 110), []);
+  assert.deepEqual(mapOverlaps(mapLayout(sal, ST4), sal, 30), ['a|b sobre a|c']);
+});
+
+test('mapCrossings cuenta los tramos que se cruzan, no los que comparten estación', () => {
+  const ST4 = { a: { name: 'A' }, b: { name: 'B' }, c: { name: 'C' }, d: { name: 'D' } };
+  const x = [{ id: 'p', stations: ['a', 'b'], map: { a: [40, 40], b: [140, 140] } }, { id: 'q', stations: ['c', 'd'], map: { c: [140, 40], d: [40, 140] } }];
+  assert.deepEqual(mapCrossings(mapLayout(x, ST4), x), ['a|b x c|d']);
+  const y = [{ id: 'p', stations: ['a', 'b'], map: { a: [40, 40], b: [140, 140] } }, { id: 'q', stations: ['a', 'c'], map: { a: [40, 40], c: [140, 40] } }];
+  assert.deepEqual(mapCrossings(mapLayout(y, ST4), y), []);
 });
 
 test('mapIssues encuentra etiquetas encimadas, tramos sobre estaciones ajenas y estaciones juntas', () => {

@@ -154,6 +154,7 @@ Hay 38, en `js/data-estaciones.js` (objeto `{ id: Estacion }`). Las compartidas 
   note: "…",                  // opcional: sueldo, modalidad, experiencia
   stations: ["git", "datos", "sql", "apis", "pruebas-auto"],       // en orden de estudio
   map: { git: [215, 120, "t"], datos: [175, 160, "l"] },           // [x, y, lado de la etiqueta]
+  bends: { "datos|git": "s" },  // opcional: dónde se quiebra un tramo que no va recto ni a 45°
   badge: [183, 120]           // opcional: centro de la insignia «L1»
 }
 
@@ -176,12 +177,15 @@ Hay 38, en `js/data-estaciones.js` (objeto `{ id: Estacion }`). Las compartidas 
    - `seen` es la fecha de lectura (`AAAA-MM-DD`); `url` es `https`.
    - `stations` va en orden de estudio; `map` debe tener exactamente las mismas estaciones.
 3. **Coordenadas del mapa** (`map`): el lienzo mide 360 de ancho y crece hacia abajo; `x` va de 16 a 344 y `y` es 16 o más. El tercer valor (`"l"`, `"r"`, `"t"` o `"b"`) es el lado de la etiqueta (por defecto `"r"`). `badge` coloca la insignia «L#» a 20 o menos de la primera estación.
+   - Los tramos se dibujan como en un mapa de metro: en horizontal, en vertical o a 45°. Si dos estaciones seguidas no están alineadas así, el tramo se quiebra una vez. `bends` elige dónde, con la clave `"a|b"` (los dos ids en orden alfabético): `"d"` (por defecto) sale de `a` en diagonal y llega a `b` en recto; `"s"` sale de `a` en recto y llega a `b` en diagonal. Un tramo compartido lleva el mismo valor en todas sus líneas.
+   - Lo más fácil es dejar que `node tools/acomodar-mapa.mjs` acomode todo: parte de las coordenadas actuales (pon la estación nueva cerca de donde la quieres) y busca posiciones, lados de etiqueta, quiebres e insignias que cumplan las reglas de abajo con los menos cruces, quiebres y zonas llenas posibles. Sin `--write` solo muestra el resultado; con `--write` lo guarda en `js/data-lineas.js`. Acepta `--iter`, `--seed` y `--maxy` (alto máximo). Revisa después las capturas y retoca a mano lo que haga falta.
 4. **Reglas que hacen cumplir las pruebas** (`tests/content.test.mjs`):
    - cada pregunta tiene exactamente 4 opciones distintas, `ok` de 0 a 3 y una explicación (`why`) de más de 20 caracteres;
    - la correcta no delata: es la más larga y la más corta en no más del 40 % de las preguntas (y en no menos del 10 %), y en cada estación ocupa al menos 3 posiciones distintas;
    - una estación compartida lleva coordenadas idénticas en todas sus líneas;
    - dos estaciones distintas quedan al menos a 44 px una de otra;
    - ninguna etiqueta se encima con otra, con una estación ni con una línea;
+   - todos los tramos van rectos o a 45° y hay a lo más 3 cruces entre tramos (`mapCrossings` en `js/core.js`);
    - todas las áreas salvo `inv` tienen al menos una línea.
 5. **Lugares donde las pruebas fijan los conteos y los nombres** (se actualizan al agregar; los números de línea son los actuales):
    - `tests/content.test.mjs`, prueba «hay 38 estaciones y 12 líneas, en orden L1 a L12» (línea 103): el conteo de estaciones y la lista de ids de las líneas. Las pruebas por línea (líneas 83, 113, 134 y 157) fijan las doce existentes; conviene agregar ahí la nueva. La de la línea 157 también exige que todo nivel sea «Para empezar» o «Meta a …». La prueba de la línea 108 exige que toda área salvo `inv` tenga al menos una línea.
@@ -258,7 +262,7 @@ Son scripts clásicos (ES5), no módulos, para que el sitio también abra desde 
 ## Pruebas
 
 ```sh
-node --test tests/*.test.mjs                  # 158 pruebas de lógica y contenido
+node --test tests/*.test.mjs                  # 167 pruebas de lógica y contenido
 node tests/e2e.cjs                            # flujo completo en Chromium con un Supabase falso
 SHOTS_DIR=/tmp/capturas node tests/e2e.cjs    # además guarda capturas en esa carpeta
 E2E_ONLY=visual SHOTS_DIR=/tmp/capturas node tests/e2e.cjs   # solo la revisión visual a 360 y 390 px
