@@ -34,7 +34,7 @@ var LINEAS = [
     note: "De $12,000 a $15,000 al mes. Para estudiantes del último semestre o recién egresados, con 0 a 2 años de experiencia.",
     stations: ["git", "datos", "sql", "apis", "pruebas-auto"],
     map: { "git": [235, 155, "r"], "datos": [125, 195, "l"], "sql": [260, 215, "r"], "apis": [215, 320, "b"], "pruebas-auto": [170, 170, "l"] },
-    bends: {"datos|git": "s", "apis|pruebas-auto": "s"},
+    bends: { "datos|git": "s", "apis|pruebas-auto": "s" },
     badge: [235, 133]
   },
   {
@@ -59,7 +59,7 @@ var LINEAS = [
     note: "Temporal por proyecto y 100% presencial. Pide de 1 a 2 años de experiencia en análisis de datos.",
     stations: ["hojas", "datos", "sql", "tableros", "indicadores"],
     map: { "hojas": [145, 260, "l"], "datos": [125, 195, "l"], "sql": [260, 215, "r"], "tableros": [275, 400, "r"], "indicadores": [320, 355, "t"] },
-    bends: {"datos|hojas": "s", "indicadores|tableros": "s"},
+    bends: { "datos|hojas": "s", "indicadores|tableros": "s" },
     badge: [184, 238]
   },
   {
@@ -83,7 +83,7 @@ var LINEAS = [
     note: "$13,000 al mes. Temporal y presencial, con turnos rotativos que incluyen fines de semana.",
     stations: ["casos-prueba", "defectos", "hojas", "pruebas-auto"],
     map: { "casos-prueba": [55, 165, "t"], "defectos": [55, 210, "b"], "hojas": [145, 260, "l"], "pruebas-auto": [170, 170, "l"] },
-    bends: {"casos-prueba|defectos": "s", "defectos|hojas": "s", "hojas|pruebas-auto": "s"},
+    bends: { "casos-prueba|defectos": "s", "defectos|hojas": "s", "hojas|pruebas-auto": "s" },
     badge: [30, 165]
   },
   {
@@ -108,7 +108,7 @@ var LINEAS = [
     note: "De $20,000 a $25,000 al mes. 100% presencial, de lunes a viernes de 9 a 19 h. Pide título y experiencia previa en soporte o infraestructura.",
     stations: ["linux", "nube", "monitoreo", "sql", "git"],
     map: { "linux": [280, 625, "b"], "nube": [295, 510, "r"], "monitoreo": [255, 490, "l"], "sql": [260, 215, "r"], "git": [235, 155, "r"] },
-    bends: {"monitoreo|nube": "s", "monitoreo|sql": "s", "git|sql": "s"},
+    bends: { "monitoreo|nube": "s", "monitoreo|sql": "s", "git|sql": "s" },
     badge: [311, 625]
   },
   {
@@ -133,7 +133,7 @@ var LINEAS = [
     note: "De $20,000 a $26,000 al mes, 100% presencial. Pide al menos 2 años de experiencia en un puesto parecido: es una meta, no un primer empleo.",
     stations: ["redes", "linux", "monitoreo", "amenazas", "incidentes"],
     map: { "redes": [235, 625, "l"], "linux": [280, 625, "b"], "monitoreo": [255, 490, "l"], "amenazas": [255, 535, "l"], "incidentes": [255, 580, "l"] },
-    bends: {"linux|redes": "s", "linux|monitoreo": "s"},
+    bends: { "linux|redes": "s", "linux|monitoreo": "s" },
     badge: [235, 605]
   },
   {
@@ -158,7 +158,7 @@ var LINEAS = [
     note: "Híbrido. Pide de 2 a 4 años de experiencia en ciencia de datos, ML o IA.",
     stations: ["python", "sql", "estadistica", "ml", "llm", "rag", "evaluacion"],
     map: { "python": [295, 250, "r"], "sql": [260, 215, "r"], "estadistica": [125, 380, "l"], "ml": [125, 665, "l"], "llm": [205, 745, "r"], "rag": [150, 830, "l"], "evaluacion": [295, 830, "b"] },
-    bends: {"python|sql": "s", "llm|ml": "s"},
+    bends: { "python|sql": "s", "llm|ml": "s" },
     badge: [295, 270]
   },
   {
@@ -182,7 +182,7 @@ var LINEAS = [
     note: "Híbrido. No pide años de experiencia: valora haber construido algo real con IA, en el trabajo, en un proyecto propio o en un emprendimiento.",
     stations: ["agentes", "multiagente", "guardrails", "mcp", "observabilidad", "rag", "evaluacion"],
     map: { "agentes": [190, 900, "b"], "multiagente": [260, 800, "r"], "guardrails": [50, 800, "t"], "mcp": [85, 860, "l"], "observabilidad": [125, 900, "l"], "rag": [150, 830, "l"], "evaluacion": [295, 830, "b"] },
-    bends: {"guardrails|multiagente": "s", "guardrails|mcp": "s"},
+    bends: { "guardrails|multiagente": "s", "guardrails|mcp": "s" },
     badge: [221, 900]
   },
   {
@@ -207,7 +207,7 @@ var LINEAS = [
     note: "Híbrido: en el corporativo por la mañana y remoto por la tarde, con varios horarios.",
     stations: ["requerimientos", "diagramas", "agil", "sql", "hojas"],
     map: { "requerimientos": [170, 45, "l"], "diagramas": [290, 45, "t"], "agil": [290, 95, "l"], "sql": [260, 215, "r"], "hojas": [145, 260, "l"] },
-    bends: {"diagramas|requerimientos": "s", "agil|diagramas": "s", "agil|sql": "s", "hojas|sql": "s"},
+    bends: { "diagramas|requerimientos": "s", "agil|diagramas": "s", "agil|sql": "s", "hojas|sql": "s" },
     badge: [170, 23]
   },
   {
@@ -231,7 +231,7 @@ var LINEAS = [
     note: "Pide una ingeniería afín, como mecánica o industrial, e inglés B2. Si estudias computación, estas estaciones te dan la base de seguros y riesgos que el puesto da por hecha, para esta vacante o para otras parecidas del sector. Ofrece bono anual, vales y prestaciones superiores.",
     stations: ["hojas", "estadistica", "seguros", "riesgo"],
     map: { "hojas": [145, 260, "l"], "estadistica": [125, 380, "l"], "seguros": [105, 500, "l"], "riesgo": [75, 550, "b"] },
-    bends: {"estadistica|hojas": "s"},
+    bends: { "estadistica|hojas": "s" },
     badge: [106, 282]
   },
   {
@@ -256,7 +256,7 @@ var LINEAS = [
     note: "Tiempo completo y presencial en la Ciudad de México. Pide de 1 a 3 años de experiencia o ser recién egresado con proyectos propios, y buen inglés. Dice que no busca un expediente perfecto, sino evidencia de lo que puedes hacer. Se postula en LinkedIn con Easy Apply (solicitud sencilla). Ofrece participación en la empresa (equity).",
     stations: ["estadistica", "experimentos", "embudo", "seo-geo", "tableros"],
     map: { "estadistica": [125, 380, "l"], "experimentos": [55, 415, "b"], "embudo": [210, 400, "t"], "seo-geo": [210, 445, "b"], "tableros": [275, 400, "r"] },
-    bends: {"embudo|experimentos": "s", "embudo|seo-geo": "s"},
+    bends: { "embudo|experimentos": "s", "embudo|seo-geo": "s" },
     badge: [90, 358]
   },
   {
@@ -281,7 +281,7 @@ var LINEAS = [
     note: "Híbrido y de tiempo completo. No dice cuántos años de experiencia pide y aclara que no busca a alguien perfecto ni con todas las habilidades, sino comprometido con aprender. También te invita a participar en la elección de futuros integrantes del equipo.",
     stations: ["frontend", "apis", "sql", "git", "pruebas-auto", "requerimientos"],
     map: { "frontend": [110, 305, "l"], "apis": [215, 320, "b"], "sql": [260, 215, "r"], "git": [235, 155, "r"], "pruebas-auto": [170, 170, "l"], "requerimientos": [170, 45, "l"] },
-    bends: {"apis|frontend": "s", "git|sql": "s", "git|pruebas-auto": "s", "pruebas-auto|requerimientos": "s"},
+    bends: { "apis|frontend": "s", "git|sql": "s", "git|pruebas-auto": "s", "pruebas-auto|requerimientos": "s" },
     badge: [85, 325]
   },
   {
@@ -306,7 +306,7 @@ var LINEAS = [
     note: "Híbrido, en la Ciudad de México o en otra sede de Nu. No da una cifra, pero busca a alguien con mucha experiencia: años construyendo sistemas para otros equipos y experiencia reciente con IA. Es una meta a 4 o 5 años, no un primer empleo. La vacante se publicó en inglés.",
     stations: ["sistemas-diseno", "llm", "rag", "costo-latencia", "mcp", "agentes", "observabilidad"],
     map: { "sistemas-diseno": [245, 705, "r"], "llm": [205, 745, "r"], "rag": [150, 830, "l"], "costo-latencia": [120, 765, "t"], "mcp": [85, 860, "l"], "agentes": [190, 900, "b"], "observabilidad": [125, 900, "l"] },
-    bends: {"costo-latencia|rag": "s", "agentes|observabilidad": "s"},
+    bends: { "costo-latencia|rag": "s", "agentes|observabilidad": "s" },
     badge: [220, 685]
   }
 ];

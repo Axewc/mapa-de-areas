@@ -223,7 +223,7 @@ if (WRITE) {
     const mapTxt = '{ ' + l.stations.map((s) => JSON.stringify(s) + ': [' + l.map[s][0] + ', ' + l.map[s][1] + ', ' + JSON.stringify(l.map[s][2]) + ']').join(', ') + ' }';
     // En cada línea, map es la penúltima propiedad y badge la última: se reemplazan las dos (y bends, si había).
     block = block.replace(/\n    bends: \{[^\n]*\},?/, '').replace(/\n    badge: \[[^\n]*\],?/, '');
-    const bendsTxt = Object.keys(l.bends).length ? ',\n    bends: ' + JSON.stringify(l.bends).replace(/,/g, ', ').replace(/:/g, ': ') : '';
+    const bendsTxt = Object.keys(l.bends).length ? ',\n    bends: { ' + Object.keys(l.bends).map((k) => JSON.stringify(k) + ': ' + JSON.stringify(l.bends[k])).join(', ') + ' }' : '';
     block = block.replace(/\n    map: \{[^\n]*\},?/, '\n    map: ' + mapTxt + bendsTxt + ',\n    badge: [' + l.badge[0] + ', ' + l.badge[1] + ']');
     src = src.slice(0, at) + block + src.slice(end);
   }
