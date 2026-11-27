@@ -15,9 +15,33 @@ const SB_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/u
 const KEY = 'mapa.v2';
 const SYNC_FAIL = 'No se pudo sincronizar. Tu progreso sigue en este dispositivo.';
 
+// Three.js para el mapa 3D: se sirve desde una copia local (no desde jsdelivr). Se busca en THREE_JS, en la caché de
+// la carpeta temporal o se baja una vez del registro de npm. Sin copia, el CDN se bloquea y el mapa se queda en 2D.
+const THREE_URL = /cdn\.jsdelivr\.net\/npm\/three@0\.159\.0\/build\/three\.min\.js/;
+let THREE_SRC;
+function threeSource() {
+  if (THREE_SRC !== undefined) return THREE_SRC;
+  const os = require('node:os');
+  const cache = path.join(os.tmpdir(), 'three-0.159.0.min.js');
+  const tries = [process.env.THREE_JS, cache].filter(Boolean);
+  for (const f of tries) if (fs.existsSync(f)) return (THREE_SRC = fs.readFileSync(f, 'utf8'));
+  try {
+    const { execSync } = require('node:child_process');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'three-'));
+    execSync('npm pack three@0.159.0 --silent', { cwd: dir, stdio: 'pipe' });
+    execSync('tar xzf three-0.159.0.tgz package/build/three.min.js', { cwd: dir, stdio: 'pipe' });
+    fs.copyFileSync(path.join(dir, 'package/build/three.min.js'), cache);
+    return (THREE_SRC = fs.readFileSync(cache, 'utf8'));
+  } catch (e) {
+    return (THREE_SRC = null);
+  }
+}
+
 async function setupRoutes(page) {
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await page.route(SB_URL, (r) => r.fulfill({ status: 200, contentType: 'application/javascript', body: FAKE }));
+  const three = threeSource();
+  await page.route(THREE_URL, (r) => (three ? r.fulfill({ status: 200, contentType: 'application/javascript', body: three }) : r.abort()));
 }
 
 const noHScroll = () => document.documentElement.scrollWidth <= window.innerWidth;
@@ -1688,6 +1712,121 @@ async function cdnScenarios(browser, setStep) {
   await t.context.close();
 }
 
+// Mapa en 3D (js/mapa-3d.js): botones accesibles iguales al SVG, conmutador 2D/3D recordado, arrastre sin abrir
+// estaciones, respaldo 2D con «reducir movimiento» o sin Three.js, y capturas con SHOTS_DIR.
+async function mapa3dScenarios(browser, setStep) {
+  if (!threeSource()) { console.log('e2e: sin copia de Three.js (THREE_JS o npm); se salta el mapa 3D'); return; }
+  for (const [width, cs] of [[390, 'light'], [360, 'dark']]) {
+    setStep('mapa 3D ' + width + ' px, tema ' + cs + ': aparece el lienzo y los botones');
+    const ctx = await browser.newContext({ viewport: { width, height: 844 }, colorScheme: cs, deviceScaleFactor: 1 });
+    const { page, errors } = await openHome(ctx, { local: JSON.stringify(progressState()), motion: true });
+    await page.click('#tabbar [data-tab=mapa]');
+    await page.waitForSelector('#s-mapa .metro-3d:not([hidden]) canvas', { timeout: 15000 });
+    assert.equal(await page.getAttribute('#s-mapa svg.metro', 'hidden'), '', 'el SVG se oculta con el 3D');
+    assert.equal(await page.getAttribute('#s-mapa .m3-canvas', 'aria-hidden'), 'true');
+    assert.equal(await page.getAttribute('#s-mapa .m3-labels', 'role'), 'group');
+    assert.equal(await page.locator('#s-mapa .m3-labels button[data-station]').count(), 38);
+    assert.equal(await page.locator('#s-mapa .m3-badges .m3-badge').count(), 12);
+    // Mismo orden (L1 a L12) y mismas etiquetas que el SVG.
+    const pairs = (sel) => page.locator(sel).evaluateAll((ns) => ns.map((n) => n.getAttribute('data-station') + '|' + n.getAttribute('aria-label')));
+    assert.deepEqual(await pairs('#s-mapa .m3-labels [data-station]'), await pairs('#s-mapa svg.metro [data-station]'));
+    assert.match(await page.getAttribute('#s-mapa .m3-labels [data-station=git]', 'aria-label'), /^Git, líneas L1, [^]*vista/);
+    assert.equal(await page.getAttribute('#s-mapa .view-switch .vs-b:first-child', 'aria-pressed'), 'true');
+    assert.ok(await page.evaluate(noHScroll), 'sin scroll horizontal con el 3D');
+    // Cada botón está dentro del lienzo y es visible.
+    const inside = await page.evaluate(() => {
+      const r = document.querySelector('#s-mapa .metro-3d').getBoundingClientRect();
+      return Array.prototype.every.call(document.querySelectorAll('#s-mapa .m3-st'), (b) => {
+        const q = b.getBoundingClientRect();
+        return !b.classList.contains('off') && q.left >= r.left - 1 && q.right <= r.right + 1 && q.top >= r.top - 1 && q.bottom <= r.bottom + 1;
+      });
+    });
+    assert.ok(inside, 'todas las estaciones caen dentro del lienzo');
+    await page.waitForTimeout(1500); // termina la entrada (las vías se dibujan)
+    if (SHOTS) await page.locator('#s-mapa .metro-wrap').screenshot({ path: path.join(SHOTS, width + '-' + cs + '-mapa-3d.png') });
+
+    setStep('mapa 3D: teclado y clic abren estaciones');
+    await page.focus('#s-mapa .m3-labels [data-station=git]');
+    await page.keyboard.press('Tab');
+    const next = await page.evaluate(() => document.activeElement.getAttribute('data-station'));
+    const order = await page.locator('#s-mapa .m3-labels [data-station]').evaluateAll((ns) => ns.map((n) => n.getAttribute('data-station')));
+    assert.equal(next, order[order.indexOf('git') + 1], 'Tab sigue el orden de las líneas');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('#s-estacion:not([hidden])');
+    assert.equal(await page.textContent('#s-estacion h1'), ESTACIONES[next].name);
+    await page.click('#s-estacion .topnav button');
+    await page.waitForSelector('#s-mapa .metro-3d:not([hidden]) canvas');
+    await page.click('#s-mapa .m3-labels [data-station=sql]');
+    await page.waitForSelector('#s-estacion:not([hidden])');
+    assert.equal(await page.textContent('#s-estacion h1'), 'SQL');
+    await page.click('#s-estacion .topnav button');
+    await page.waitForSelector('#s-mapa .metro-3d:not([hidden]) canvas');
+
+    setStep('mapa 3D: arrastrar gira y no abre la estación');
+    // Con movimiento, volver al mapa anima la transición entre pantallas; mientras dura, el puntero no llega a la página.
+    await page.waitForFunction(() => !document.documentElement.matches(':active-view-transition'));
+    const sq = await page.locator('#s-mapa .m3-labels [data-station=sql]').boundingBox();
+    await page.mouse.move(sq.x + sq.width / 2, sq.y + sq.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(sq.x + sq.width / 2 + 80, sq.y + sq.height / 2 + 10, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    assert.equal(await page.isVisible('#s-mapa'), true, 'el arrastre no abre la estación');
+    await page.waitForSelector('#s-mapa .m3-reset:not([hidden])');
+    await page.click('#s-mapa .m3-reset');
+    await page.waitForSelector('#s-mapa .m3-reset[hidden]', { state: 'attached' });
+    await page.click('#s-mapa .m3-tool[aria-label=Acercar]');
+    await page.waitForSelector('#s-mapa .m3-reset:not([hidden])');
+
+    setStep('mapa 3D: el conmutador pasa a 2D y se recuerda');
+    await page.click('#s-mapa .view-switch .vs-b[aria-label="Mapa plano"]');
+    await page.waitForSelector('#s-mapa svg.metro:not([hidden])');
+    assert.equal(await page.locator('#s-mapa .metro-3d').count(), 0);
+    assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), 'Mapa plano', 'el foco se queda en el conmutador');
+    assert.equal(await page.evaluate(() => localStorage.getItem('mapa.vista')), '2d');
+    await page.reload();
+    await page.waitForSelector('#tabbar:not([hidden])');
+    await page.click('#tabbar [data-tab=mapa]');
+    await page.waitForSelector('#s-mapa svg.metro:not([hidden])');
+    assert.equal(await page.locator('#s-mapa .metro-3d').count(), 0, 'la vista 2D se recuerda');
+    await page.click('#s-mapa .view-switch .vs-b[aria-label="Mapa en 3D"]');
+    await page.waitForSelector('#s-mapa .metro-3d:not([hidden]) canvas');
+    await page.click('#tabbar [data-tab=hoy]');
+    await page.waitForSelector('#s-hoy:not([hidden])');
+    assert.equal(await page.locator('.m3-canvas').count(), 0, 'el lienzo se libera al salir del mapa');
+    assert.deepEqual(errors, [], 'sin errores de script con el 3D');
+    await ctx.close();
+  }
+
+  setStep('mapa 3D: con «reducir movimiento» y sin preferencia, empieza en 2D');
+  let ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  let t = await openHome(ctx, { local: JSON.stringify(progressState()) });
+  await t.page.click('#tabbar [data-tab=mapa]');
+  await t.page.waitForSelector('#s-mapa svg.metro:not([hidden])');
+  assert.equal(await t.page.locator('#s-mapa .metro-3d').count(), 0);
+  assert.equal(await t.page.getAttribute('#s-mapa .view-switch .vs-b[aria-label="Mapa plano"]', 'aria-pressed'), 'true');
+  await ctx.close();
+
+  setStep('mapa 3D: si Three.js no llega, se queda el SVG');
+  ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  await page.route(SB_URL, (r) => r.fulfill({ status: 200, contentType: 'application/javascript', body: FAKE }));
+  await page.route(THREE_URL, (r) => r.abort());
+  await page.addInitScript((a) => { window.__seed = {}; localStorage.setItem(a.key, a.local); localStorage.setItem('mapa.vista', '3d'); },
+    { key: KEY, local: JSON.stringify(progressState()) });
+  await page.goto(INDEX_URL);
+  await page.waitForSelector('#tabbar:not([hidden])');
+  await page.click('#tabbar [data-tab=mapa]');
+  await page.waitForFunction(() => !document.querySelector('#s-mapa .metro-3d'));
+  assert.equal(await page.isVisible('#s-mapa svg.metro'), true, 'el SVG sigue a la vista');
+  assert.equal(await page.locator('#s-mapa svg [data-station]').count(), 38);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+}
+
 // Entrada con dos puertas, pestaña Descubre, títulos de página y transiciones entre pantallas (Tarea 3).
 const QUIZ_OK = JSON.stringify({ v: 3, t: 1762905600000, answers: [0, 0, 0, 0, 0, 0, 0, 0] });
 async function entradaScenarios(browser, setStep) {
@@ -1895,6 +2034,7 @@ async function main() {
     if (process.env.E2E_ONLY === 'cdn') { await cdnScenarios(browser, (t) => { step = t; }); console.log('e2e (solo cdn): OK'); return; }
     if (process.env.E2E_ONLY === 'shared') { await sharedStateScenarios(browser, (t) => { step = t; }); console.log('e2e (solo shared): OK'); return; }
     if (process.env.E2E_ONLY === 'entrada') { await entradaScenarios(browser, (t) => { step = t; }); console.log('e2e (solo entrada): OK'); return; }
+    if (process.env.E2E_ONLY === 'mapa3d') { await mapa3dScenarios(browser, (t) => { step = t; }); console.log('e2e (solo mapa 3D): OK'); return; }
     if (process.env.E2E_ONLY === 'descubre') { await descubreScenarios(browser, (t) => { step = t; }); console.log('e2e (solo descubre): OK'); return; }
     if (process.env.E2E_ONLY === 'visual') {
       for (const vp of [{ width: 360, height: 780 }, { width: 390, height: 844 }]) for (const cs of ['light', 'dark']) { step = 'revisión visual ' + vp.width + ' px, tema ' + cs; await visualPass(browser, vp, cs); }
@@ -1955,6 +2095,7 @@ async function main() {
 
     step = 'mapa: 12 líneas, 38 estaciones';
     await mapaScenarios(browser, (t) => { step = t; });
+    await mapa3dScenarios(browser, (t) => { step = t; });
 
     step = 'Yo: cuenta opcional, cambiar meta, cuestionario';
     await page.click('#tabbar [data-tab=yo]');

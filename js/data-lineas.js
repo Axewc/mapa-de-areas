@@ -1,8 +1,12 @@
 // Líneas del hub: cada una es una vacante real, leída completa en la fecha de `seen`. Van en orden L1 a L12.
-// Forma (spec «Modelo de contenido»): { id, n, color, title, company, place, level, url, seen, areas, summary, asks, note?, stations, map, badge? }
+// Forma (spec «Modelo de contenido»): { id, n, color, title, company, place, level, url, seen, areas, summary, asks, note?, stations, map, bends?, badge? }
 // `stations` va en orden de estudio. `map` da { id: [x, y, lado?] } en un viewBox de 360 de ancho; el lado ('l', 'r' por defecto,
 // 't' arriba o 'b' abajo) es donde va la etiqueta. Una estación compartida lleva
 // las mismas coordenadas en todas sus líneas. `badge` [x, y] es el centro de la insignia «L#» junto a la primera estación.
+// Los tramos se dibujan como en un mapa de metro: rectos o a 45°. Si dos estaciones no están alineadas así, el tramo se
+// quiebra una vez; `bends` elige dónde, con la clave «a|b» (ids en orden alfabético): 'd' (por defecto) sale de a en
+// diagonal y llega a b en recto, 's' sale de a en recto y llega a b en diagonal. Un tramo compartido lleva el mismo
+// valor en todas sus líneas. tools/acomodar-mapa.mjs busca coordenadas, lados, quiebres e insignias.
 // tests/content.test.mjs revisa el mapa con mapIssues (js/core.js).
 // De la vacante solo se guarda lo necesario para estudiar: nada de correos ni datos de contacto.
 // Script clásico (ES5): define la global LINEAS y se exporta para las pruebas con Node.
@@ -29,8 +33,9 @@ var LINEAS = [
     ],
     note: "De $12,000 a $15,000 al mes. Para estudiantes del último semestre o recién egresados, con 0 a 2 años de experiencia.",
     stations: ["git", "datos", "sql", "apis", "pruebas-auto"],
-    map: { "git": [215, 125, "t"], "datos": [140, 135, "l"], "sql": [215, 200, "r"], "apis": [185, 255, "b"], "pruebas-auto": [175, 105, "l"] },
-    badge: [222, 88]
+    map: { "git": [235, 155, "r"], "datos": [125, 195, "l"], "sql": [260, 215, "r"], "apis": [215, 320, "b"], "pruebas-auto": [170, 170, "l"] },
+    bends: { "datos|git": "s", "apis|pruebas-auto": "s" },
+    badge: [235, 133]
   },
   {
     id: "sears-datos-jr",
@@ -53,8 +58,9 @@ var LINEAS = [
     ],
     note: "Temporal por proyecto y 100% presencial. Pide de 1 a 2 años de experiencia en análisis de datos.",
     stations: ["hojas", "datos", "sql", "tableros", "indicadores"],
-    map: { "hojas": [135, 200, "l"], "datos": [140, 135, "l"], "sql": [215, 200, "r"], "tableros": [290, 315, "b"], "indicadores": [344, 220, "l"] },
-    badge: [102, 219]
+    map: { "hojas": [145, 260, "l"], "datos": [125, 195, "l"], "sql": [260, 215, "r"], "tableros": [275, 400, "r"], "indicadores": [320, 355, "t"] },
+    bends: { "datos|hojas": "s", "indicadores|tableros": "s" },
+    badge: [184, 238]
   },
   {
     id: "mvs-tester-jr",
@@ -76,8 +82,9 @@ var LINEAS = [
     ],
     note: "$13,000 al mes. Temporal y presencial, con turnos rotativos que incluyen fines de semana.",
     stations: ["casos-prueba", "defectos", "hojas", "pruebas-auto"],
-    map: { "casos-prueba": [55, 100, "t"], "defectos": [85, 160, "l"], "hojas": [135, 200, "l"], "pruebas-auto": [175, 105, "l"] },
-    badge: [21, 116]
+    map: { "casos-prueba": [55, 165, "t"], "defectos": [55, 210, "b"], "hojas": [145, 260, "l"], "pruebas-auto": [170, 170, "l"] },
+    bends: { "casos-prueba|defectos": "s", "defectos|hojas": "s", "hojas|pruebas-auto": "s" },
+    badge: [30, 165]
   },
   {
     id: "satori-cloud-jr",
@@ -100,8 +107,9 @@ var LINEAS = [
     ],
     note: "De $20,000 a $25,000 al mes. 100% presencial, de lunes a viernes de 9 a 19 h. Pide título y experiencia previa en soporte o infraestructura.",
     stations: ["linux", "nube", "monitoreo", "sql", "git"],
-    map: { "linux": [300, 522, "b"], "nube": [262, 485, "l"], "monitoreo": [260, 360, "r"], "sql": [215, 200, "r"], "git": [215, 125, "t"] },
-    badge: [332, 522]
+    map: { "linux": [280, 625, "b"], "nube": [295, 510, "r"], "monitoreo": [255, 490, "l"], "sql": [260, 215, "r"], "git": [235, 155, "r"] },
+    bends: { "monitoreo|nube": "s", "monitoreo|sql": "s", "git|sql": "s" },
+    badge: [311, 625]
   },
   {
     id: "safe-soc",
@@ -124,8 +132,9 @@ var LINEAS = [
     ],
     note: "De $20,000 a $26,000 al mes, 100% presencial. Pide al menos 2 años de experiencia en un puesto parecido: es una meta, no un primer empleo.",
     stations: ["redes", "linux", "monitoreo", "amenazas", "incidentes"],
-    map: { "redes": [338, 485, "t"], "linux": [300, 522, "b"], "monitoreo": [260, 360, "r"], "amenazas": [230, 395, "l"], "incidentes": [235, 445, "l"] },
-    badge: [338, 450]
+    map: { "redes": [235, 625, "l"], "linux": [280, 625, "b"], "monitoreo": [255, 490, "l"], "amenazas": [255, 535, "l"], "incidentes": [255, 580, "l"] },
+    bends: { "linux|redes": "s", "linux|monitoreo": "s" },
+    badge: [235, 605]
   },
   {
     id: "banorte-ds-jr",
@@ -148,8 +157,9 @@ var LINEAS = [
     ],
     note: "Híbrido. Pide de 2 a 4 años de experiencia en ciencia de datos, ML o IA.",
     stations: ["python", "sql", "estadistica", "ml", "llm", "rag", "evaluacion"],
-    map: { "python": [255, 180, "r"], "sql": [215, 200, "r"], "estadistica": [110, 295, "r"], "ml": [105, 420, "r"], "llm": [110, 510, "r"], "rag": [110, 565, "l"], "evaluacion": [190, 565, "t"] },
-    badge: [267, 148]
+    map: { "python": [295, 250, "r"], "sql": [260, 215, "r"], "estadistica": [125, 380, "l"], "ml": [125, 665, "l"], "llm": [205, 745, "r"], "rag": [150, 830, "l"], "evaluacion": [295, 830, "b"] },
+    bends: { "python|sql": "s", "llm|ml": "s" },
+    badge: [295, 270]
   },
   {
     id: "getnet-ai-deploy",
@@ -171,8 +181,9 @@ var LINEAS = [
     ],
     note: "Híbrido. No pide años de experiencia: valora haber construido algo real con IA, en el trabajo, en un proyecto propio o en un emprendimiento.",
     stations: ["agentes", "multiagente", "guardrails", "mcp", "observabilidad", "rag", "evaluacion"],
-    map: { "agentes": [230, 710, "r"], "multiagente": [250, 770, "r"], "guardrails": [160, 770, "b"], "mcp": [110, 705, "l"], "observabilidad": [220, 640, "r"], "rag": [110, 565, "l"], "evaluacion": [190, 565, "t"] },
-    badge: [203, 730]
+    map: { "agentes": [190, 900, "b"], "multiagente": [260, 800, "r"], "guardrails": [50, 800, "t"], "mcp": [85, 860, "l"], "observabilidad": [125, 900, "l"], "rag": [150, 830, "l"], "evaluacion": [295, 830, "b"] },
+    bends: { "guardrails|multiagente": "s", "guardrails|mcp": "s" },
+    badge: [221, 900]
   },
   {
     id: "liverpool-negocio-jr",
@@ -195,8 +206,9 @@ var LINEAS = [
     ],
     note: "Híbrido: en el corporativo por la mañana y remoto por la tarde, con varios horarios.",
     stations: ["requerimientos", "diagramas", "agil", "sql", "hojas"],
-    map: { "requerimientos": [210, 60, "t"], "diagramas": [255, 60, "r"], "agil": [255, 105, "r"], "sql": [215, 200, "r"], "hojas": [135, 200, "l"] },
-    badge: [175, 60]
+    map: { "requerimientos": [170, 45, "l"], "diagramas": [290, 45, "t"], "agil": [290, 95, "l"], "sql": [260, 215, "r"], "hojas": [145, 260, "l"] },
+    bends: { "diagramas|requerimientos": "s", "agil|diagramas": "s", "agil|sql": "s", "hojas|sql": "s" },
+    badge: [170, 23]
   },
   {
     id: "mapfre-suscriptor-jr",
@@ -218,8 +230,9 @@ var LINEAS = [
     ],
     note: "Pide una ingeniería afín, como mecánica o industrial, e inglés B2. Si estudias computación, estas estaciones te dan la base de seguros y riesgos que el puesto da por hecha, para esta vacante o para otras parecidas del sector. Ofrece bono anual, vales y prestaciones superiores.",
     stations: ["hojas", "estadistica", "seguros", "riesgo"],
-    map: { "hojas": [135, 200, "l"], "estadistica": [110, 295, "r"], "seguros": [80, 360, "l"], "riesgo": [55, 430, "b"] },
-    badge: [159, 219]
+    map: { "hojas": [145, 260, "l"], "estadistica": [125, 380, "l"], "seguros": [105, 500, "l"], "riesgo": [75, 550, "b"] },
+    bends: { "estadistica|hojas": "s" },
+    badge: [106, 282]
   },
   {
     id: "clivi-growth-ai",
@@ -242,8 +255,9 @@ var LINEAS = [
     ],
     note: "Tiempo completo y presencial en la Ciudad de México. Pide de 1 a 3 años de experiencia o ser recién egresado con proyectos propios, y buen inglés. Dice que no busca un expediente perfecto, sino evidencia de lo que puedes hacer. Se postula en LinkedIn con Easy Apply (solicitud sencilla). Ofrece participación en la empresa (equity).",
     stations: ["estadistica", "experimentos", "embudo", "seo-geo", "tableros"],
-    map: { "estadistica": [110, 295, "r"], "experimentos": [60, 295, "t"], "embudo": [150, 335, "b"], "seo-geo": [195, 330, "t"], "tableros": [290, 315, "b"] },
-    badge: [144, 312]
+    map: { "estadistica": [125, 380, "l"], "experimentos": [55, 415, "b"], "embudo": [210, 400, "t"], "seo-geo": [210, 445, "b"], "tableros": [275, 400, "r"] },
+    bends: { "embudo|experimentos": "s", "embudo|seo-geo": "s" },
+    badge: [90, 358]
   },
   {
     id: "toku-software-eng",
@@ -266,8 +280,9 @@ var LINEAS = [
     ],
     note: "Híbrido y de tiempo completo. No dice cuántos años de experiencia pide y aclara que no busca a alguien perfecto ni con todas las habilidades, sino comprometido con aprender. También te invita a participar en la elección de futuros integrantes del equipo.",
     stations: ["frontend", "apis", "sql", "git", "pruebas-auto", "requerimientos"],
-    map: { "frontend": [105, 250, "l"], "apis": [185, 255, "b"], "sql": [215, 200, "r"], "git": [215, 125, "t"], "pruebas-auto": [175, 105, "l"], "requerimientos": [210, 60, "t"] },
-    badge: [69, 231]
+    map: { "frontend": [110, 305, "l"], "apis": [215, 320, "b"], "sql": [260, 215, "r"], "git": [235, 155, "r"], "pruebas-auto": [170, 170, "l"], "requerimientos": [170, 45, "l"] },
+    bends: { "apis|frontend": "s", "git|sql": "s", "git|pruebas-auto": "s", "pruebas-auto|requerimientos": "s" },
+    badge: [85, 325]
   },
   {
     id: "nubank-ai-design",
@@ -290,8 +305,9 @@ var LINEAS = [
     ],
     note: "Híbrido, en la Ciudad de México o en otra sede de Nu. No da una cifra, pero busca a alguien con mucha experiencia: años construyendo sistemas para otros equipos y experiencia reciente con IA. Es una meta a 4 o 5 años, no un primer empleo. La vacante se publicó en inglés.",
     stations: ["sistemas-diseno", "llm", "rag", "costo-latencia", "mcp", "agentes", "observabilidad"],
-    map: { "sistemas-diseno": [60, 510, "b"], "llm": [110, 510, "r"], "rag": [110, 565, "l"], "costo-latencia": [120, 635, "l"], "mcp": [110, 705, "l"], "agentes": [230, 710, "r"], "observabilidad": [220, 640, "r"] },
-    badge: [84, 485]
+    map: { "sistemas-diseno": [245, 705, "r"], "llm": [205, 745, "r"], "rag": [150, 830, "l"], "costo-latencia": [120, 765, "t"], "mcp": [85, 860, "l"], "agentes": [190, 900, "b"], "observabilidad": [125, 900, "l"] },
+    bends: { "costo-latencia|rag": "s", "agentes|observabilidad": "s" },
+    badge: [220, 685]
   }
 ];
 

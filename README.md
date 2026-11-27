@@ -14,7 +14,7 @@ El hábito se construye con sesiones cortas que terminan, progreso visible y rep
 4. **Elegir meta.** Las doce vacantes en dos grupos, «Para empezar» y «Para más adelante», cada una con su insignia «L#» y su nivel. «← Volver» regresa a Yo (con meta), a Descubre (sin meta y con resultado) o a la entrada.
 5. **Hoy.** Racha y semana, tarjeta de la meta con su «% listo», línea en miniatura y el botón «Sesión de hoy», que dice qué trae («5 min · 3 repasos · 2 pasos nuevos de SQL»). Si no hay nada pendiente dice «Estás al día» y cuándo toca el próximo repaso; «Otra sesión» adelanta los repasos más próximos. Debajo, las otras líneas que ya avanzaste. Al final, mientras no haya un resultado del cuestionario, una tarjeta descartable: «¿Dudas si esta es tu área?» con «Descubrir mi área» y «Ahora no». «Ahora no» la cierra para siempre en ese dispositivo (`mapa.quizTip`). No cuenta como tarea ni toca racha ni XP.
 6. **Sesión.** Pantalla completa de hasta 5 tarjetas, más las repeticiones de los errores (teclas 1 a 4 para responder y Enter para avanzar). Un paso nuevo muestra una idea y luego su pregunta; un repaso, solo la pregunta. Al responder se marca la correcta y se explica por qué. Al final, el cierre muestra XP, racha, cuánto subió el «% listo» y cuántos repasos tocan mañana. Salir a media sesión conserva lo ya respondido.
-7. **Mapa.** Las doce líneas dibujadas como mapa de transporte. Tocar una estación abre su página; debajo está la misma información en lista.
+7. **Mapa.** Las doce líneas dibujadas como mapa de transporte, en 3D (una maqueta sobre papel hecha con Three.js) o plano (SVG), con un conmutador «3D · 2D» que se recuerda en el navegador. En 3D se gira arrastrando, se acerca con los botones + y −, con pellizco o con Ctrl + rueda, y «Reencuadrar» vuelve a la vista de inicio; un tren recorre tu línea meta y la estación actual late en amarillo. Sin WebGL, sin Three.js o con «reducir movimiento» (si no elegiste otra cosa), se ve el plano. Tocar una estación abre su página; debajo está la misma información en lista (pasar por una línea la resalta en el 3D).
 8. **Línea.** Ficha de la vacante (lo que piden, nivel, enlace, «leída el…»), sus estaciones en orden con su avance y «Elegir como meta».
 9. **Estación.** Qué es, para qué sirve, pasos ya vistos, ejercicio, recursos y glosario. Si no se ha empezado, ofrece el atajo «¿Ya sabes esto?».
 10. **Descubre.** Sin resultado, la invitación («¿Qué área de computación va contigo?», 8 preguntas, 5 minutos, sin cuenta) y «Empezar». Con resultado, el resultado corto (abajo). El cuestionario y el resultado quedan bajo esta pestaña.
@@ -154,6 +154,7 @@ Hay 38, en `js/data-estaciones.js` (objeto `{ id: Estacion }`). Las compartidas 
   note: "…",                  // opcional: sueldo, modalidad, experiencia
   stations: ["git", "datos", "sql", "apis", "pruebas-auto"],       // en orden de estudio
   map: { git: [215, 120, "t"], datos: [175, 160, "l"] },           // [x, y, lado de la etiqueta]
+  bends: { "datos|git": "s" },  // opcional: dónde se quiebra un tramo que no va recto ni a 45°
   badge: [183, 120]           // opcional: centro de la insignia «L1»
 }
 
@@ -176,12 +177,15 @@ Hay 38, en `js/data-estaciones.js` (objeto `{ id: Estacion }`). Las compartidas 
    - `seen` es la fecha de lectura (`AAAA-MM-DD`); `url` es `https`.
    - `stations` va en orden de estudio; `map` debe tener exactamente las mismas estaciones.
 3. **Coordenadas del mapa** (`map`): el lienzo mide 360 de ancho y crece hacia abajo; `x` va de 16 a 344 y `y` es 16 o más. El tercer valor (`"l"`, `"r"`, `"t"` o `"b"`) es el lado de la etiqueta (por defecto `"r"`). `badge` coloca la insignia «L#» a 20 o menos de la primera estación.
+   - Los tramos se dibujan como en un mapa de metro: en horizontal, en vertical o a 45°. Si dos estaciones seguidas no están alineadas así, el tramo se quiebra una vez. `bends` elige dónde, con la clave `"a|b"` (los dos ids en orden alfabético): `"d"` (por defecto) sale de `a` en diagonal y llega a `b` en recto; `"s"` sale de `a` en recto y llega a `b` en diagonal. Un tramo compartido lleva el mismo valor en todas sus líneas.
+   - Lo más fácil es dejar que `node tools/acomodar-mapa.mjs` acomode todo: parte de las coordenadas actuales (pon la estación nueva cerca de donde la quieres) y busca posiciones, lados de etiqueta, quiebres e insignias que cumplan las reglas de abajo con los menos cruces, quiebres y zonas llenas posibles. Sin `--write` solo muestra el resultado; con `--write` lo guarda en `js/data-lineas.js`. Acepta `--iter`, `--seed` y `--maxy` (alto máximo). Revisa después las capturas y retoca a mano lo que haga falta.
 4. **Reglas que hacen cumplir las pruebas** (`tests/content.test.mjs`):
    - cada pregunta tiene exactamente 4 opciones distintas, `ok` de 0 a 3 y una explicación (`why`) de más de 20 caracteres;
    - la correcta no delata: es la más larga y la más corta en no más del 40 % de las preguntas (y en no menos del 10 %), y en cada estación ocupa al menos 3 posiciones distintas;
    - una estación compartida lleva coordenadas idénticas en todas sus líneas;
    - dos estaciones distintas quedan al menos a 44 px una de otra;
    - ninguna etiqueta se encima con otra, con una estación ni con una línea;
+   - todos los tramos van rectos o a 45° y hay a lo más 3 cruces entre tramos (`mapCrossings` en `js/core.js`);
    - todas las áreas salvo `inv` tienen al menos una línea.
 5. **Lugares donde las pruebas fijan los conteos y los nombres** (se actualizan al agregar; los números de línea son los actuales):
    - `tests/content.test.mjs`, prueba «hay 38 estaciones y 12 líneas, en orden L1 a L12» (línea 103): el conteo de estaciones y la lista de ids de las líneas. Las pruebas por línea (líneas 83, 113, 134 y 157) fijan las doce existentes; conviene agregar ahí la nueva. La de la línea 157 también exige que todo nivel sea «Para empezar» o «Meta a …». La prueba de la línea 108 exige que toda área salvo `inv` tenga al menos una línea.
@@ -244,7 +248,8 @@ La vista docente lee como máximo 1000 filas por tabla (`ADMIN_LIMIT` en `js/pan
 | `js/ui.js` | Utilidades de interfaz: `el`, `show` (barra inferior, título, foco y View Transitions), `withDir`, avisos y glosario |
 | `js/app.js` | Cliente de Supabase, `state` global, sincronización, pantalla inicial (`renderInicio`) y arranque |
 | `js/pantallas-estudio.js` | Elegir meta, Hoy (con la tarjeta del cuestionario) y Sesión |
-| `js/pantallas-mapa.js` | Mapa, Línea y Estación |
+| `js/mapa-3d.js` | Mapa en 3D (global `Metro3D`): carga Three.js bajo demanda, arma la escena con `mapLayout` y pone un botón accesible por estación encima del lienzo |
+| `js/pantallas-mapa.js` | Mapa (3D o SVG y el conmutador), Línea y Estación |
 | `js/pantallas-cuenta.js` | Yo y vista docente |
 | `js/pantallas-descubre.js` | Entrada (dos puertas) y pestaña Descubre (invitación o último resultado) |
 | `js/pantallas-cuestionario.js` | Cuestionario, resultado corto, subida del intento (`uploadQuiz`) y Mis respuestas |
@@ -257,10 +262,11 @@ Son scripts clásicos (ES5), no módulos, para que el sitio también abra desde 
 ## Pruebas
 
 ```sh
-node --test tests/*.test.mjs                  # 158 pruebas de lógica y contenido
+node --test tests/*.test.mjs                  # 167 pruebas de lógica y contenido
 node tests/e2e.cjs                            # flujo completo en Chromium con un Supabase falso
 SHOTS_DIR=/tmp/capturas node tests/e2e.cjs    # además guarda capturas en esa carpeta
 E2E_ONLY=visual SHOTS_DIR=/tmp/capturas node tests/e2e.cjs   # solo la revisión visual a 360 y 390 px
+E2E_ONLY=mapa3d SHOTS_DIR=/tmp/capturas node tests/e2e.cjs   # solo el mapa 3D (con capturas en claro y oscuro)
 ```
 
 `E2E_ONLY` también acepta `entrada`, `descubre`, `shared` y `cdn` para correr un solo grupo.
@@ -304,6 +310,7 @@ Para usarlo en un subdominio de bersama.dev, agrega el dominio al proyecto en Ve
 - **La revisión visual puede fallar al cruzar la medianoche:** `visualPass` arma el avance con `progressState()`, que usa la fecha del sistema (`todayYmd()`), sin reloj fijo; si el día cambia a media prueba, Hoy y la semana pueden no coincidir.
 - **Intentos v1/v2 con porcentajes empatados:** «Mis respuestas» y la vista docente ordenan los porcentajes guardados con `topOf`, que desempata por el orden de `AREAS`; al contestar, `scoreAnswers` desempataba de otra forma, así que el área que se muestra primero puede no ser la que el alumno vio como #1.
 - **«Cerrar sesión» con un resultado sin subir:** intenta subirlo antes de borrar; si no puede, no borra nada y ofrece «Reintentar» o «Cerrar sesión sin borrar» (en ese caso el resultado se queda en el navegador y lo subirá la siguiente cuenta que entre ahí).
+- El mapa 3D usa la build UMD de Three.js r159 (la última con la global `THREE`), que se pide a jsdelivr solo la primera vez que se abre el Mapa en 3D. Mientras llega se ve el SVG; si no llega (sin red o con el CDN bloqueado) o el navegador no tiene WebGL, el SVG se queda. El lienzo es decorativo (`aria-hidden`): las estaciones son botones HTML colocados encima, con la misma etiqueta y en el mismo orden de Tab que en el SVG. Las pruebas no usan el CDN: sirven una copia local tomada de `THREE_JS`, de la carpeta temporal o, la primera vez, del registro de npm (`npm pack three@0.159.0`); sin copia, se saltan el escenario 3D.
 - Las cuentas dependen del script de `supabase-js`, que se carga desde jsdelivr (`index.html`, con `async`) con el flujo implícito. El script no bloquea la página: el sitio arranca con un cliente sin conexión (`offlineClient` en `js/app.js`) y se conecta cuando el script llega. Sin red o con ese CDN bloqueado, el estudio y el cuestionario sin cuenta funcionan igual y las acciones de cuenta avisan que no hay conexión con el servicio. Aun así el sitio no funciona sin conexión desde cero: no hay service worker, así que el HTML, el CSS y el JS se piden a la red en cada visita (Vercel los sirve con revalidación). El enlace mágico no puede volver a una URL `file://`: para probar el sitio en local, sírvelo por http (por ejemplo `python3 -m http.server` dentro de la carpeta) y agrega esa URL a Redirect URLs de Supabase.
 - El script de `supabase-js` se carga de jsdelivr sin `integrity` (SRI): no se pudo descargar el archivo exacto del CDN para calcular su hash, y un hash equivocado dejaría el sitio sin cuenta. Para agregarlo, descarga la misma URL de `index.html`, calcula `openssl dgst -sha384 -binary archivo | openssl base64 -A` y añade `integrity="sha384-…" crossorigin="anonymous"` (la prueba de flujo reemplaza ese script por uno falso, así que no se ve afectada).
 - Una marca de borrado remota (para que «Borrar mis datos» alcance también a otros dispositivos con sesión abierta) se difiere: hoy cada dispositivo conserva su copia hasta que cierre sesión o borre allí también.

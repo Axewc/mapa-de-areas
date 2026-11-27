@@ -10,7 +10,7 @@ const { LINEAS } = require('../js/data-lineas.js');
 const { AREAS, GLOSS } = require('../js/data-areas.js');
 const GETNET = require('./fixtures/getnet-preguntas.json');
 const { glossHits } = require('../js/ui.js');
-const { mapLayout, mapIssues } = require('../js/core.js');
+const { mapLayout, mapIssues, mapCrossings, mapOverlaps } = require('../js/core.js');
 
 const ids = Object.keys(ESTACIONES);
 const preguntas = (st) => [...st.steps.map(s => s.q), ...st.extra];
@@ -241,6 +241,38 @@ test('insignia «L#»: si la línea trae badge, es [x, y] y queda pegada a su pr
     const dy = Math.max(0, b.y0 - (s.y + s.h / 2), (s.y - s.h / 2) - b.y1);
     assert.ok(Math.hypot(dx, dy) <= 20, l.id + ': la insignia queda a ' + Math.hypot(dx, dy).toFixed(1) + ' de ' + s.id);
   }
+});
+
+test('mapa de metro: todos los tramos van en horizontal, vertical o a 45°', () => {
+  const lay = mapLayout(LINEAS, ESTACIONES);
+  for (const id in lay.paths) for (const sg of lay.paths[id]) {
+    const dx = Math.abs(sg[2] - sg[0]), dy = Math.abs(sg[3] - sg[1]);
+    assert.ok(dx < 0.01 || dy < 0.01 || Math.abs(dx - dy) < 0.01, id + ': ' + sg.map((v) => v.toFixed(1)).join(','));
+  }
+});
+
+test('bends: cada clave es un tramo de su línea, vale «d» o «s» y un tramo compartido tiene el mismo quiebre en todas', () => {
+  const seen = {};
+  for (const l of LINEAS) {
+    const keys = new Set(l.stations.slice(1).map((s, i) => [l.stations[i], s].sort().join('|')));
+    for (const [k, v] of Object.entries(l.bends || {})) {
+      assert.ok(keys.has(k), l.id + ': ' + k + ' no es un tramo de la línea');
+      assert.ok(v === 'd' || v === 's', l.id + '.' + k);
+    }
+    for (const k of keys) {
+      const v = (l.bends || {})[k] || 'd';
+      if (k in seen) assert.equal(v, seen[k], k + ' en ' + l.id); else seen[k] = v;
+    }
+  }
+});
+
+test('mapa sin vías encimadas: dos tramos distintos no corren sobre la misma recta (salvo al salir juntos de una estación, 30 o menos)', () => {
+  assert.deepEqual(mapOverlaps(mapLayout(LINEAS, ESTACIONES), LINEAS, 30), []);
+});
+
+test('mapa poco enredado: a lo más 3 cruces entre tramos', () => {
+  const c = mapCrossings(mapLayout(LINEAS, ESTACIONES), LINEAS);
+  assert.ok(c.length <= 3, c.join('; '));
 });
 
 test('mapa legible: ninguna etiqueta se encima con otra, con una estación o con una línea', () => {

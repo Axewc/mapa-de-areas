@@ -511,6 +511,49 @@ button.lrow:hover .lrow-t b { text-decoration: underline; text-underline-offset:
 .metro .lab { font-family: var(--f-body); font-size: 12px; font-weight: 500; fill: var(--ink);
   paint-order: stroke; stroke: var(--paper); stroke-width: 4px; stroke-linejoin: round; }
 .metro .cur .lab { font-weight: 700; }
+/* Mapa en 3D (js/mapa-3d.js): lienzo WebGL decorativo y, encima, un botón por estación donde cae en pantalla. */
+.metro-wrap.is-3d { position: relative; margin-inline: -8px; }
+.metro-3d { position: relative; width: 100%; max-width: 480px; margin-inline: auto; overflow: hidden; border-radius: 18px;
+  touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; cursor: grab; }
+.metro-3d:active { cursor: grabbing; }
+.m3-canvas { position: absolute; inset: 0; display: block; }
+.m3-labels, .m3-badges { position: absolute; inset: 0; }
+.m3-badges { pointer-events: none; }
+.m3-st { --s: 1; --bw: 16; --bh: 16; position: absolute; left: 0; top: 0; padding: 0;
+  width: calc((var(--bw) * 1px + 6px) * var(--s)); height: calc((var(--bh) * 1px + 6px) * var(--s));
+  border: 0; border-radius: 999px; background: transparent; color: var(--ink); cursor: pointer; will-change: transform; }
+.m3-st.off { visibility: hidden; }
+.m3-t { position: absolute; display: flex; flex-direction: column; white-space: nowrap; pointer-events: auto;
+  font-family: var(--f-body); font-size: calc(12px * var(--s)); line-height: 1.17; font-weight: 500; color: var(--ink);
+  text-shadow: 0 0 2px var(--panel), 0 0 2px var(--panel), 0 0 3px var(--panel), 0 0 4px var(--panel);
+  transition: transform 160ms ease; }
+.m3-st.cur .m3-t { font-weight: 700; }
+.m3-st.tiny .m3-t { opacity: 0; transition: opacity 160ms ease; }
+.m3-st.tiny:hover .m3-t, .m3-st.tiny:focus-visible .m3-t, .m3-st.tiny.cur .m3-t { opacity: 1; z-index: 1; }
+.m3-t.side-r { left: calc(100% + 4px * var(--s)); top: 50%; transform: translateY(-50%); align-items: flex-start; }
+.m3-t.side-l { right: calc(100% + 4px * var(--s)); top: 50%; transform: translateY(-50%); align-items: flex-end; }
+.m3-t.side-t { bottom: calc(100% + 1px); left: 50%; transform: translateX(-50%); align-items: center; }
+.m3-t.side-b { top: calc(100% + 1px); left: 50%; transform: translateX(-50%); align-items: center; }
+.m3-st:hover .m3-t, .m3-st:focus-visible .m3-t { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 2px; }
+/* Foco: el mismo aro de dos tonos del mapa plano, alrededor de la ficha. */
+.m3-st:focus { outline: none; }
+.m3-st:focus-visible { outline: 4.5px solid var(--ink); outline-offset: 3px;
+  box-shadow: 0 0 0 3px var(--panel), 0 0 0 11px var(--panel); }
+.m3-st:focus-visible::after { content: ''; position: absolute; inset: -7px; border-radius: 999px; border: 2px dashed var(--focus-dash); }
+.m3-badge { position: absolute; left: 0; top: 0; font-family: var(--f-mono); font-size: 10.5px; font-weight: 600; color: var(--ink);
+  background: var(--panel); border: 2.5px solid var(--lc); border-radius: 999px; padding: 0 5px; line-height: 13px; will-change: transform;
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.12); }
+.m3-tools { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; max-width: 480px; margin-inline: auto; }
+.m3-tools[hidden] { display: none; }
+.m3-tool { min-width: 40px; height: 40px; padding: 0 12px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--panel);
+  color: var(--ink); font: 600 1.05rem/1 var(--f-body); box-shadow: 0 2px 6px rgb(0 0 0 / 0.12); }
+.m3-tool:hover { border-color: var(--ink); }
+.m3-reset { font-size: 0.85rem; }
+.view-switch { display: inline-flex; align-self: flex-start; border: 1.5px solid var(--line); border-radius: 999px; padding: 3px; background: var(--panel); gap: 2px; }
+.vs-b { min-width: 48px; min-height: 36px; border: 0; border-radius: 999px; background: transparent; color: var(--muted);
+  font: 600 0.9rem/1 var(--f-mono); padding: 0 12px; }
+.vs-b[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.vs-b:hover:not([aria-pressed="true"]) { color: var(--ink); }
 .lines-sec { display: flex; flex-direction: column; gap: 6px; }
 .lines-sec h2 { font-size: 1.25rem; }
 .line-row { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 56px; text-align: left; background: var(--panel);

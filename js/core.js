@@ -406,6 +406,109 @@ function segmentOffsets(lines) {
   return out;
 }
 
+// Trazado de metro: cada tramo va en horizontal, vertical o a 45°. Si de p a q no es así, se parte en dos con un
+// quiebre: bend 'd' (por defecto) sale de p en diagonal y llega a q en recto; 's' sale en recto y llega en diagonal.
+// Devuelve los puntos [p, (quiebre), q].
+function octiRoute(p, q, bend) {
+  var dx = q[0] - p[0], dy = q[1] - p[1], ax = Math.abs(dx), ay = Math.abs(dy);
+  if (ax < 0.5 || ay < 0.5 || Math.abs(ax - ay) < 0.5) return [p, q];
+  var m = Math.min(ax, ay), gx = (dx > 0 ? 1 : -1) * m, gy = (dy > 0 ? 1 : -1) * m;
+  return bend === 's' ? [p, [q[0] - gx, q[1] - gy], q] : [p, [p[0] + gx, p[1] + gy], q];
+}
+
+// Desplaza en paralelo (o a la izquierda del sentido de avance) una ruta de puntos y la devuelve como sub-tramos
+// [x1, y1, x2, y2]. En un quiebre, los dos sub-tramos se encuentran donde se cruzan sus paralelas (inglete).
+function octiOffset(pts, o) {
+  var n = pts.length - 1, segs = [], i;
+  var off = [];
+  for (i = 0; i < n; i++) {
+    var dx = pts[i + 1][0] - pts[i][0], dy = pts[i + 1][1] - pts[i][1], len = Math.sqrt(dx * dx + dy * dy) || 1;
+    off.push([-dy / len * o, dx / len * o, dx / len, dy / len]);
+  }
+  var start = [pts[0][0] + off[0][0], pts[0][1] + off[0][1]];
+  for (i = 0; i < n; i++) {
+    var end;
+    if (i === n - 1) end = [pts[n][0] + off[i][0], pts[n][1] + off[i][1]];
+    else {
+      // Cruce de la paralela i (start + t·d1) con la paralela i+1 (que pasa por pts[i+1] + off[i+1]).
+      var d1 = [off[i][2], off[i][3]], d2 = [off[i + 1][2], off[i + 1][3]];
+      var p2 = [pts[i + 1][0] + off[i + 1][0], pts[i + 1][1] + off[i + 1][1]];
+      var den = d1[0] * d2[1] - d1[1] * d2[0];
+      if (Math.abs(den) < 1e-9) end = p2;
+      else {
+        var t = ((p2[0] - start[0]) * d2[1] - (p2[1] - start[1]) * d2[0]) / den;
+        end = [start[0] + d1[0] * t, start[1] + d1[1] * t];
+      }
+    }
+    segs.push([start[0], start[1], end[0], end[1]]);
+    start = end;
+  }
+  return segs;
+}
+
+// Cruces entre tramos de estaciones distintas (sin contar los que comparten una estación ni los paralelos de un mismo
+// tramo): cada par de pares de estaciones se cuenta una vez. Es la medida de qué tan enredado está el mapa.
+function mapRoutes(layout, lines) {
+  var routes = [], seen = {}, i, j, a, b;
+  for (i = 0; i < lines.length; i++) {
+    var l = lines[i], bends = l.bends || {};
+    for (j = 1; j < l.stations.length; j++) {
+      a = layout.byId[l.stations[j - 1]]; b = layout.byId[l.stations[j]];
+      if (!a || !b) continue;
+      var k = coreSegKey(a.id, b.id);
+      if (seen[k]) continue;
+      seen[k] = 1;
+      var p = a.id < b.id ? a : b, q = a.id < b.id ? b : a;
+      routes.push({ k: k, a: p.id, b: q.id, pts: octiRoute([p.x, p.y], [q.x, q.y], bends[k]) });
+    }
+  }
+  return routes;
+}
+
+function mapCrossings(layout, lines) {
+  var routes = mapRoutes(layout, lines), i, j;
+  var cross = function (p1, p2, p3, p4) {
+    var d = function (o, u, v) { return (u[0] - o[0]) * (v[1] - o[1]) - (u[1] - o[1]) * (v[0] - o[0]); };
+    return d(p1, p2, p3) * d(p1, p2, p4) < -1e-6 && d(p3, p4, p1) * d(p3, p4, p2) < -1e-6;
+  };
+  var out = [];
+  for (i = 0; i < routes.length; i++) for (j = i + 1; j < routes.length; j++) {
+    var r = routes[i], s2 = routes[j];
+    if (r.a === s2.a || r.a === s2.b || r.b === s2.a || r.b === s2.b) continue;
+    var hit = false;
+    for (var x = 0; x < r.pts.length - 1 && !hit; x++) for (var y = 0; y < s2.pts.length - 1 && !hit; y++) {
+      if (cross(r.pts[x], r.pts[x + 1], s2.pts[y], s2.pts[y + 1])) hit = true;
+    }
+    if (hit) out.push(r.k + ' x ' + s2.k);
+  }
+  return out;
+}
+
+// Tramos de estaciones distintas que corren uno encima del otro (en la misma recta, compartiendo más de 6 de largo):
+// se verían como una sola vía. Los paralelos de un mismo tramo compartido no cuentan. Con maxShared, se perdonan los
+// que salen juntos de una estación en común por un trecho de ese largo o menos (como en un metro, antes de separarse).
+function mapOverlaps(layout, lines, maxShared) {
+  var routes = mapRoutes(layout, lines), out = [], i, j, x, y, lim = maxShared || 0;
+  for (i = 0; i < routes.length; i++) for (j = i + 1; j < routes.length; j++) {
+    var r = routes[i], q = routes[j], hit = false, run = 0;
+    var shared = r.a === q.a || r.a === q.b || r.b === q.a || r.b === q.b;
+    for (x = 0; x < r.pts.length - 1 && !hit; x++) for (y = 0; y < q.pts.length - 1 && !hit; y++) {
+      var a0 = r.pts[x], a1 = r.pts[x + 1], b0 = q.pts[y], b1 = q.pts[y + 1];
+      var dx = a1[0] - a0[0], dy = a1[1] - a0[1], len = Math.sqrt(dx * dx + dy * dy);
+      if (len < 1e-6) continue;
+      var ux = dx / len, uy = dy / len;
+      var ex = b1[0] - b0[0], ey = b1[1] - b0[1];
+      if (Math.abs(ux * ey - uy * ex) > 1e-6 * (Math.abs(ex) + Math.abs(ey) + 1)) continue; // no son paralelos
+      if (Math.abs(-uy * (b0[0] - a0[0]) + ux * (b0[1] - a0[1])) > 4) continue;            // paralelos, pero separados
+      var t0 = ux * (b0[0] - a0[0]) + uy * (b0[1] - a0[1]), t1 = ux * (b1[0] - a0[0]) + uy * (b1[1] - a0[1]);
+      var ov = Math.min(len, Math.max(t0, t1)) - Math.max(0, Math.min(t0, t1));
+      if (ov > 6) { run += ov; if (!shared || run > lim) hit = true; }
+    }
+    if (hit) out.push(r.k + ' sobre ' + q.k);
+  }
+  return out;
+}
+
 // Dibujo del mapa (unidades del viewBox de 360 de ancho; a 390 px de pantalla 1 unidad ≈ 1 px).
 // Etiquetas de 12 con interlineado 14. Una estación normal es un círculo de radio r; una compartida,
 // una píldora con un punto por línea. Lado de la etiqueta: 'l', 'r' (por defecto), 't' (arriba) o 'b' (abajo).
@@ -478,15 +581,17 @@ function mapLayout(lines, stations) {
     if (nd.y > maxY) maxY = nd.y;
   }
   for (i = 0; i < lines.length; i++) {
-    var ln = lines[i], segs = [];
+    var ln = lines[i], segs = [], bends = ln.bends || {};
     for (j = 1; j < ln.stations.length; j++) {
       var a = byId[ln.stations[j - 1]], b = byId[ln.stations[j]];
       if (!a || !b) continue;
       var k = coreSegKey(a.id, b.id), o = offs[ln.id][k] || 0;
+      // El tramo se traza siempre de la estación de id menor a la mayor: así el quiebre y el lado del desplazamiento
+      // son los mismos para todas las líneas que lo comparten, en cualquier sentido.
       var p = a.id < b.id ? a : b, q = a.id < b.id ? b : a;
-      var dx = q.x - p.x, dy = q.y - p.y, len = Math.sqrt(dx * dx + dy * dy) || 1;
-      var nx = -dy / len * o, ny = dx / len * o;
-      segs.push([a.x + nx, a.y + ny, b.x + nx, b.y + ny]);
+      var sub = octiOffset(octiRoute([p.x, p.y], [q.x, q.y], bends[k]), o);
+      if (p !== a) sub = sub.reverse().map(function (s) { return [s[2], s[3], s[0], s[1]]; });
+      for (var t = 0; t < sub.length; t++) segs.push(sub[t]);
     }
     paths[ln.id] = segs;
   }
@@ -733,5 +838,5 @@ if (typeof module !== 'undefined') module.exports = {
   applyShortcut: applyShortcut, sessionTail: sessionTail,
   segmentOffsets: segmentOffsets, lineasFor: lineasFor,
   lineForArea: lineForArea, suggestLine: suggestLine, whyAnswers: whyAnswers, validQuiz: validQuiz,
-  MAP_GEO: MAP_GEO, mapTextW: mapTextW, coreSegHitsBox: coreSegHitsBox, mapLabelLines: mapLabelLines, mapMarkerW: mapMarkerW, mapLayout: mapLayout, mapIssues: mapIssues
+  MAP_GEO: MAP_GEO, mapTextW: mapTextW, coreSegHitsBox: coreSegHitsBox, mapLabelLines: mapLabelLines, mapMarkerW: mapMarkerW, mapLayout: mapLayout, mapIssues: mapIssues, octiRoute: octiRoute, octiOffset: octiOffset, mapCrossings: mapCrossings, mapOverlaps: mapOverlaps
 };

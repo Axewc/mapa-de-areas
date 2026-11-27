@@ -1,4 +1,4 @@
-// Pantallas del mapa: Mapa (SVG de líneas y estaciones), Línea (ficha de la vacante) y Estación (con el atajo).
+// Pantallas del mapa: Mapa (3D con js/mapa-3d.js o SVG de líneas y estaciones), Línea (ficha de la vacante) y Estación (con el atajo).
 // Script clásico (ES5). Usa las globales de app.js (state, commit, syncNow, syncAndRefresh), de ui.js y de pantallas-estudio.js.
 
 // A dónde regresa «Volver» desde una estación: al mapa o a la línea desde la que se abrió.
@@ -45,8 +45,20 @@ function activateOnKeys(node, fn) {
   });
 }
 
-function mapSvg() {
-  var lay = mapLayout(LINEAS, ESTACIONES);
+// Estado de una estación del mapa y su etiqueta para lectores de pantalla (la misma en el SVG y en el 3D).
+function mapNodeInfo(n, goal, cur) {
+  var st = ESTACIONES[n.id];
+  var visited = isVisited(state, st);
+  var isCur = n.id === cur;
+  var pct = stationPct(st);
+  // Las líneas se nombran por su número, no solo por su color: «SQL, líneas L1, L2, L4, L6 y L8, 40% de avance».
+  var nums = n.lines.map(function (lid) { return 'L' + lineById(lid).n; });
+  var named = nums.length === 1 ? 'línea ' + nums[0] : 'líneas ' + nums.slice(0, -1).join(', ') + ' y ' + nums[nums.length - 1];
+  return { visited: visited, isCur: isCur, onGoal: !!goal && goal.stations.indexOf(n.id) !== -1,
+    label: st.name + ', ' + named + ', ' + pct + '% de avance' + (visited ? ', vista' : '') + (isCur ? ', vas aquí' : '') };
+}
+
+function mapSvg(lay) {
   var goal = lineById(state.goal);
   var cur = goal ? currentStation(state, goal, ESTACIONES) : null;
   var svg = elNS('svg', { class: 'metro', viewBox: '0 0 ' + lay.width + ' ' + lay.height, role: 'group', 'aria-label': 'Mapa de líneas y estaciones' });
@@ -67,16 +79,8 @@ function mapSvg() {
   var colorOf = {};
   LINEAS.forEach(function (l) { colorOf[l.id] = l.color; });
   lay.nodes.forEach(function (n) {
-    var st = ESTACIONES[n.id];
-    var visited = isVisited(state, st);
-    var onGoal = !!goal && goal.stations.indexOf(n.id) !== -1;
-    var isCur = n.id === cur;
-    var pct = stationPct(st);
-    // Las líneas se nombran por su número, no solo por su color: «SQL, líneas L1, L2, L4, L6 y L8, 40% de avance».
-    var nums = n.lines.map(function (lid) { return 'L' + lineById(lid).n; });
-    var named = nums.length === 1 ? 'línea ' + nums[0] : 'líneas ' + nums.slice(0, -1).join(', ') + ' y ' + nums[nums.length - 1];
-    var label = st.name + ', ' + named + ', ' + pct + '% de avance' +
-      (visited ? ', vista' : '') + (isCur ? ', vas aquí' : '');
+    var info = mapNodeInfo(n, goal, cur);
+    var visited = info.visited, onGoal = info.onGoal, isCur = info.isCur, label = info.label;
     var g = elNS('g', { class: 'st' + (visited ? ' done' : '') + (isCur ? ' cur' : '') + (onGoal ? ' on-goal' : ''),
       role: 'link', tabindex: '0', 'data-station': n.id, 'aria-label': label });
     g.append(elNS('circle', { class: 'hit', cx: n.x, cy: n.y, r: 22 }));
@@ -134,6 +138,91 @@ function lineRow(line) {
   return b;
 }
 
+// ---------- Vista 3D ----------
+// Preferencia 2D/3D de este navegador. Sin elegir: 3D, salvo con «reducir movimiento».
+var MAP_VIEW_KEY = 'mapa.vista';
+function mapView() {
+  var v = null;
+  try { v = localStorage.getItem(MAP_VIEW_KEY); } catch (e) { v = null; }
+  if (v === '2d' || v === '3d') return v;
+  return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? '2d' : '3d';
+}
+function setMapView(v) {
+  try { localStorage.setItem(MAP_VIEW_KEY, v); } catch (e) { /* sin almacenamiento: solo esta vez */ }
+}
+
+function viewSwitch(is3d) {
+  var mk = function (v, text, label) {
+    var b = el('button', { type: 'button', class: 'vs-b', 'aria-pressed': String((v === '3d') === is3d), 'aria-label': label, text: text });
+    b.addEventListener('click', function () {
+      if ((v === '3d') === is3d) return;
+      setMapView(v);
+      renderMapa(true);
+      var again = screens.mapa.querySelector('.view-switch .vs-b[aria-pressed=true]');
+      if (again) again.focus({ preventScroll: true });
+    });
+    return b;
+  };
+  return el('div', { class: 'view-switch', role: 'group', 'aria-label': 'Vista del mapa' },
+    mk('3d', '3D', 'Mapa en 3D'), mk('2d', '2D', 'Mapa plano'));
+}
+
+// Monta el 3D encima del SVG. El SVG se ve mientras llega Three.js y se queda si no llega o falla WebGL.
+function mount3d(wrap, svg, lay) {
+  var host = el('div', { class: 'metro-3d', hidden: '' });
+  // Alto del lienzo: el del mapa, un poco más bajo por la inclinación de la cámara.
+  host.style.aspectRatio = (lay.width + 24) + ' / ' + Math.round((lay.height + 8) * 0.99);
+  var tools = el('div', { class: 'm3-tools', hidden: '' });
+  var zin = el('button', { type: 'button', class: 'm3-tool', 'aria-label': 'Acercar', text: '+' });
+  var zout = el('button', { type: 'button', class: 'm3-tool', 'aria-label': 'Alejar', text: '−' });
+  var reset = el('button', { type: 'button', class: 'm3-tool m3-reset', hidden: '', text: 'Reencuadrar' });
+  zin.addEventListener('click', function () { Metro3D.zoomBy(1.35); });
+  zout.addEventListener('click', function () { Metro3D.zoomBy(1 / 1.35); });
+  reset.addEventListener('click', function () { Metro3D.resetView(); });
+  tools.append(reset, zin, zout);
+  wrap.append(host, tools);
+  wrap.classList.add('is-3d');
+
+  var goal = lineById(state.goal);
+  var cur = goal ? currentStation(state, goal, ESTACIONES) : null;
+  var model = {
+    width: lay.width, height: lay.height, paths: lay.paths, badges: lay.badges, goal: goal ? goal.id : null,
+    lines: LINEAS.map(function (l) { return { id: l.id, n: l.n, color: l.color, goal: l.id === state.goal }; }),
+    nodes: lay.nodes.map(function (n) {
+      var info = mapNodeInfo(n, goal, cur);
+      return { id: n.id, x: n.x, y: n.y, w: n.w, h: n.h, side: n.side, lines: n.lines, labelLines: n.label.lines,
+        label: info.label, done: info.visited, cur: info.isCur, onGoal: info.onGoal };
+    })
+  };
+  var go = function () {
+    if (!host.isConnected) return; // la pantalla ya se redibujó o cambió
+    host.hidden = false;
+    var ok = false;
+    try {
+      ok = Metro3D.mount(host, model, {
+        open: function (id) { openEstacion(id, { screen: 'mapa' }); },
+        firstFrame: function () {
+          // Si el foco estaba en una estación del SVG, pasa a la misma estación en 3D.
+          var had = document.activeElement && svg.contains(document.activeElement) ? document.activeElement.getAttribute('data-station') : null;
+          svg.setAttribute('hidden', '');
+          tools.hidden = false;
+          if (had) { var b = host.querySelector('[data-station="' + had + '"]'); if (b) b.focus({ preventScroll: true }); }
+        }
+      });
+    } catch (e) { ok = false; }
+    if (ok) Metro3D.setResetButton(reset);
+    else fail();
+  };
+  var fail = function () {
+    Metro3D.destroy();
+    if (host.parentNode) host.parentNode.removeChild(host);
+    if (tools.parentNode) tools.parentNode.removeChild(tools);
+    wrap.classList.remove('is-3d');
+    svg.removeAttribute('hidden');
+  };
+  Metro3D.load(go, fail);
+}
+
 function renderMapa(keep) {
   var root = screens.mapa;
   root.textContent = '';
@@ -146,9 +235,23 @@ function renderMapa(keep) {
     el('span', { class: 'k-dot', 'aria-hidden': 'true' }), 'por visitar  ',
     el('span', { class: 'k-pill', 'aria-hidden': 'true' }), 'compartida  ',
     el('span', { class: 'k-cur', 'aria-hidden': 'true' }), 'vas aquí'));
-  root.append(el('div', { class: 'metro-wrap' }, mapSvg()));
+  var lay = mapLayout(LINEAS, ESTACIONES);
+  var svg = mapSvg(lay);
+  var wrap = el('div', { class: 'metro-wrap' }, svg);
+  var use3d = Metro3D.supported() && mapView() === '3d';
+  if (Metro3D.supported()) root.append(viewSwitch(use3d));
+  root.append(wrap);
+  if (use3d) mount3d(wrap, svg, lay);
+  else Metro3D.destroy();
   var list = el('ul', { class: 'line-list' });
-  LINEAS.forEach(function (l) { list.append(el('li', null, lineRow(l))); });
+  LINEAS.forEach(function (l) {
+    var row = lineRow(l);
+    // En 3D, pasar por una fila (o enfocarla) resalta su línea en el mapa.
+    var on = function () { Metro3D.highlightLine(l.id); }, off = function () { Metro3D.highlightLine(null); };
+    row.addEventListener('pointerenter', on); row.addEventListener('pointerleave', off);
+    row.addEventListener('focus', on); row.addEventListener('blur', off);
+    list.append(el('li', null, row));
+  });
   root.append(el('section', { class: 'lines-sec', 'aria-labelledby': 'lines-h' },
     el('h2', { id: 'lines-h', text: 'Las líneas' }),
     el('p', { class: 'small', text: 'El mismo mapa en lista. Toca una línea para ver la vacante y sus estaciones.' }),
